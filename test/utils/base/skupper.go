@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/skupperproject/skupper/pkg/data"
 	"github.com/skupperproject/skupper/test/utils/constants"
 	"github.com/skupperproject/skupper/test/utils/tools"
 )
@@ -38,9 +39,9 @@ func WaitForSkupperConnectedSites(ctx context.Context, cc *ClusterContext, sites
 
 // GetConsoleData returns the ConsoleData by querying localhost:8080/DATA
 // on Skupper's proxy controller pod
-func GetConsoleData(cc *ClusterContext, consoleUser, consolePass string) (ConsoleData, error) {
+func GetConsoleData(cc *ClusterContext, consoleUser, consolePass string) (data.ConsoleData, error) {
 	const dataEndpoint = "http://127.0.0.1:8080/DATA"
-	var consoleData ConsoleData
+	var consoleData data.ConsoleData
 
 	curlOpts := tools.CurlOpts{
 		Silent:   true,
@@ -64,21 +65,4 @@ func GetConsoleData(cc *ClusterContext, consoleUser, consolePass string) (Consol
 	}
 
 	return consoleData, nil
-}
-
-// TODO ConsoleData and Site here for now but ideally those types
-//      should be moved from main to a separate package (see: issue #203)
-type ConsoleData struct {
-	Sites    []Site        `json:"sites"`
-	Services []interface{} `json:"services"`
-}
-
-type Site struct {
-	SiteName  string   `json:"site_name"`
-	SiteId    string   `json:"site_id"`
-	Version   string   `json:"version"`
-	Connected []string `json:"connected"`
-	Namespace string   `json:"namespace"`
-	Url       string   `json:"url"`
-	Edge      bool     `json:"edge"`
 }
