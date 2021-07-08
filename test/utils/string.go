@@ -18,3 +18,13 @@ func StrEmpty(value string) bool {
 	}
 	return false
 }
+
+// StrIn returns true if the given value exists in values
+func StrIn(value string, values ...string) bool {
+	for _, v := range values {
+		if v == value {
+			return true
+		}
+	}
+	return false
+}

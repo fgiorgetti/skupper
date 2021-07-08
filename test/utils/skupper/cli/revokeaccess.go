@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/skupperproject/skupper/api/types"
@@ -14,8 +15,8 @@ import (
 )
 
 var (
-	expectUpdatedSecrets = []string{types.SiteCaSecret, types.SiteServerSecret, types.ClaimsServerSecret}
-	updatedSecrets       = []string{}
+	expectUpdatedSecrets    = []string{types.SiteCaSecret, types.SiteServerSecret, types.ClaimsServerSecret}
+	expectUpdatedComponents = []string{types.RouterComponent, types.ControllerComponentName}
 )
 
 const (
@@ -27,6 +28,7 @@ const (
 type RevokeAccessTester struct {
 	ExpectClaimRecordsDeleted bool
 	secretInformer            cache.SharedIndexInformer
+	podInformer               cache.SharedIndexInformer
 	claimRecordsDeleted       bool
 }
 
@@ -69,6 +71,7 @@ func (d *RevokeAccessTester) Run(cluster *base.ClusterContext) (stdout string, s
 	timeoutCh := time.After(timeout)
 	select {
 	case <-doneCh:
+		log.Println("access has been revoked successfully")
 	case <-timeoutCh:
 		err = fmt.Errorf("timed out waiting on secrets to be deleted or updated")
 	}
@@ -77,24 +80,31 @@ func (d *RevokeAccessTester) Run(cluster *base.ClusterContext) (stdout string, s
 }
 
 func (d *RevokeAccessTester) initializeInformer(cluster *base.ClusterContext, stop <-chan struct{}) chan struct{} {
+	updatedSecrets := []string{}
+	updatedComponents := []string{}
 	done := make(chan struct{})
+
+	// Validate all expected changes are in place
 	validateDone := func() {
-		if (!d.ExpectClaimRecordsDeleted || d.claimRecordsDeleted) && reflect.DeepEqual(expectUpdatedSecrets, updatedSecrets) {
+		if (!d.ExpectClaimRecordsDeleted || d.claimRecordsDeleted) &&
+			reflect.DeepEqual(expectUpdatedSecrets, updatedSecrets) &&
+			reflect.DeepEqual(expectUpdatedComponents, updatedComponents) {
 			close(done)
 		}
 	}
+
 	factory := informers.NewSharedInformerFactory(cluster.VanClient.KubeClient, 0)
 	d.secretInformer = factory.Core().V1().Secrets().Informer()
 	d.secretInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldSecret := oldObj.(v1.Secret)
-			newSecret := newObj.(v1.Secret)
+			oldSecret := oldObj.(*v1.Secret)
+			newSecret := newObj.(*v1.Secret)
 			if !reflect.DeepEqual(oldSecret.Data, newSecret.Data) {
 				updatedSecrets = append(updatedSecrets, newSecret.Name)
 			}
 			validateDone()
 		}, DeleteFunc: func(obj interface{}) {
-			svc := obj.(v1.Service)
+			svc := obj.(*v1.Secret)
 			if svc.ObjectMeta.Labels != nil {
 				if _, ok := svc.ObjectMeta.Labels[deleteLabel]; ok {
 					d.claimRecordsDeleted = true
@@ -103,7 +113,26 @@ func (d *RevokeAccessTester) initializeInformer(cluster *base.ClusterContext, st
 			}
 		},
 	})
+
+	// Watch for new router and service-controller pods
+	d.podInformer = factory.Core().V1().Pods().Informer()
+	d.podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			pod := obj.(*v1.Pod)
+			if pod.Namespace != cluster.Namespace || !strings.HasPrefix(pod.Name, "skupper-") || pod.Status.Phase != v1.PodRunning {
+				return
+			}
+			if component, ok := pod.Labels[types.ComponentAnnotation]; ok {
+				updatedComponents = append(updatedComponents, component)
+				log.Printf("component has been recycled: %s", component)
+				validateDone()
+			}
+		},
+	})
+
+	// Starting informers
 	go d.secretInformer.Run(stop)
+	go d.podInformer.Run(stop)
 
 	return done
 }
