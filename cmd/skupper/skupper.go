@@ -1581,6 +1581,10 @@ func NewCmdMan() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			err = doc.GenMarkdownTree(rootCmd, "/tmp")
+			if err != nil {
+				return err
+			}
 			return nil
 		},
 	}
