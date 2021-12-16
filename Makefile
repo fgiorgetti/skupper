@@ -53,6 +53,9 @@ docker-push: docker-push-test-image
 format:
 	go fmt ./...
 
+generate-client:
+	./scripts/update-codegen.sh
+
 client-mock-test:
 	go test -v -count=1 ./client
 
