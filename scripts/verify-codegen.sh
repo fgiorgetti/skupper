@@ -19,8 +19,7 @@ set -o nounset
 set -o pipefail
 
 SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
-
-DIFFROOT="${SCRIPT_ROOT}/pkg"
+DIFFROOT="${GOPATH}/src/github.com/skupperproject/skupper/pkg/generated"
 TMP_DIFFROOT="${SCRIPT_ROOT}/_tmp/pkg"
 _tmp="${SCRIPT_ROOT}/_tmp"
 
@@ -32,17 +31,17 @@ trap "cleanup" EXIT SIGINT
 cleanup
 
 mkdir -p "${TMP_DIFFROOT}"
-cp -a "${DIFFROOT}"/* "${TMP_DIFFROOT}"
+cp -a ${DIFFROOT} "${TMP_DIFFROOT}"
 
-"${SCRIPT_ROOT}/hack/update-codegen.sh"
+DO_NOT_UPDATE=true "${SCRIPT_ROOT}/scripts/update-codegen.sh"
 echo "diffing ${DIFFROOT} against freshly generated codegen"
 ret=0
-diff -Naupr "${DIFFROOT}" "${TMP_DIFFROOT}" || ret=$?
-cp -a "${TMP_DIFFROOT}"/* "${DIFFROOT}"
+diff -Naupr "${DIFFROOT}" "${TMP_DIFFROOT}/generated" || ret=$?
+cp -a "${TMP_DIFFROOT}"/generated/* "${DIFFROOT}/"
 if [[ $ret -eq 0 ]]
 then
   echo "${DIFFROOT} up to date."
 else
-  echo "${DIFFROOT} is out of date. Please run hack/update-codegen.sh"
+  echo "${DIFFROOT} is out of date. Please run scripts/update-codegen.sh"
   exit 1
 fi

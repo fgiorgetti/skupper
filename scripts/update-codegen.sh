@@ -27,5 +27,8 @@ bash ${GOPATH}/pkg/mod/k8s.io/code-generator@${API_VERSION}/generate-groups.sh "
     --go-header-file ./scripts/boilerplate.go.txt \
     "$@"
 
-cp -r ${GOPATH}/src/github.com/skupperproject/skupper/pkg/generated ./pkg/
-cp -r ${GOPATH}/src/github.com/skupperproject/skupper/pkg/apis ./pkg/
+DO_NOT_UPDATE=${DO_NOT_UPDATE:-false}
+if ! ${DO_NOT_UPDATE}; then
+    cp -r ${GOPATH}/src/github.com/skupperproject/skupper/pkg/generated ./pkg/
+    cp -r ${GOPATH}/src/github.com/skupperproject/skupper/pkg/apis ./pkg/
+fi
