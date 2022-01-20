@@ -14,9 +14,14 @@ type PolicyValidationResult struct {
 	matchingAllowed []v1alpha12.SkupperClusterPolicy
 }
 
+func (p *PolicyValidationResult) Enabled() bool {
+	crdAvailable := p.err == nil || !strings.Contains(p.err.Error(), "the server could not find the requested resource")
+	permissionGranted := p.err == nil || !strings.Contains(p.err.Error(), "is forbidden")
+	return crdAvailable && permissionGranted
+}
+
 func (p *PolicyValidationResult) Allowed() bool {
-	disabled := p.err != nil && strings.Contains(p.err.Error(), "the server could not find the requested resource")
-	return disabled || p.err == nil && len(p.matchingAllowed) > 0
+	return !p.Enabled() || p.err == nil && len(p.matchingAllowed) > 0
 }
 
 func (p *PolicyValidationResult) AllowPolicies() []v1alpha12.SkupperClusterPolicy {
@@ -69,6 +74,14 @@ func (p *ClusterPolicyValidator) loadNamespacePolicies() ([]v1alpha12.SkupperClu
 	return policies, nil
 }
 
+func (p *ClusterPolicyValidator) Enabled() bool {
+	_, err := p.loadNamespacePolicies()
+	if err != nil && strings.Contains(err.Error(), "the server could not find the requested resource") {
+		return false
+	}
+	return true
+}
+
 func (p *ClusterPolicyValidator) ValidateIncomingLink() *PolicyValidationResult {
 	policies, err := p.loadNamespacePolicies()
 	res := &PolicyValidationResult{
@@ -109,7 +122,7 @@ func (p *ClusterPolicyValidator) ValidateOutgoingLink(hostname string) *PolicyVa
 	return res
 }
 
-func (p *ClusterPolicyValidator) ValidateExpose(resource string) *PolicyValidationResult {
+func (p *ClusterPolicyValidator) ValidateExpose(resourceType, resourceName string) *PolicyValidationResult {
 	policies, err := p.loadNamespacePolicies()
 	res := &PolicyValidationResult{
 		err: err,
@@ -118,6 +131,7 @@ func (p *ClusterPolicyValidator) ValidateExpose(resource string) *PolicyValidati
 		return res
 	}
 
+	resource := resourceType + "/" + resourceName
 	for _, pol := range policies {
 		if utils.StringSliceContains(pol.Spec.AllowedExposedResources, "*") {
 			res.addMatchingPolicy(pol)
