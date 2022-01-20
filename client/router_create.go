@@ -132,7 +132,7 @@ func (cli *VanClient) GetVanControllerSpec(options types.SiteConfigSpec, van *ty
 	if options.EnableConsole && options.AuthMode != string(types.ConsoleAuthModeOpenshift) {
 		kube.AppendSecretVolume(&volumes, &mounts[serviceController], types.ConsoleServerSecret, "/etc/service-controller/console/")
 	}
-	//mount secret needed for communication with router
+	// mount secret needed for communication with router
 	kube.AppendSecretVolume(&volumes, &mounts[serviceController], types.LocalClientSecret, "/etc/messaging/")
 	van.Controller.EnvVar = envVars
 	van.Controller.Volumes = volumes
@@ -191,6 +191,27 @@ func (cli *VanClient) GetVanControllerSpec(options types.SiteConfigSpec, van *ty
 	})
 	van.Controller.RoleBindings = roleBindings
 
+	clusterRoleBindings := []*rbacv1.ClusterRoleBinding{}
+	clusterRoleBindings = append(clusterRoleBindings, &rbacv1.ClusterRoleBinding{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "rbac.authorization.k8s.io/v1",
+			Kind:       "ClusterRoleBinding",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf(types.ControllerClusterRoleBindingNsFormat, cli.GetNamespace()),
+		},
+		Subjects: []rbacv1.Subject{{
+			Kind:      "ServiceAccount",
+			Name:      types.ControllerServiceAccountName,
+			Namespace: cli.GetNamespace(),
+		}},
+		RoleRef: rbacv1.RoleRef{
+			Kind: "ClusterRole",
+			Name: types.ControllerClusterRoleName,
+		},
+	})
+	van.Controller.ClusterRoleBindings = clusterRoleBindings
+
 	svctype := corev1.ServiceTypeClusterIP
 	if options.IsConsoleIngressLoadBalancer() {
 		svctype = corev1.ServiceTypeLoadBalancer
@@ -244,9 +265,9 @@ func (cli *VanClient) GetVanControllerSpec(options types.SiteConfigSpec, van *ty
 		} else if options.AuthMode == string(types.ConsoleAuthModeOpenshift) {
 			annotations = map[string]string{"service.alpha.openshift.io/serving-cert-secret-name": types.ConsoleServerSecret}
 		} else {
-			//if using openshift oauth or openshift routes, use openshift service annotation
-			//to create the console cert as it is then signed by the cluster ca
-			//otherwise we create it ourselves
+			// if using openshift oauth or openshift routes, use openshift service annotation
+			// to create the console cert as it is then signed by the cluster ca
+			// otherwise we create it ourselves
 			controllerHosts := []string{types.ControllerServiceName + "." + van.Namespace}
 			controllerIngressHost := options.GetControllerIngressHost()
 			post := false // indicates whether credentials need to be revised after creating appropriate ingress resources
@@ -404,7 +425,7 @@ func (cli *VanClient) GetRouterSpecFromOpts(options types.SiteConfigSpec, siteId
 	)
 
 	van := &types.RouterSpec{}
-	//todo: think through van name, router name, secret names, etc.
+	// todo: think through van name, router name, secret names, etc.
 	if options.SkupperNamespace == "" {
 		van.Namespace = cli.Namespace
 	} else {
@@ -430,7 +451,7 @@ func (cli *VanClient) GetRouterSpecFromOpts(options types.SiteConfigSpec, siteId
 	van.Transport.Labels = map[string]string{
 		types.PartOfLabel: types.AppName,
 		types.AppLabel:    types.TransportDeploymentName,
-		"application":     types.TransportDeploymentName, //needed by automeshing in image
+		"application":     types.TransportDeploymentName, // needed by automeshing in image
 	}
 	for key, value := range van.Transport.LabelSelector {
 		van.Transport.Labels[key] = value
@@ -1196,6 +1217,17 @@ sasldb_path: /tmp/qdrouterd.sasldb
 			_, err = kube.CreateRoleBinding(van.Namespace, roleBinding, cli.KubeClient)
 			if err != nil && !errors.IsAlreadyExists(err) {
 				return err
+			}
+		}
+		policyValidator := NewClusterPolicyValidator(cli)
+		for _, clusterRoleBinding := range van.Controller.ClusterRoleBindings {
+			clusterRoleBinding.ObjectMeta.OwnerReferences = ownerRefs
+			_, err = kube.CreateClusterRoleBinding(clusterRoleBinding, cli.KubeClient)
+			if err != nil && !errors.IsAlreadyExists(err) {
+				if policyValidator.Enabled() {
+					log.Printf("unable to define cluster role binding (policy will be disabled for %s) - %v", cli.GetNamespace(), err)
+					break
+				}
 			}
 		}
 		for _, svc := range van.Controller.Services {

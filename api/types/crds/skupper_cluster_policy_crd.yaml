@@ -47,7 +47,7 @@ kind: ClusterRole
 metadata:
   labels:
     application: skupper-service-controller
-  name: skupper-service-controller-policy
+  name: skupper-service-controller
 rules:
   - apiGroups:
       - skupper.io

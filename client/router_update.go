@@ -86,6 +86,7 @@ func (cli *VanClient) RouterUpdateVersionInNamespace(ctx context.Context, hup bo
 	renameFor050 := false
 	addClaimsSupport := false
 	addMultiportServices := false
+	addClusterPolicy := false
 	inprogress, originalVersion, err := cli.isUpdating(namespace)
 	if err != nil {
 		return false, err
@@ -94,6 +95,7 @@ func (cli *VanClient) RouterUpdateVersionInNamespace(ctx context.Context, hup bo
 		renameFor050 = utils.LessRecentThanVersion(originalVersion, "0.5.0")
 		addClaimsSupport = utils.LessRecentThanVersion(originalVersion, "0.7.0")
 		addMultiportServices = utils.LessRecentThanVersion(originalVersion, "0.8.0")
+		addClusterPolicy = utils.LessRecentThanVersion(originalVersion, "0.9.0")
 	} else {
 		originalVersion = site.Version
 	}
@@ -105,6 +107,9 @@ func (cli *VanClient) RouterUpdateVersionInNamespace(ctx context.Context, hup bo
 			}
 			if utils.LessRecentThanVersion(originalVersion, "0.8.0") {
 				addMultiportServices = true
+			}
+			if utils.LessRecentThanVersion(originalVersion, "0.9.0") {
+				addClusterPolicy = true
 			}
 
 			err = cli.updateStarted(site.Version, namespace, configmap.ObjectMeta.OwnerReferences)
@@ -453,6 +458,27 @@ func (cli *VanClient) RouterUpdateVersionInNamespace(ctx context.Context, hup bo
 			return false, err
 		}
 		updateController = true
+	}
+	// Add ClusterRoleBinding to allow reading SkupperClusterPolicies (otherwise policy will be disabled)
+	if addClusterPolicy {
+		siteConfig, _ := cli.SiteConfigInspect(ctx, nil)
+		van := cli.GetRouterSpecFromOpts(siteConfig.Spec, siteConfig.Reference.UID)
+		siteOwnerRef := asOwnerReference(siteConfig.Reference)
+		var ownerRefs []metav1.OwnerReference
+		if siteOwnerRef != nil {
+			ownerRefs = []metav1.OwnerReference{*siteOwnerRef}
+		}
+		policyValidator := NewClusterPolicyValidator(cli)
+		for _, clusterRoleBinding := range van.Controller.ClusterRoleBindings {
+			clusterRoleBinding.ObjectMeta.OwnerReferences = ownerRefs
+			_, err = kube.CreateClusterRoleBinding(clusterRoleBinding, cli.KubeClient)
+			if err != nil && !errors.IsAlreadyExists(err) {
+				if policyValidator.Enabled() {
+					log.Printf("unable to define cluster role binding (policy will be disabled for %s) - %v", cli.GetNamespace(), err)
+					break
+				}
+			}
+		}
 	}
 	desiredControllerImage := GetServiceControllerImageName()
 	if controller.Spec.Template.Spec.Containers[0].Image != desiredControllerImage {
