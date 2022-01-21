@@ -153,6 +153,14 @@ func (cli *VanClient) ServiceInterfaceUpdate(ctx context.Context, service *types
 }
 
 func (cli *VanClient) ServiceInterfaceBind(ctx context.Context, service *types.ServiceInterface, targetType string, targetName string, protocol string, targetPorts map[int]int) error {
+	policy := NewPolicyValidatorAPI(cli)
+	res, err := policy.Expose(targetType, targetName)
+	if err != nil {
+		return fmt.Errorf("Unable to validate policies: %s", err)
+	}
+	if !res.Allowed {
+		return fmt.Errorf("Exposing the provided target resource is not allowed")
+	}
 	owner, err := getRootObject(cli)
 	if err == nil {
 		err = validateServiceInterface(service)

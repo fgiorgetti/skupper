@@ -128,7 +128,14 @@ func (c *Controller) ensureServiceInterfaceDefinitions(origin string, serviceInt
 
 	c.heardFrom[origin] = time.Now()
 
+	policy := client.NewPolicyValidatorAPI(c.vanClient)
+
 	for _, def := range serviceInterfaceDefs {
+		res, _ := policy.Service(def.Address)
+		if !res.Allowed {
+			event.Recordf(ServiceSyncError, "Not authorized to create service: %s", def.Address)
+			continue
+		}
 		existing, ok := c.byName[def.Address]
 		if !ok || (existing.Origin == origin && !equivalentServiceDefinition(&def, &existing)) {
 			changed = append(changed, def)

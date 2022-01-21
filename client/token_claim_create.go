@@ -58,6 +58,14 @@ func (cli *VanClient) getControllerIngressHost() (string, error) {
 }
 
 func (cli *VanClient) TokenClaimCreateFile(ctx context.Context, name string, password []byte, expiry time.Duration, uses int, secretFile string) error {
+	policy := NewPolicyValidatorAPI(cli)
+	res, err := policy.IncomingLink()
+	if err != nil {
+		return fmt.Errorf("Unable to validate policies: %s", err)
+	}
+	if !res.Allowed {
+		return fmt.Errorf("Incoming links are not allowed")
+	}
 	claim, localOnly, err := cli.TokenClaimCreate(ctx, name, password, expiry, uses)
 	if err != nil {
 		return err

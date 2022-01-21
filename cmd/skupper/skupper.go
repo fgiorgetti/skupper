@@ -107,6 +107,14 @@ func expose(cli types.VanClientInterface, ctx context.Context, targetType string
 		return "", err
 	}
 
+	policy := client.NewPolicyValidatorAPI(cli.(*client.VanClient))
+	res, err := policy.Expose(targetType, targetName)
+	if err != nil {
+		return "", fmt.Errorf("Unable to validate policies: %s", err)
+	}
+	if !res.Allowed {
+		return "", fmt.Errorf("Exposing the provided target resource is not allowed")
+	}
 	if service == nil {
 		if options.Headless {
 			if targetType != "statefulset" {

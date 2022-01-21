@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/json"
 	"strings"
 
 	v1alpha12 "github.com/skupperproject/skupper/pkg/apis/skupper/v1alpha1"
@@ -183,4 +184,57 @@ func (p *ClusterPolicyValidator) ValidateCreateGateway() *PolicyValidationResult
 	}
 
 	return res
+}
+
+type PolicyAPIClient struct {
+	cli *VanClient
+}
+
+type PolicyAPIResult struct {
+	Allowed   bool     `json:"allowed"`
+	AllowedBy []string `json:"allowedBy"`
+	Enabled   bool     `json:"enabled"`
+	Error     string   `json:"error"`
+}
+
+func NewPolicyValidatorAPI(cli *VanClient) *PolicyAPIClient {
+	return &PolicyAPIClient{
+		cli: cli,
+	}
+}
+
+func (p *PolicyAPIClient) execGet(args ...string) (*PolicyAPIResult, error) {
+	fullArgs := []string{"get", "policies"}
+	fullArgs = append(fullArgs, args...)
+	fullArgs = append(fullArgs, "-o", "json")
+	out, err := p.cli.exec(fullArgs, p.cli.GetNamespace())
+	if err != nil {
+		return nil, err
+	}
+	res := &PolicyAPIResult{}
+	err = json.Unmarshal(out.Bytes(), res)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (p *PolicyAPIClient) Gateway() (*PolicyAPIResult, error) {
+	return p.execGet("gateway")
+}
+
+func (p *PolicyAPIClient) Expose(resourceType, resourceName string) (*PolicyAPIResult, error) {
+	return p.execGet("expose", resourceType, resourceName)
+}
+
+func (p *PolicyAPIClient) Service(name string) (*PolicyAPIResult, error) {
+	return p.execGet("service", name)
+}
+
+func (p *PolicyAPIClient) IncomingLink() (*PolicyAPIResult, error) {
+	return p.execGet("incomingLink")
+}
+
+func (p *PolicyAPIClient) OutgoingLink(hostname string) (*PolicyAPIResult, error) {
+	return p.execGet("outgoingLink", hostname)
 }
