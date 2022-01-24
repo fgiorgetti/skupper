@@ -413,8 +413,8 @@ func (server *ConsoleServer) listen() {
 	r.Handle("/policy/gateway", authenticated(server.policies.gateway()))
 	r.Handle("/policy/expose/{resourceType}/{resourceName}", authenticated(server.policies.expose()))
 	r.Handle("/policy/service/{name}", authenticated(server.policies.service()))
-	r.Handle("/policy/incomingLink", authenticated(server.policies.incomingLink()))
-	r.Handle("/policy/outgoingLink/{hostname}", authenticated(server.policies.outgoingLink()))
+	r.Handle("/policy/incominglink", authenticated(server.policies.incomingLink()))
+	r.Handle("/policy/outgoinglink/{hostname}", authenticated(server.policies.outgoingLink()))
 	r.Handle("/servicecheck/{name}", server.checkService())
 	r.PathPrefix("/").Handler(authenticated(http.FileServer(http.Dir("/app/console/"))))
 	if os.Getenv("USE_CORS") != "" {
@@ -440,8 +440,8 @@ func (server *ConsoleServer) listenLocal() {
 	r.Handle("/policy/gateway", server.policies.gateway())
 	r.Handle("/policy/expose/{resourceType}/{resourceName}", server.policies.expose())
 	r.Handle("/policy/service/{name}", server.policies.service())
-	r.Handle("/policy/incomingLink", server.policies.incomingLink())
-	r.Handle("/policy/outgoingLink/{hostname}", server.policies.outgoingLink())
+	r.Handle("/policy/incominglink", server.policies.incomingLink())
+	r.Handle("/policy/outgoinglink/{hostname}", server.policies.outgoingLink())
 	log.Fatal(http.ListenAndServe(addr, r))
 }
 

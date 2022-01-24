@@ -72,8 +72,8 @@ func policyCmd() *cobra.Command {
 		})
 	}
 	simplePathPolicyCommand("gateway", nil, "Validates if gateway can be created")
-	simplePathPolicyCommand("incomingLink", nil, "Validates if incoming links can be creted")
-	simplePathPolicyCommand("outgoingLink", []string{"hostname"}, "Validates if an outgoing link to the given hostname is allowed")
+	simplePathPolicyCommand("incominglink", nil, "Validates if incoming links can be creted")
+	simplePathPolicyCommand("outgoinglink", []string{"hostname"}, "Validates if an outgoing link to the given hostname is allowed")
 	simplePathPolicyCommand("expose", []string{"target-type", "target-name"}, "Validates if the given resource can be exposed")
 	simplePathPolicyCommand("service", []string{"name"}, "Validates if service can be created or imported")
 	return policyCmd

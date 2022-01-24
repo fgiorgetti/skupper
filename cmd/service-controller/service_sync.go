@@ -131,8 +131,10 @@ func (c *Controller) ensureServiceInterfaceDefinitions(origin string, serviceInt
 	policy := client.NewPolicyValidatorAPI(c.vanClient)
 
 	for _, def := range serviceInterfaceDefs {
-		res, _ := policy.Service(def.Address)
-		if !res.Allowed {
+		res, err := policy.Service(def.Address)
+		if err != nil {
+			event.Recordf(ServiceSyncError, "Unable to verify service sync policies: %s", err)
+		} else if !res.Allowed {
 			event.Recordf(ServiceSyncError, "Not authorized to create service: %s", def.Address)
 			continue
 		}
@@ -187,9 +189,16 @@ func (c *Controller) syncSender(sendLocal chan bool) {
 		select {
 		case <-tickerSend.C:
 			local := make([]types.ServiceInterface, 0)
+			policy := client.NewPolicyValidatorAPI(c.vanClient)
 
 			for _, si := range c.localServices {
-				local = append(local, si)
+				res, err := policy.Service(si.Address)
+				if err != nil {
+					event.Recordf("Error validating service policies: %s", err.Error())
+				}
+				if res != nil && res.Allowed {
+					local = append(local, si)
+				}
 			}
 
 			encoded, err := jsonencoding.Marshal(local)

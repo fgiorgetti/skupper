@@ -232,9 +232,9 @@ func (p *PolicyAPIClient) Service(name string) (*PolicyAPIResult, error) {
 }
 
 func (p *PolicyAPIClient) IncomingLink() (*PolicyAPIResult, error) {
-	return p.execGet("incomingLink")
+	return p.execGet("incominglink")
 }
 
 func (p *PolicyAPIClient) OutgoingLink(hostname string) (*PolicyAPIResult, error) {
-	return p.execGet("outgoingLink", hostname)
+	return p.execGet("outgoinglink", hostname)
 }

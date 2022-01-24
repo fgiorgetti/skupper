@@ -35,7 +35,7 @@ func fromPolicyValidationResult(res *client.PolicyValidationResult) client.Polic
 func (p *PolicyManager) response(pr client.PolicyAPIResult, w http.ResponseWriter) {
 	tw := tabwriter.NewWriter(w, 0, 4, 1, ' ', 0)
 	_, _ = fmt.Fprintln(tw, fmt.Sprintf("%s\t%s\t%s\t%s\t", "ALLOWED", "POLICY ENABLED", "ERROR", "ALLOWED BY"))
-	_, _ = fmt.Fprintln(tw, fmt.Sprintf("%s\t%s\t%s\t%s\t", pr.Allowed, pr.Enabled, pr.Error, ""))
+	_, _ = fmt.Fprintln(tw, fmt.Sprintf("%v\t%v\t%s\t%s\t", pr.Allowed, pr.Enabled, pr.Error, ""))
 	for _, policy := range pr.AllowedBy {
 		_, _ = fmt.Fprintln(tw, fmt.Sprintf("%s\t%s\t%s\t%s\t", "", "", "", policy))
 	}
