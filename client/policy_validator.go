@@ -54,7 +54,7 @@ func (p *PolicyValidationResult) addMatchingPolicy(policy v1alpha12.SkupperClust
 	p.matchingAllowed = append(p.matchingAllowed, policy)
 }
 
-func (p *ClusterPolicyValidator) loadNamespacePolicies() ([]v1alpha12.SkupperClusterPolicy, error) {
+func (p *ClusterPolicyValidator) LoadNamespacePolicies() ([]v1alpha12.SkupperClusterPolicy, error) {
 	policies := []v1alpha12.SkupperClusterPolicy{}
 	if p.skupperPolicy == nil {
 		skupperCli, err := v1alpha1.NewForConfig(p.cli.RestConfig)
@@ -76,7 +76,7 @@ func (p *ClusterPolicyValidator) loadNamespacePolicies() ([]v1alpha12.SkupperClu
 }
 
 func (p *ClusterPolicyValidator) Enabled() bool {
-	_, err := p.loadNamespacePolicies()
+	_, err := p.LoadNamespacePolicies()
 	if err != nil && strings.Contains(err.Error(), "the server could not find the requested resource") {
 		return false
 	}
@@ -84,7 +84,7 @@ func (p *ClusterPolicyValidator) Enabled() bool {
 }
 
 func (p *ClusterPolicyValidator) ValidateIncomingLink() *PolicyValidationResult {
-	policies, err := p.loadNamespacePolicies()
+	policies, err := p.LoadNamespacePolicies()
 	res := &PolicyValidationResult{
 		err: err,
 	}
@@ -102,7 +102,7 @@ func (p *ClusterPolicyValidator) ValidateIncomingLink() *PolicyValidationResult 
 }
 
 func (p *ClusterPolicyValidator) ValidateOutgoingLink(hostname string) *PolicyValidationResult {
-	policies, err := p.loadNamespacePolicies()
+	policies, err := p.LoadNamespacePolicies()
 	res := &PolicyValidationResult{
 		err: err,
 	}
@@ -124,7 +124,7 @@ func (p *ClusterPolicyValidator) ValidateOutgoingLink(hostname string) *PolicyVa
 }
 
 func (p *ClusterPolicyValidator) ValidateExpose(resourceType, resourceName string) *PolicyValidationResult {
-	policies, err := p.loadNamespacePolicies()
+	policies, err := p.LoadNamespacePolicies()
 	res := &PolicyValidationResult{
 		err: err,
 	}
@@ -147,7 +147,7 @@ func (p *ClusterPolicyValidator) ValidateExpose(resourceType, resourceName strin
 }
 
 func (p *ClusterPolicyValidator) ValidateImportService(serviceName string) *PolicyValidationResult {
-	policies, err := p.loadNamespacePolicies()
+	policies, err := p.LoadNamespacePolicies()
 	res := &PolicyValidationResult{
 		err: err,
 	}
@@ -169,7 +169,7 @@ func (p *ClusterPolicyValidator) ValidateImportService(serviceName string) *Poli
 }
 
 func (p *ClusterPolicyValidator) ValidateCreateGateway() *PolicyValidationResult {
-	policies, err := p.loadNamespacePolicies()
+	policies, err := p.LoadNamespacePolicies()
 	res := &PolicyValidationResult{
 		err: err,
 	}

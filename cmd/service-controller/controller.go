@@ -64,6 +64,7 @@ type Controller struct {
 	claimVerifier     *ClaimVerifier
 	tokenHandler      *SecretController
 	claimHandler      *SecretController
+	policyHandler     *PolicyController
 }
 
 const (
@@ -195,6 +196,7 @@ func NewController(cli *client.VanClient, origin string, tlsConfig *tls.Config, 
 	}
 	controller.tokenHandler = newTokenHandler(controller.vanClient, origin)
 	controller.claimHandler = newClaimHandler(controller.vanClient, origin)
+	controller.policyHandler = NewPolicyController(controller.vanClient)
 	return controller, nil
 }
 
@@ -316,6 +318,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	}
 	c.tokenHandler.start(stopCh)
 	c.claimHandler.start(stopCh)
+	c.policyHandler.start(stopCh)
 
 	log.Println("Started workers")
 	<-stopCh
@@ -323,6 +326,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	c.definitionMonitor.stop()
 	c.tokenHandler.stop()
 	c.claimHandler.stop()
+	c.policyHandler.stop()
 
 	return nil
 }
