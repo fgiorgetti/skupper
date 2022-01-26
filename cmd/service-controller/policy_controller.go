@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/skupperproject/skupper/api/types"
@@ -200,12 +200,13 @@ func (c *PolicyController) validateOutgoingLinkStateChanged() {
 		if ok {
 			disabled, _ = strconv.ParseBool(disabledValue)
 		}
-		linkUrl, _ := url.Parse(link.Url)
+		linkUrl := strings.Split(link.Url, ":")
+		hostname := linkUrl[0]
 
 		// Validating if hostname is allowed
-		res := c.validator.ValidateOutgoingLink(linkUrl.Hostname())
+		res := c.validator.ValidateOutgoingLink(hostname)
 		if res.Error() != nil {
-			event.Recordf(c.name, "[validateOutgoingLinkStateChanged] error validating if outgoing link to %s is allowed: %v", linkUrl.Hostname(), res.Error())
+			event.Recordf(c.name, "[validateOutgoingLinkStateChanged] error validating if outgoing link to %s is allowed: %v", hostname, res.Error())
 			return
 		}
 
