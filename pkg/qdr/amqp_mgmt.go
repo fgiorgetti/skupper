@@ -118,6 +118,7 @@ func asHttpEndpoint(record Record) HttpEndpoint {
 
 func asConnection(record Record) Connection {
 	return Connection{
+		Name:       record.AsString("name"),
 		Role:       record.AsString("role"),
 		Container:  record.AsString("container"),
 		Host:       record.AsString("host"),
@@ -1191,6 +1192,21 @@ func (a *Agent) Request(request *Request) (*Response, error) {
 		response.Body = body
 	}
 	return &response, nil
+}
+
+func (a *Agent) DeleteIncomingInterRouterConnections() error {
+	conns, err := a.GetConnections()
+	if err != nil {
+		return err
+	}
+	for _, conn := range conns {
+		if conn.Dir == "in" && conn.Role == "inter-router" {
+			if err = a.Delete("org.apache.qpid.dispatch.connection", conn.Name); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (r *Router) IsGateway() bool {

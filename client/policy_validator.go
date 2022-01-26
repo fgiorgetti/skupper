@@ -41,6 +41,9 @@ func (p *PolicyValidationResult) Error() error {
 	return p.err
 }
 
+// ClusterPolicyValidator The policy validator component must be
+// used internally by the service-controller only. Client applications
+// must use the PolicyAPIClient (rest client).
 type ClusterPolicyValidator struct {
 	cli           *VanClient
 	skupperPolicy v1alpha1.SkupperClusterPolicyInterface
@@ -68,7 +71,9 @@ func (p *ClusterPolicyValidator) LoadNamespacePolicies() ([]v1alpha12.SkupperClu
 		return policies, err
 	}
 	for _, pol := range policyList.Items {
-		if utils.StringSliceContains(pol.Spec.Namespaces, "*") || utils.StringSliceContains(pol.Spec.Namespaces, p.cli.Namespace) {
+		if utils.StringSliceContains(pol.Spec.Namespaces, "*") ||
+			utils.StringSliceContains(pol.Spec.Namespaces, p.cli.Namespace) ||
+			utils.RegexpStringSliceContains(pol.Spec.Namespaces, p.cli.Namespace) {
 			policies = append(policies, pol)
 		}
 	}
@@ -138,7 +143,7 @@ func (p *ClusterPolicyValidator) ValidateExpose(resourceType, resourceName strin
 			res.addMatchingPolicy(pol)
 		} else if utils.StringSliceContains(pol.Spec.AllowedExposedResources, resource) {
 			res.addMatchingPolicy(pol)
-		} else if utils.RegexpStringSliceContains(pol.Spec.AllowedExposedResources, resource) {
+		} else if resourceType == "" && utils.StringSliceEndsWith(pol.Spec.AllowedExposedResources, resource) {
 			res.addMatchingPolicy(pol)
 		}
 	}

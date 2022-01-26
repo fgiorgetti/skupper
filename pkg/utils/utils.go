@@ -69,6 +69,15 @@ func StringSliceContains(s []string, e string) bool {
 	return false
 }
 
+func StringSliceEndsWith(s []string, e string) bool {
+	for _, a := range s {
+		if strings.HasSuffix(a, e) {
+			return true
+		}
+	}
+	return false
+}
+
 func RegexpStringSliceContains(s []string, e string) bool {
 	for _, re := range s {
 		match, err := regexp.Match(re, []byte(e))

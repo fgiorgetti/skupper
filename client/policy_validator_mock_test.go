@@ -1,6 +1,7 @@
 package client
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/skupperproject/skupper/pkg/apis/skupper/v1alpha1"
@@ -322,14 +323,14 @@ func TestMockValidateExpose(t *testing.T) {
 			expAllowPolicyNames: []string{"policy-3"},
 		},
 		{
-			name:     "allow-ns-statefulset-regex",
+			name:     "allow-ns-statefulset-empty-type",
 			ns:       "aaa",
-			resource: "statefulset/my-app",
+			resource: "/my-app",
 			policies: addExposePolicy([]policyData{
 				{name: "policy-1", namespaces: []string{"aaa"}, resources: []string{"deployment/my-app-1"}},
 				{name: "policy-2", namespaces: []string{"aaa"}, resources: []string{"deployment/my-app-2"}},
 				{name: "policy-3", namespaces: []string{"aaa"}, resources: []string{"deployment/my-app-3"}},
-				{name: "policy-4", namespaces: []string{"aaa"}, resources: []string{`statefulset\/.*`}},
+				{name: "policy-4", namespaces: []string{"aaa"}, resources: []string{"statefulset/my-app"}},
 				{name: "policy-5", namespaces: []string{"bbb"}, resources: []string{"*"}},
 			}),
 			expAllowed:          true,
@@ -368,7 +369,10 @@ func TestMockValidateExpose(t *testing.T) {
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
 			policyMock := NewClusterPolicyValidatorMock(scenario.ns, scenario.policies)
-			res := policyMock.ValidateExpose(scenario.resource)
+			resourceTypeName := strings.Split(scenario.resource, "/")
+			resourceType := resourceTypeName[0]
+			resourceName := resourceTypeName[1]
+			res := policyMock.ValidateExpose(resourceType, resourceName)
 
 			// asserting results
 			assert.Equal(t, scenario.expAllowed, res.Allowed())

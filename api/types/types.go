@@ -146,6 +146,7 @@ const (
 	InternalTypeQualifier       string = InternalQualifier + "/type"
 	SkupperTypeQualifier        string = BaseQualifier + "/type"
 	TypeProxyQualifier          string = InternalTypeQualifier + "=proxy"
+	SkupperDisabledQualifier    string = InternalQualifier + "/disabled"
 	TypeToken                   string = "connection-token"
 	TypeClaimRecord             string = "token-claim-record"
 	TypeClaimRequest            string = "token-claim"
