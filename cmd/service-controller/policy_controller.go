@@ -161,9 +161,8 @@ func (c *PolicyController) adjustListenerState(source string, listenerName strin
 	} else {
 		event.Recordf(c.name, "[%s] blocking links", source)
 		listener.Host = "127.0.0.1"
-		// TODO close active connections (currently unable to set adminStatus deleted on inter-router/edge connections)
-		// TODO discuss whether or not to force a router restart
 	}
+	current.AddListener(listener)
 
 	// Update router config
 	updated, err := current.UpdateConfigMap(configmap)
@@ -176,6 +175,10 @@ func (c *PolicyController) adjustListenerState(source string, listenerName strin
 		_, err = c.cli.KubeClient.CoreV1().ConfigMaps(c.cli.GetNamespace()).Update(configmap)
 		if err != nil {
 			event.Recordf(c.name, "[%s] error updating %s ConfigMap: %v", source, configmap.Name, err)
+			return
+		}
+		if err = c.cli.RouterRestart(context.Background(), c.cli.Namespace); err != nil {
+			event.Recordf(c.name, "[%s] error restarting router: %v", source, err)
 			return
 		}
 	}
