@@ -258,14 +258,14 @@ func (c *PolicyController) validateExposeStateChanged() {
 		return
 	}
 
-	// iterate through service list and inspect if respective targets are allowed (ignoring target type)
+	// iterate through service list and inspect if respective targets are allowed
 	for _, service := range serviceList {
 		if service.Targets == nil || len(service.Targets) == 0 {
 			continue
 		}
 		for _, target := range service.Targets {
-			// TODO service interface target does not store target type (validation will not be precise)
-			res := c.validator.ValidateExpose("", target.Name)
+			targetType := c.inferTargetType(target)
+			res := c.validator.ValidateExpose(targetType, target.Name)
 			if res.Error() != nil {
 				event.Recordf(c.name, "[validateExposeStateChanged] error validating if target can still be exposed: %v", err)
 				return
@@ -304,6 +304,28 @@ func (c *PolicyController) validateServiceStateChanged() {
 			}
 		}
 	}
+}
+
+func (c *PolicyController) inferTargetType(target types.ServiceInterfaceTarget) string {
+	if target.Service != "" {
+		return "service"
+	}
+	if target.Selector == "" {
+		return ""
+	}
+	getBySelector := func(targetTypes ...string) string {
+		for _, targetType := range targetTypes {
+			retTarget, err := kube.GetServiceInterfaceTarget(targetType, target.Name, true, c.cli.Namespace, c.cli.KubeClient)
+			if err == nil {
+				if retTarget.Selector == target.Selector {
+					return targetType
+				}
+			}
+		}
+		return ""
+	}
+
+	return getBySelector("deployment", "statefulset")
 }
 
 func NewPolicyController(cli *client.VanClient) *PolicyController {
