@@ -115,10 +115,10 @@ func (c *PolicyController) process() bool {
 }
 
 func (c *PolicyController) validateIncomingLinkStateChanged() {
-	c.adjustListenerState("validateIncomingLinkStateChanged", "interior-listener", c.validator.ValidateIncomingLink)
+	c.adjustListenerState("validateIncomingLinkStateChanged", "interior-listener", c.validator.ValidateIncomingLink, client.InteriorListener)
 }
 
-func (c *PolicyController) adjustListenerState(source string, listenerName string, validationFunc func() *client.PolicyValidationResult) {
+func (c *PolicyController) adjustListenerState(source string, listenerName string, validationFunc func() *client.PolicyValidationResult, listenerFn func(options types.SiteConfigSpec) qdr.Listener) {
 	// Retrieving listener info
 	configmap, err := kube.GetConfigMap(types.TransportConfigMapName, c.cli.GetNamespace(), c.cli.KubeClient)
 	if err != nil {
@@ -133,14 +133,7 @@ func (c *PolicyController) adjustListenerState(source string, listenerName strin
 	}
 
 	// Retrieving listener info
-	listener, ok := current.Listeners[listenerName]
-	if !ok {
-		event.Recordf(c.name, "[%s] interior-listener not defined: %v", source, err)
-		return
-	}
-
-	// Validate state
-	public := listener.Host == "0.0.0.0"
+	_, listenerFound := current.Listeners[listenerName]
 
 	// Validating if given policy is allowed
 	res := validationFunc()
@@ -150,19 +143,23 @@ func (c *PolicyController) adjustListenerState(source string, listenerName strin
 	}
 
 	// If nothing changed, just return
-	if public == res.Allowed() {
+	if listenerFound == res.Allowed() {
 		return
 	}
 
 	// Changed to allowed
 	if res.Allowed() {
 		event.Recordf(c.name, "[%s] allowing links", source)
-		listener.Host = "0.0.0.0"
+		siteConfig, err := c.cli.SiteConfigInspect(context.Background(), nil)
+		if err != nil {
+			event.Recordf(c.name, "[%s] error retrieving site config: %v", source, err)
+			return
+		}
+		current.AddListener(listenerFn(siteConfig.Spec))
 	} else {
 		event.Recordf(c.name, "[%s] blocking links", source)
-		listener.Host = "127.0.0.1"
+		delete(current.Listeners, listenerName)
 	}
-	current.AddListener(listener)
 
 	// Update router config
 	updated, err := current.UpdateConfigMap(configmap)
@@ -177,6 +174,7 @@ func (c *PolicyController) adjustListenerState(source string, listenerName strin
 			event.Recordf(c.name, "[%s] error updating %s ConfigMap: %v", source, configmap.Name, err)
 			return
 		}
+		// TODO Once config sync handles listeners this won't be needed
 		if err = c.cli.RouterRestart(context.Background(), c.cli.Namespace); err != nil {
 			event.Recordf(c.name, "[%s] error restarting router: %v", source, err)
 			return
@@ -237,7 +235,7 @@ func (c *PolicyController) validateOutgoingLinkStateChanged() {
 }
 
 func (c *PolicyController) validateGatewayStateChanged() {
-	c.adjustListenerState("validateGatewayStateChanged", "edge-listener", c.validator.ValidateCreateGateway)
+	c.adjustListenerState("validateGatewayStateChanged", "edge-listener", c.validator.ValidateCreateGateway, client.EdgeListener)
 }
 
 func (c *PolicyController) validateExposeStateChanged() {

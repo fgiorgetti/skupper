@@ -58,6 +58,34 @@ func ConfigSyncContainer() *corev1.Container {
 	}
 }
 
+func InteriorListener(options types.SiteConfigSpec) qdr.Listener {
+	return qdr.Listener{
+		Name:             "interior-listener",
+		Host:             "0.0.0.0",
+		Role:             qdr.RoleInterRouter,
+		Port:             types.InterRouterListenerPort,
+		SslProfile:       types.InterRouterProfile,
+		SaslMechanisms:   "EXTERNAL",
+		AuthenticatePeer: true,
+		MaxFrameSize:     options.Router.MaxFrameSize,
+		MaxSessionFrames: options.Router.MaxSessionFrames,
+	}
+}
+
+func EdgeListener(options types.SiteConfigSpec) qdr.Listener {
+	return qdr.Listener{
+		Name:             "edge-listener",
+		Host:             "0.0.0.0",
+		Role:             qdr.RoleEdge,
+		Port:             types.EdgeListenerPort,
+		SslProfile:       types.InterRouterProfile,
+		SaslMechanisms:   "EXTERNAL",
+		AuthenticatePeer: true,
+		MaxFrameSize:     options.Router.MaxFrameSize,
+		MaxSessionFrames: options.Router.MaxSessionFrames,
+	}
+}
+
 func (cli *VanClient) getControllerRules() []rbacv1.PolicyRule {
 	if cli.RouteClient == nil {
 		// remove rule for routes if routes not defined
@@ -538,29 +566,8 @@ func (cli *VanClient) GetRouterSpecFromOpts(options types.SiteConfigSpec, siteId
 		routerConfig.AddSslProfile(qdr.SslProfile{
 			Name: types.InterRouterProfile,
 		})
-		listeners := []qdr.Listener{
-			{
-				Name:             "interior-listener",
-				Host:             "0.0.0.0",
-				Role:             qdr.RoleInterRouter,
-				Port:             types.InterRouterListenerPort,
-				SslProfile:       types.InterRouterProfile,
-				SaslMechanisms:   "EXTERNAL",
-				AuthenticatePeer: true,
-			},
-			{
-				Name:             "edge-listener",
-				Host:             "0.0.0.0",
-				Role:             qdr.RoleEdge,
-				Port:             types.EdgeListenerPort,
-				SslProfile:       types.InterRouterProfile,
-				SaslMechanisms:   "EXTERNAL",
-				AuthenticatePeer: true,
-			},
-		}
+		listeners := []qdr.Listener{InteriorListener(options), EdgeListener(options)}
 		for _, listener := range listeners {
-			listener.SetMaxFrameSize(options.Router.MaxFrameSize)
-			listener.SetMaxSessionFrames(options.Router.MaxSessionFrames)
 			routerConfig.AddListener(listener)
 		}
 	}
