@@ -8,6 +8,7 @@ import (
 	"github.com/skupperproject/skupper/pkg/generated/client/clientset/versioned/typed/skupper/v1alpha1"
 	"github.com/skupperproject/skupper/pkg/utils"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 type PolicyValidationResult struct {
@@ -209,6 +210,12 @@ func NewPolicyValidatorAPI(cli *VanClient) *PolicyAPIClient {
 }
 
 func (p *PolicyAPIClient) execGet(args ...string) (*PolicyAPIResult, error) {
+	if _, mock := p.cli.KubeClient.(*fake.Clientset); mock {
+		return &PolicyAPIResult{
+			Allowed:   true,
+			AllowedBy: []string{"mock"},
+		}, nil
+	}
 	fullArgs := []string{"get", "policies"}
 	fullArgs = append(fullArgs, args...)
 	fullArgs = append(fullArgs, "-o", "json")
