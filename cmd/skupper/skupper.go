@@ -107,13 +107,17 @@ func expose(cli types.VanClientInterface, ctx context.Context, targetType string
 		return "", err
 	}
 
-	policy := client.NewPolicyValidatorAPI(cli.(*client.VanClient))
-	res, err := policy.Expose(targetType, targetName)
-	if err != nil {
-		return "", fmt.Errorf("Unable to validate policies: %s", err)
-	}
-	if !res.Allowed {
-		return "", fmt.Errorf("Exposing the provided target resource is not allowed")
+	vanClient, realClient := cli.(*client.VanClient)
+	var policy *client.PolicyAPIClient
+	if realClient {
+		policy = client.NewPolicyValidatorAPI(vanClient)
+		res, err := policy.Expose(targetType, targetName)
+		if err != nil {
+			return "", fmt.Errorf("Unable to validate policies: %s", err)
+		}
+		if !res.Allowed {
+			return "", fmt.Errorf("Exposing the provided target resource is not allowed")
+		}
 	}
 	if service == nil {
 		if options.Headless {
@@ -127,12 +131,14 @@ func expose(cli types.VanClientInterface, ctx context.Context, targetType string
 			err = configureHeadlessProxy(service.Headless, &options.ProxyTuning)
 			return service.Address, cli.ServiceInterfaceUpdate(ctx, service)
 		} else {
-			res, err = policy.Service(serviceName)
-			if err != nil {
-				return "", fmt.Errorf("Unable to validate policies: %s", err)
-			}
-			if !res.Allowed {
-				return "", fmt.Errorf("Service creation is not authorized")
+			if realClient {
+				res, err := policy.Service(serviceName)
+				if err != nil {
+					return "", fmt.Errorf("Unable to validate policies: %s", err)
+				}
+				if !res.Allowed {
+					return "", fmt.Errorf("Service creation is not authorized")
+				}
 			}
 			service = &types.ServiceInterface{
 				Address:        serviceName,
