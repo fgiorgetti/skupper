@@ -214,6 +214,17 @@ func (m *DefinitionMonitor) getServiceDefinitionFromAnnotatedDeployment(deployme
 			svc.Labels = utils.LabelToMap(labels)
 		}
 		svc.Origin = "annotation"
+
+		policy := client.NewClusterPolicyValidator(m.vanClient)
+		if policyRes := policy.ValidateExpose("deployment", deployment.Name); !policyRes.Allowed() {
+			event.Recordf(DefinitionMonitorIgnored, "Resource exposure is not authorized (deployment/%s)", deployment.ObjectMeta.Name)
+			return types.ServiceInterface{}, false
+		}
+		if policyRes := policy.ValidateImportService(svc.Address); !policyRes.Allowed() {
+			event.Recordf(DefinitionMonitorIgnored, "Service name is not authorized (%s)", svc.Address)
+			return types.ServiceInterface{}, false
+		}
+
 		return svc, true
 	} else {
 		return svc, false
@@ -256,6 +267,17 @@ func (m *DefinitionMonitor) getServiceDefinitionFromAnnotatedStatefulSet(statefu
 			svc.Targets[0].TargetPorts = port
 		}
 		svc.Origin = "annotation"
+
+		policy := client.NewClusterPolicyValidator(m.vanClient)
+		if policyRes := policy.ValidateExpose("statefulset", statefulset.Name); !policyRes.Allowed() {
+			event.Recordf(DefinitionMonitorIgnored, "Resource exposure is not authorized (statefulset/%s)", statefulset.ObjectMeta.Name)
+			return types.ServiceInterface{}, false
+		}
+		if policyRes := policy.ValidateImportService(svc.Address); !policyRes.Allowed() {
+			event.Recordf(DefinitionMonitorIgnored, "Service name is not authorized (%s)", svc.Address)
+			return types.ServiceInterface{}, false
+		}
+
 		return svc, true
 	} else {
 		return svc, false
@@ -301,6 +323,17 @@ func (m *DefinitionMonitor) getServiceDefinitionFromAnnotatedDaemonSet(daemonset
 			svc.Labels = utils.LabelToMap(labels)
 		}
 		svc.Origin = "annotation"
+
+		policy := client.NewClusterPolicyValidator(m.vanClient)
+		if policyRes := policy.ValidateExpose("daemonset", daemonset.Name); !policyRes.Allowed() {
+			event.Recordf(DefinitionMonitorIgnored, "Resource exposure is not authorized (daemonset/%s)", daemonset.ObjectMeta.Name)
+			return types.ServiceInterface{}, false
+		}
+		if policyRes := policy.ValidateImportService(svc.Address); !policyRes.Allowed() {
+			event.Recordf(DefinitionMonitorIgnored, "Service name is not authorized (%s)", svc.Address)
+			return types.ServiceInterface{}, false
+		}
+
 		return svc, true
 	} else {
 		return svc, false
@@ -411,6 +444,17 @@ func (m *DefinitionMonitor) getServiceDefinitionFromAnnotatedService(service *co
 			svc.Labels = utils.LabelToMap(labels)
 		}
 		svc.Origin = "annotation"
+
+		policy := client.NewClusterPolicyValidator(m.vanClient)
+		if policyRes := policy.ValidateExpose("service", service.Name); !policyRes.Allowed() {
+			event.Recordf(DefinitionMonitorIgnored, "Resource exposure is not authorized (service/%s)", service.ObjectMeta.Name)
+			return types.ServiceInterface{}, false
+		}
+		if policyRes := policy.ValidateImportService(svc.Address); !policyRes.Allowed() {
+			event.Recordf(DefinitionMonitorIgnored, "Service name is not authorized (%s)", svc.Address)
+			return types.ServiceInterface{}, false
+		}
+
 		return svc, true
 	} else {
 		return svc, false
