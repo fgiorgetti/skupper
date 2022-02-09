@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"text/tabwriter"
 	"time"
 
@@ -367,10 +368,12 @@ func (server *ConsoleServer) writeJson(obj interface{}, w http.ResponseWriter) {
 	}
 }
 
-func (server *ConsoleServer) start(stopCh <-chan struct{}) error {
-	go server.listen()
-	go server.listenLocal()
-	return nil
+func (server *ConsoleServer) start(stopCh <-chan struct{}) (error, sync.WaitGroup) {
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	go server.listen(wg)
+	go server.listenLocal(wg)
+	return nil, wg
 }
 
 func cors(next http.Handler) http.Handler {
@@ -384,7 +387,8 @@ func cors(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-func (server *ConsoleServer) listen() {
+func (server *ConsoleServer) listen(wg sync.WaitGroup) {
+	defer wg.Done()
 	addr := ":8080"
 	if os.Getenv("METRICS_PORT") != "" {
 		addr = ":" + os.Getenv("METRICS_PORT")
@@ -428,7 +432,8 @@ func (server *ConsoleServer) listen() {
 	}
 }
 
-func (server *ConsoleServer) listenLocal() {
+func (server *ConsoleServer) listenLocal(wg sync.WaitGroup) {
+	defer wg.Done()
 	addr := "localhost:8181"
 	r := mux.NewRouter()
 	r.Handle("/DATA", server)

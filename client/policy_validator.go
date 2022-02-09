@@ -212,8 +212,15 @@ func NewPolicyValidatorAPI(cli *VanClient) *PolicyAPIClient {
 func (p *PolicyAPIClient) execGet(args ...string) (*PolicyAPIResult, error) {
 	if _, mock := p.cli.KubeClient.(*fake.Clientset); mock {
 		return &PolicyAPIResult{
-			Allowed:   true,
-			AllowedBy: []string{"mock"},
+			Allowed: true,
+			Enabled: false,
+		}, nil
+	}
+	_, err := p.cli.exec([]string{"get", "policies", "-h"}, p.cli.GetNamespace())
+	if err != nil {
+		return &PolicyAPIResult{
+			Allowed: true,
+			Enabled: false,
 		}, nil
 	}
 	fullArgs := []string{"get", "policies"}

@@ -6,16 +6,31 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/skupperproject/skupper/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
 func get(path string, output string) error {
-	url := "http://localhost:8181/" + path
-	if output == "json" {
-		url += "?output=json"
-	}
-	resp, err := http.Get(url)
+	var resp *http.Response
+	var err error
+
+	err = utils.Retry(time.Second, 30, func() (bool, error) {
+		url := "http://localhost:8181/" + path
+		if output == "json" {
+			url += "?output=json"
+		}
+		resp, err = http.Get(url)
+		if err != nil {
+			if strings.Contains(err.Error(), "connect: connection refused") {
+				return false, nil
+			}
+			return true, err
+		}
+		return true, nil
+	})
+
 	if err != nil {
 		return err
 	}
@@ -63,7 +78,7 @@ func policyCmd() *cobra.Command {
 			Short: description,
 			Args:  cobraArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
-				path := fmt.Sprintf("/policy/%s", pathCmd)
+				path := fmt.Sprintf("policy/%s", pathCmd)
 				for i, _ := range args {
 					path = path + "/" + args[i]
 				}
