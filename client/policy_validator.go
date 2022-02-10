@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	v1alpha12 "github.com/skupperproject/skupper/pkg/apis/skupper/v1alpha1"
@@ -17,9 +18,10 @@ type PolicyValidationResult struct {
 }
 
 func (p *PolicyValidationResult) Enabled() bool {
+	restCfgAvail := p.err == nil || !strings.Contains(p.err.Error(), "RestConfig not defined")
 	crdAvailable := p.err == nil || !strings.Contains(p.err.Error(), "the server could not find the requested resource")
 	permissionGranted := p.err == nil || !strings.Contains(p.err.Error(), "is forbidden")
-	return crdAvailable && permissionGranted
+	return restCfgAvail && crdAvailable && permissionGranted
 }
 
 func (p *PolicyValidationResult) Allowed() bool {
@@ -61,6 +63,9 @@ func (p *PolicyValidationResult) addMatchingPolicy(policy v1alpha12.SkupperClust
 func (p *ClusterPolicyValidator) LoadNamespacePolicies() ([]v1alpha12.SkupperClusterPolicy, error) {
 	policies := []v1alpha12.SkupperClusterPolicy{}
 	if p.skupperPolicy == nil {
+		if p.cli.RestConfig == nil {
+			return policies, fmt.Errorf("RestConfig not defined")
+		}
 		skupperCli, err := v1alpha1.NewForConfig(p.cli.RestConfig)
 		if err != nil {
 			return policies, err
@@ -82,6 +87,9 @@ func (p *ClusterPolicyValidator) LoadNamespacePolicies() ([]v1alpha12.SkupperClu
 }
 
 func (p *ClusterPolicyValidator) Enabled() bool {
+	if p.cli.RestConfig == nil {
+		return false
+	}
 	_, err := p.LoadNamespacePolicies()
 	if err != nil && strings.Contains(err.Error(), "the server could not find the requested resource") {
 		return false
