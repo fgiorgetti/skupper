@@ -5,11 +5,10 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	amqp "github.com/interconnectedcloud/go-amqp"
 	"log"
 	"strings"
 	"time"
-
-	amqp "github.com/interconnectedcloud/go-amqp"
 )
 
 type Agent struct {
@@ -41,7 +40,7 @@ func getSiteMetadata(metadata string) SiteMetadata {
 	err := json.Unmarshal([]byte(metadata), &result)
 	if err != nil {
 		log.Printf("Assuming old format for router metadata %s: %s", metadata, err)
-		// assume old format, where metadata just holds site id
+		//assume old format, where metadata just holds site id
 		result.Id = metadata
 	}
 	return result
@@ -118,7 +117,6 @@ func asHttpEndpoint(record Record) HttpEndpoint {
 
 func asConnection(record Record) Connection {
 	return Connection{
-		Name:       record.AsString("name"),
 		Role:       record.AsString("role"),
 		Container:  record.AsString("container"),
 		Host:       record.AsString("host"),
@@ -155,7 +153,7 @@ func asRouter(record Record) *Router {
 func (node *RouterNode) asRouter() *Router {
 	return &Router{
 		Id: node.Id,
-		// SiteId ???
+		//SiteId ???
 		Address: node.Address,
 		Edge:    false, /*RouterNode is always an interior*/
 	}
@@ -1192,21 +1190,6 @@ func (a *Agent) Request(request *Request) (*Response, error) {
 		response.Body = body
 	}
 	return &response, nil
-}
-
-func (a *Agent) DeleteIncomingInterRouterConnections() error {
-	conns, err := a.GetConnections()
-	if err != nil {
-		return err
-	}
-	for _, conn := range conns {
-		if conn.Dir == "in" && conn.Role == "inter-router" {
-			if err = a.Delete("org.apache.qpid.dispatch.connection", conn.Name); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 func (r *Router) IsGateway() bool {

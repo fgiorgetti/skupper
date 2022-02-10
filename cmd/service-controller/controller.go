@@ -311,10 +311,9 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		go wait.Until(c.runServiceSync, time.Second, stopCh)
 	}
 	go wait.Until(c.runServiceCtrl, time.Second, stopCh)
-	_, consoleUp := c.consoleServer.start(stopCh)
-	consoleUp.Wait()
 	c.definitionMonitor.start(stopCh)
 	c.siteQueryServer.start(stopCh)
+	c.consoleServer.start(stopCh)
 	if c.claimVerifier != nil {
 		c.claimVerifier.start(stopCh)
 	}

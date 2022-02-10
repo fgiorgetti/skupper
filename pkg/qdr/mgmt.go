@@ -35,7 +35,6 @@ type RouterNode struct {
 }
 
 type Connection struct {
-	Name       string `json:"name"`
 	Container  string `json:"container"`
 	OperStatus string `json:"operStatus"`
 	Host       string `json:"host"`
