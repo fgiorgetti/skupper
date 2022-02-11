@@ -129,5 +129,18 @@ func (c *TokenHandler) isTokenDisabled(token *corev1.Secret) bool {
 	if ok {
 		disabled, _ = strconv.ParseBool(disabledValue)
 	}
+	// validate if host is still allowed
+	if !disabled {
+		siteConfig, _ := c.vanClient.SiteConfigInspect(context.Background(), nil)
+		hostname := ""
+		if siteConfig.Spec.RouterMode == string(types.TransportModeEdge) {
+			hostname = token.ObjectMeta.Annotations["edge-host"]
+		} else {
+			hostname = token.ObjectMeta.Annotations["inter-router-host"]
+		}
+		policy := client.NewClusterPolicyValidator(c.vanClient)
+		res := policy.ValidateOutgoingLink(hostname)
+		return !res.Allowed()
+	}
 	return disabled
 }

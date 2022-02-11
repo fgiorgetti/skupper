@@ -94,9 +94,6 @@ func (c *PolicyController) process() bool {
 		// Validate outgoingLink state changed
 		c.validateOutgoingLinkStateChanged()
 
-		// Valid gateway state changed
-		c.validateGatewayStateChanged()
-
 		// Validate expose state changed
 		c.validateExposeStateChanged()
 
@@ -116,6 +113,7 @@ func (c *PolicyController) process() bool {
 
 func (c *PolicyController) validateIncomingLinkStateChanged() {
 	c.adjustListenerState("validateIncomingLinkStateChanged", "interior-listener", c.validator.ValidateIncomingLink, client.InteriorListener)
+	c.adjustListenerState("validateIncomingLinkStateChanged", "edge-listener", c.validator.ValidateIncomingLink, client.EdgeListener)
 }
 
 func (c *PolicyController) adjustListenerState(source string, listenerName string, validationFunc func() *client.PolicyValidationResult, listenerFn func(options types.SiteConfigSpec) qdr.Listener) {
@@ -232,10 +230,6 @@ func (c *PolicyController) validateOutgoingLinkStateChanged() {
 			return
 		}
 	}
-}
-
-func (c *PolicyController) validateGatewayStateChanged() {
-	c.adjustListenerState("validateGatewayStateChanged", "edge-listener", c.validator.ValidateCreateGateway, client.EdgeListener)
 }
 
 func (c *PolicyController) validateExposeStateChanged() {
