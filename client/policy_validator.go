@@ -77,13 +77,25 @@ func (p *ClusterPolicyValidator) LoadNamespacePolicies() ([]v1alpha12.SkupperClu
 		return policies, err
 	}
 	for _, pol := range policyList.Items {
-		if utils.StringSliceContains(pol.Spec.Namespaces, "*") ||
-			utils.StringSliceContains(pol.Spec.Namespaces, p.cli.Namespace) ||
-			utils.RegexpStringSliceContains(pol.Spec.Namespaces, p.cli.Namespace) {
+		if p.appliesToNS(&pol) {
 			policies = append(policies, pol)
 		}
 	}
 	return policies, nil
+}
+
+func (p *ClusterPolicyValidator) AppliesToNS(policyName string) bool {
+	pol, err := p.skupperPolicy.Get(policyName, v1.GetOptions{})
+	if err != nil {
+		return false
+	}
+	return p.appliesToNS(pol)
+}
+
+func (p *ClusterPolicyValidator) appliesToNS(pol *v1alpha12.SkupperClusterPolicy) bool {
+	return utils.StringSliceContains(pol.Spec.Namespaces, "*") ||
+		utils.StringSliceContains(pol.Spec.Namespaces, p.cli.Namespace) ||
+		utils.RegexpStringSliceContains(pol.Spec.Namespaces, p.cli.Namespace)
 }
 
 func (p *ClusterPolicyValidator) Enabled() bool {
@@ -91,10 +103,24 @@ func (p *ClusterPolicyValidator) Enabled() bool {
 		return false
 	}
 	_, err := p.LoadNamespacePolicies()
-	if err != nil && strings.Contains(err.Error(), "the server could not find the requested resource") {
+	if err != nil && (!p.CrdDefined(err) || !p.NoPermission(err)) {
 		return false
 	}
 	return true
+}
+
+func (p *ClusterPolicyValidator) NoPermission(err error) bool {
+	if err == nil {
+		return true
+	}
+	return !strings.Contains(err.Error(), "is forbidden")
+}
+
+func (p *ClusterPolicyValidator) CrdDefined(err error) bool {
+	if err == nil {
+		return true
+	}
+	return !strings.Contains(err.Error(), "the server could not find the requested resource")
 }
 
 func (p *ClusterPolicyValidator) ValidateIncomingLink() *PolicyValidationResult {

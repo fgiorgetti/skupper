@@ -16,6 +16,7 @@ package types
 
 import (
 	jsonencoding "encoding/json"
+
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -275,6 +276,7 @@ type DeploymentSpec struct {
 	VolumeMounts        [][]corev1.VolumeMount       `json:"volumeMounts,omitempty"`
 	Roles               []*rbacv1.Role               `json:"roles,omitempty"`
 	RoleBindings        []*rbacv1.RoleBinding        `json:"roleBinding,omitempty"`
+	ClusterRoles        []*rbacv1.ClusterRole        `json:"clusterRoles,omitempty"`
 	ClusterRoleBindings []*rbacv1.ClusterRoleBinding `json:"clusterRoleBinding,omitempty"`
 	Routes              []*routev1.Route             `json:"routes,omitempty"`
 	ServiceAccounts     []*corev1.ServiceAccount     `json:"serviceAccounts,omitempty"`

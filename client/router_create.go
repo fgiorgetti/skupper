@@ -219,6 +219,23 @@ func (cli *VanClient) GetVanControllerSpec(options types.SiteConfigSpec, van *ty
 	})
 	van.Controller.RoleBindings = roleBindings
 
+	clusterRoles := []*rbacv1.ClusterRole{}
+	clusterRoles = append(clusterRoles, &rbacv1.ClusterRole{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "rbac.authorization.k8s.io/v1",
+			Kind:       "ClusterRole",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: types.ControllerClusterRoleName,
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{"skupper.io"},
+				Resources: []string{"skupperclusterpolicies"},
+				Verbs:     []string{"get", "list", "watch"}},
+		},
+	})
+	van.Controller.ClusterRoles = clusterRoles
 	clusterRoleBindings := []*rbacv1.ClusterRoleBinding{}
 	clusterRoleBindings = append(clusterRoleBindings, &rbacv1.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
@@ -1227,6 +1244,11 @@ sasldb_path: /tmp/qdrouterd.sasldb
 			}
 		}
 		policyValidator := NewClusterPolicyValidator(cli)
+		for _, clusterRole := range van.Controller.ClusterRoles {
+			clusterRole.ObjectMeta.OwnerReferences = ownerRefs
+			// optional (in case of failure, cluster admin can add necessary cluster roles manually)
+			kube.CreateClusterRole(clusterRole, cli.KubeClient)
+		}
 		for _, clusterRoleBinding := range van.Controller.ClusterRoleBindings {
 			clusterRoleBinding.ObjectMeta.OwnerReferences = ownerRefs
 			_, err = kube.CreateClusterRoleBinding(clusterRoleBinding, cli.KubeClient)

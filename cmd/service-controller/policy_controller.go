@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"strconv"
 	"strings"
@@ -58,11 +57,48 @@ func (c *PolicyController) OnDelete(obj interface{}) {
 }
 
 func (c *PolicyController) start(stopCh <-chan struct{}) error {
-	go c.informer.Run(stopCh)
-	if ok := cache.WaitForCacheSync(stopCh, c.informer.HasSynced); !ok {
-		return fmt.Errorf("Failed to wait for caches to sync")
-	}
-	go wait.Until(c.run, time.Second, stopCh)
+	go func() {
+		period := time.NewTicker(time.Second)
+		var crdCh chan struct{}
+		running := false
+		disabledReported := false
+		for {
+			if !running && c.validator.Enabled() {
+				log.Println("Skupper policy is enabled")
+				crdCh = make(chan struct{})
+				c.createInformer()
+				go c.informer.Run(crdCh)
+				if ok := cache.WaitForCacheSync(crdCh, c.informer.HasSynced); !ok {
+					event.Recordf(c.name, "Error waiting for cache to sync")
+					continue
+				}
+				go wait.Until(c.run, time.Second, crdCh)
+				running = true
+			} else if !c.validator.Enabled() && !disabledReported {
+				disabledReported = true
+				_, err := c.validator.LoadNamespacePolicies()
+				log.Printf("Skupper policy is disabled")
+				log.Printf("-> CRD defined = %v", c.validator.CrdDefined(err))
+				log.Printf("-> Permission to read policies = %v", c.validator.NoPermission(err))
+			}
+
+			select {
+			case <-period.C:
+				if running && !c.validator.Enabled() {
+					close(crdCh)
+					log.Println("Skupper policy has been disabled")
+					// reverts what has been denied by policies
+					c.validateStateChanged()
+					running = false
+				}
+			case <-stopCh:
+				if running {
+					close(crdCh)
+				}
+				return
+			}
+		}
+	}()
 	return nil
 }
 
@@ -76,6 +112,10 @@ func (c *PolicyController) run() {
 }
 
 func (c *PolicyController) process() bool {
+	if !c.validator.Enabled() {
+		return true
+	}
+
 	obj, shutdown := c.queue.Get()
 
 	if shutdown {
@@ -83,30 +123,15 @@ func (c *PolicyController) process() bool {
 	}
 
 	defer c.queue.Done(obj)
-	retry := false
 	if key, ok := obj.(string); ok {
-
-		log.Println("Policy has changed:", key)
-
-		// Validate incomingLink stage changed
-		c.validateIncomingLinkStateChanged()
-
-		// Validate outgoingLink state changed
-		c.validateOutgoingLinkStateChanged()
-
-		// Validate expose state changed
-		c.validateExposeStateChanged()
-
-		// Validate service state changed
-		c.validateServiceStateChanged()
+		if c.validator.AppliesToNS(key) {
+			event.Recordf(c.name, "Skupper policy has changed: %s", key)
+			c.validateStateChanged()
+		}
 	} else {
 		event.Recordf(c.name, "Expected key to be string, was %#v", key)
 	}
-	if retry && c.queue.NumRequeues(obj) < 5 {
-		c.queue.AddRateLimited(obj)
-	} else {
-		c.queue.Forget(obj)
-	}
+	c.queue.Forget(obj)
 
 	return true
 }
@@ -323,25 +348,38 @@ func (c *PolicyController) inferTargetType(target types.ServiceInterfaceTarget) 
 }
 
 func NewPolicyController(cli *client.VanClient) *PolicyController {
-	skupperCli, err := versioned.NewForConfig(cli.RestConfig)
-	if err != nil {
-		return nil
+	controller := &PolicyController{
+		name:      "PolicyController",
+		cli:       cli,
+		validator: client.NewClusterPolicyValidator(cli),
+		queue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "PolicyHandler"),
 	}
+	return controller
+}
 
-	informer := v1alpha12.NewSkupperClusterPolicyInformer(
+func (c *PolicyController) createInformer() {
+	skupperCli, err := versioned.NewForConfig(c.cli.RestConfig)
+	if err != nil {
+		return
+	}
+	c.informer = v1alpha12.NewSkupperClusterPolicyInformer(
 		skupperCli,
 		time.Second*30,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	queue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "PolicyHandler")
+	c.informer.AddEventHandler(c)
+}
 
-	controller := &PolicyController{
-		cli:       cli,
-		validator: client.NewClusterPolicyValidator(cli),
-		informer:  informer,
-		queue:     queue,
-	}
-	informer.AddEventHandler(controller)
+func (c *PolicyController) validateStateChanged() {
+	// Validate incomingLink stage changed
+	c.validateIncomingLinkStateChanged()
 
-	return controller
+	// Validate outgoingLink state changed
+	c.validateOutgoingLinkStateChanged()
+
+	// Validate expose state changed
+	c.validateExposeStateChanged()
+
+	// Validate service state changed
+	c.validateServiceStateChanged()
 }

@@ -105,7 +105,7 @@ func (cli *VanClient) TokenClaimTemplateCreate(ctx context.Context, name string,
 	policy := NewPolicyValidatorAPI(cli)
 	res, err := policy.IncomingLink()
 	if err != nil {
-		return nil, nil, false, fmt.Errorf("Error validating policies: %s", err)
+		return nil, nil, false, fmt.Errorf("Unable to validate policies: %s", err)
 	}
 	if !res.Allowed {
 		return nil, nil, false, fmt.Errorf("Incoming links are not allowed")
