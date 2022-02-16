@@ -73,6 +73,10 @@ func (c *PolicyController) start(stopCh <-chan struct{}) error {
 					continue
 				}
 				go wait.Until(c.run, time.Second, crdCh)
+				// if policy was previously disabled for an initial validation
+				if disabledReported {
+					c.validateStateChanged()
+				}
 				running = true
 			} else if !c.validator.Enabled() && !disabledReported {
 				disabledReported = true
