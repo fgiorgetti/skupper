@@ -1,6 +1,7 @@
 package client
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -42,6 +43,7 @@ func NewClusterPolicyValidatorMock(ns string, policies []v1alpha1.SkupperCluster
 	return &ClusterPolicyValidator{
 		cli:           cli,
 		skupperPolicy: policyCli.SkupperClusterPolicies(),
+		labelRegex:    regexp.MustCompile(ValidRfc1123Label),
 	}
 }
 

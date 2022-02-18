@@ -233,6 +233,10 @@ func (cli *VanClient) GetVanControllerSpec(options types.SiteConfigSpec, van *ty
 				APIGroups: []string{"skupper.io"},
 				Resources: []string{"skupperclusterpolicies"},
 				Verbs:     []string{"get", "list", "watch"}},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"namespaces"},
+				Verbs:     []string{"get"}},
 		},
 	})
 	van.Controller.ClusterRoles = clusterRoles

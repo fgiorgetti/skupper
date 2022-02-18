@@ -3,12 +3,14 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	v1alpha12 "github.com/skupperproject/skupper/pkg/apis/skupper/v1alpha1"
 	"github.com/skupperproject/skupper/pkg/generated/client/clientset/versioned/typed/skupper/v1alpha1"
 	"github.com/skupperproject/skupper/pkg/utils"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
@@ -50,10 +52,14 @@ func (p *PolicyValidationResult) Error() error {
 type ClusterPolicyValidator struct {
 	cli           *VanClient
 	skupperPolicy v1alpha1.SkupperClusterPolicyInterface
+	labelRegex    *regexp.Regexp
 }
 
 func NewClusterPolicyValidator(cli *VanClient) *ClusterPolicyValidator {
-	return &ClusterPolicyValidator{cli: cli}
+	return &ClusterPolicyValidator{
+		cli:        cli,
+		labelRegex: regexp.MustCompile(ValidRfc1123Label),
+	}
 }
 
 func (p *PolicyValidationResult) addMatchingPolicy(policy v1alpha12.SkupperClusterPolicy) {
@@ -86,16 +92,31 @@ func (p *ClusterPolicyValidator) LoadNamespacePolicies() ([]v1alpha12.SkupperClu
 
 func (p *ClusterPolicyValidator) AppliesToNS(policyName string) bool {
 	pol, err := p.skupperPolicy.Get(policyName, v1.GetOptions{})
+	// If policy not found, revalidate
 	if err != nil {
-		return false
+		return true
 	}
 	return p.appliesToNS(pol)
 }
 
 func (p *ClusterPolicyValidator) appliesToNS(pol *v1alpha12.SkupperClusterPolicy) bool {
-	return utils.StringSliceContains(pol.Spec.Namespaces, "*") ||
-		utils.StringSliceContains(pol.Spec.Namespaces, p.cli.Namespace) ||
-		utils.RegexpStringSliceContains(pol.Spec.Namespaces, p.cli.Namespace)
+	var namespaces []string
+	for _, ns := range pol.Spec.Namespaces {
+		if p.labelRegex.MatchString(ns) {
+			namespace, err := p.cli.KubeClient.CoreV1().Namespaces().Get(p.cli.Namespace, v1.GetOptions{})
+			if err == nil {
+				selector, _ := labels.Parse(ns)
+				if selector.Matches(labels.Set(namespace.Labels)) {
+					namespaces = append(namespaces, namespace.Name)
+				}
+			}
+		} else {
+			namespaces = append(namespaces, ns)
+		}
+	}
+	return utils.StringSliceContains(namespaces, "*") ||
+		utils.StringSliceContains(namespaces, p.cli.Namespace) ||
+		utils.RegexpStringSliceContains(namespaces, p.cli.Namespace)
 }
 
 func (p *ClusterPolicyValidator) Enabled() bool {

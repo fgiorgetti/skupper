@@ -73,17 +73,17 @@ func (c *PolicyController) start(stopCh <-chan struct{}) error {
 					continue
 				}
 				go wait.Until(c.run, time.Second, crdCh)
-				// if policy was previously disabled for an initial validation
-				if disabledReported {
-					c.validateStateChanged()
-				}
+				c.validateStateChanged()
 				running = true
 			} else if !c.validator.Enabled() && !disabledReported {
 				disabledReported = true
 				_, err := c.validator.LoadNamespacePolicies()
 				log.Printf("Skupper policy is disabled")
-				log.Printf("-> CRD defined = %v", c.validator.CrdDefined(err))
-				log.Printf("-> Permission to read policies = %v", c.validator.NoPermission(err))
+				if !c.validator.CrdDefined(err) {
+					log.Printf("-> CRD is NOT defined")
+				} else if !c.validator.NoPermission(err) {
+					log.Printf("-> No permission to read SkupperClusterPolicies")
+				}
 			}
 
 			select {
