@@ -1,12 +1,15 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	v1alpha12 "github.com/skupperproject/skupper/pkg/apis/skupper/v1alpha1"
+	"github.com/skupperproject/skupper/pkg/event"
 	"github.com/skupperproject/skupper/pkg/generated/client/clientset/versioned/typed/skupper/v1alpha1"
 	"github.com/skupperproject/skupper/pkg/utils"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -271,12 +274,24 @@ func (p *PolicyAPIClient) execGet(args ...string) (*PolicyAPIResult, error) {
 			Enabled: false,
 		}, nil
 	}
-	_, err := p.cli.exec([]string{"get", "policies", "-h"}, p.cli.GetNamespace())
+	ctx, cn := context.WithTimeout(context.Background(), time.Second*30)
+	defer cn()
+	err := utils.RetryWithContext(ctx, time.Second, func() (bool, error) {
+		_, err := p.cli.exec([]string{"get", "policies", "-h"}, p.cli.GetNamespace())
+		if err != nil {
+			if err.Error() == "Not ready" {
+				return false, nil
+			}
+			return true, err
+		}
+		return true, nil
+	})
 	if err != nil {
+		event.Recordf("PolicyAPIError", "Unable to communicate with the API: %v", err)
 		return &PolicyAPIResult{
-			Allowed: true,
+			Allowed: false,
 			Enabled: false,
-		}, nil
+		}, err
 	}
 	fullArgs := []string{"get", "policies"}
 	fullArgs = append(fullArgs, args...)
