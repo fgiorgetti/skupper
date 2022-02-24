@@ -19,10 +19,13 @@ func newPolicyManager(cli *client.VanClient) *PolicyManager {
 	return p
 }
 
-func fromPolicyValidationResult(res *client.PolicyValidationResult) client.PolicyAPIResult {
+func fromPolicyValidationResult(res *client.PolicyValidationResult, notAllowedMessage string) client.PolicyAPIResult {
 	err := ""
 	if res.Error() != nil {
 		err = res.Error().Error()
+	}
+	if !res.Allowed() {
+		err = fmt.Sprintf("Policy validation error: %s - %s", notAllowedMessage, err)
 	}
 	return client.PolicyAPIResult{
 		Allowed:   res.Allowed(),
@@ -46,7 +49,7 @@ func (p *PolicyManager) gateway() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			res := p.validator.ValidateCreateGateway()
-			pr := fromPolicyValidationResult(res)
+			pr := fromPolicyValidationResult(res, "gateways are not allowed")
 			if wantsJsonOutput(r) {
 				writeJson(pr, w)
 			} else {
@@ -67,7 +70,7 @@ func (p *PolicyManager) expose() http.Handler {
 				return
 			}
 			res := p.validator.ValidateExpose(resourceType, resourceName)
-			pr := fromPolicyValidationResult(res)
+			pr := fromPolicyValidationResult(res, fmt.Sprintf("%s/%s cannot be exposed", resourceType, resourceName))
 			if wantsJsonOutput(r) {
 				writeJson(pr, w)
 			} else {
@@ -87,7 +90,7 @@ func (p *PolicyManager) service() http.Handler {
 				return
 			}
 			res := p.validator.ValidateImportService(name)
-			pr := fromPolicyValidationResult(res)
+			pr := fromPolicyValidationResult(res, fmt.Sprintf("service %s cannot be created", name))
 			if wantsJsonOutput(r) {
 				writeJson(pr, w)
 			} else {
@@ -101,7 +104,7 @@ func (p *PolicyManager) incomingLink() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			res := p.validator.ValidateIncomingLink()
-			pr := fromPolicyValidationResult(res)
+			pr := fromPolicyValidationResult(res, "incoming links are not allowed")
 			if wantsJsonOutput(r) {
 				writeJson(pr, w)
 			} else {
@@ -121,7 +124,7 @@ func (p *PolicyManager) outgoingLink() http.Handler {
 				return
 			}
 			res := p.validator.ValidateOutgoingLink(hostname)
-			pr := fromPolicyValidationResult(res)
+			pr := fromPolicyValidationResult(res, fmt.Sprintf("outgoing link to %s is not allowed", hostname))
 			if wantsJsonOutput(r) {
 				writeJson(pr, w)
 			} else {

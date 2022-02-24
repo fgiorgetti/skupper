@@ -1044,10 +1044,10 @@ func (cli *VanClient) GatewayInit(ctx context.Context, gatewayName string, gatew
 	policy := NewPolicyValidatorAPI(cli)
 	policyRes, err := policy.Gateway()
 	if err != nil {
-		return "", fmt.Errorf("Policy validation error: %s", err)
+		return "", err
 	}
 	if !policyRes.Allowed {
-		return "", fmt.Errorf("Gateway creation is not authorized")
+		return "", policyRes.Err()
 	}
 
 	if gatewayType == "" {

@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+
 	"github.com/skupperproject/skupper/api/types"
 	"github.com/skupperproject/skupper/pkg/kube"
 	"github.com/skupperproject/skupper/pkg/qdr"
@@ -15,10 +16,10 @@ func (cli *VanClient) ServiceInterfaceCreate(ctx context.Context, service *types
 	policy := NewPolicyValidatorAPI(cli)
 	res, err := policy.Service(service.Address)
 	if err != nil {
-		return fmt.Errorf("Unable to validate policies: %s", err)
+		return err
 	}
 	if !res.Allowed {
-		return fmt.Errorf("Service creation for: %s is not allowed", service.Address)
+		return res.Err()
 	}
 	owner, err := getRootObject(cli)
 	if err == nil {

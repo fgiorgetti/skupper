@@ -113,10 +113,10 @@ func expose(cli types.VanClientInterface, ctx context.Context, targetType string
 		policy = client.NewPolicyValidatorAPI(vanClient)
 		res, err := policy.Expose(targetType, targetName)
 		if err != nil {
-			return "", fmt.Errorf("Unable to validate policies: %s", err)
+			return "", err
 		}
 		if !res.Allowed {
-			return "", fmt.Errorf("Exposing the provided target resource is not allowed")
+			return "", res.Err()
 		}
 	}
 	if service == nil {
@@ -134,10 +134,10 @@ func expose(cli types.VanClientInterface, ctx context.Context, targetType string
 			if realClient {
 				res, err := policy.Service(serviceName)
 				if err != nil {
-					return "", fmt.Errorf("Unable to validate policies: %s", err)
+					return "", err
 				}
 				if !res.Allowed {
-					return "", fmt.Errorf("Service creation is not authorized")
+					return "", res.Err()
 				}
 			}
 			service = &types.ServiceInterface{

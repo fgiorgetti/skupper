@@ -197,10 +197,10 @@ func (cli *VanClient) ConnectorCreateSecretFromData(ctx context.Context, secretD
 			policy := NewPolicyValidatorAPI(cli)
 			res, err := policy.OutgoingLink(hostname)
 			if err != nil {
-				return nil, fmt.Errorf("Unable to validate policy: %s", err)
+				return nil, err
 			}
 			if !res.Allowed {
-				return nil, fmt.Errorf("Not authorized to create an outgoing link to the destination host: %s", hostname)
+				return nil, res.Err()
 			}
 
 			if options.Name == "" {

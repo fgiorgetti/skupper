@@ -133,7 +133,7 @@ func (c *Controller) ensureServiceInterfaceDefinitions(origin string, serviceInt
 	for _, def := range serviceInterfaceDefs {
 		res := policy.ValidateImportService(def.Address)
 		if !res.Allowed() {
-			event.Recordf(ServiceSyncError, "Not authorized to create service: %s", def.Address)
+			event.Recordf(ServiceSyncError, "Policy validation error: service %s cannot be created", def.Address)
 			continue
 		}
 		existing, ok := c.byName[def.Address]

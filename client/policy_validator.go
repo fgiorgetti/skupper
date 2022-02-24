@@ -294,21 +294,28 @@ func (p *PolicyAPIClient) execGet(args ...string) (*PolicyAPIResult, error) {
 		return &PolicyAPIResult{
 			Allowed: false,
 			Enabled: false,
-		}, err
+		}, fmt.Errorf("Policy validation error: %v", err)
 	}
 	fullArgs := []string{"get", "policies"}
 	fullArgs = append(fullArgs, args...)
 	fullArgs = append(fullArgs, "-o", "json")
 	out, err := p.cli.exec(fullArgs, p.cli.GetNamespace())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Policy validation error: %v", err)
 	}
 	res := &PolicyAPIResult{}
 	err = json.Unmarshal(out.Bytes(), res)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Policy validation error: %v", err)
 	}
 	return res, nil
+}
+
+func (p *PolicyAPIResult) Err() error {
+	if p.Error != "" {
+		return fmt.Errorf(p.Error)
+	}
+	return nil
 }
 
 func (p *PolicyAPIClient) Gateway() (*PolicyAPIResult, error) {

@@ -233,10 +233,10 @@ func (cli *VanClient) ConnectorTokenCreateFile(ctx context.Context, subject stri
 	policy := NewPolicyValidatorAPI(cli)
 	res, err := policy.IncomingLink()
 	if err != nil {
-		return fmt.Errorf("Unable to validate policies: %s", err)
+		return err
 	}
 	if !res.Allowed {
-		return fmt.Errorf("Incoming links are not allowed")
+		return res.Err()
 	}
 	secret, localOnly, err := cli.ConnectorTokenCreate(ctx, subject, "")
 	if err == nil {

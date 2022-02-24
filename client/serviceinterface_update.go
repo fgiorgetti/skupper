@@ -156,10 +156,10 @@ func (cli *VanClient) ServiceInterfaceBind(ctx context.Context, service *types.S
 	policy := NewPolicyValidatorAPI(cli)
 	res, err := policy.Expose(targetType, targetName)
 	if err != nil {
-		return fmt.Errorf("Unable to validate policies: %s", err)
+		return err
 	}
 	if !res.Allowed {
-		return fmt.Errorf("Exposing the provided target resource is not allowed")
+		return res.Err()
 	}
 	owner, err := getRootObject(cli)
 	if err == nil {

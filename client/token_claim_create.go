@@ -61,10 +61,10 @@ func (cli *VanClient) TokenClaimCreateFile(ctx context.Context, name string, pas
 	policy := NewPolicyValidatorAPI(cli)
 	res, err := policy.IncomingLink()
 	if err != nil {
-		return fmt.Errorf("Unable to validate policies: %s", err)
+		return err
 	}
 	if !res.Allowed {
-		return fmt.Errorf("Incoming links are not allowed")
+		return res.Err()
 	}
 	claim, localOnly, err := cli.TokenClaimCreate(ctx, name, password, expiry, uses)
 	if err != nil {
@@ -105,10 +105,10 @@ func (cli *VanClient) TokenClaimTemplateCreate(ctx context.Context, name string,
 	policy := NewPolicyValidatorAPI(cli)
 	res, err := policy.IncomingLink()
 	if err != nil {
-		return nil, nil, false, fmt.Errorf("Unable to validate policies: %s", err)
+		return nil, nil, false, err
 	}
 	if !res.Allowed {
-		return nil, nil, false, fmt.Errorf("Incoming links are not allowed")
+		return nil, nil, false, res.Err()
 	}
 	current, err := cli.getRouterConfig()
 	if err != nil {

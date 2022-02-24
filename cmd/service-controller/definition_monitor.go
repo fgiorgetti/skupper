@@ -217,11 +217,11 @@ func (m *DefinitionMonitor) getServiceDefinitionFromAnnotatedDeployment(deployme
 
 		policy := client.NewClusterPolicyValidator(m.vanClient)
 		if policyRes := policy.ValidateExpose("deployment", deployment.Name); !policyRes.Allowed() {
-			event.Recordf(DefinitionMonitorIgnored, "Resource exposure is not authorized (deployment/%s)", deployment.ObjectMeta.Name)
+			event.Recordf(DefinitionMonitorIgnored, "Policy validation error: deployment/%s cannot be exposed", deployment.ObjectMeta.Name)
 			return types.ServiceInterface{}, false
 		}
 		if policyRes := policy.ValidateImportService(svc.Address); !policyRes.Allowed() {
-			event.Recordf(DefinitionMonitorIgnored, "Service name is not authorized (%s)", svc.Address)
+			event.Recordf(DefinitionMonitorIgnored, "Policy validation error: service %s cannot be created", svc.Address)
 			return types.ServiceInterface{}, false
 		}
 
@@ -270,11 +270,11 @@ func (m *DefinitionMonitor) getServiceDefinitionFromAnnotatedStatefulSet(statefu
 
 		policy := client.NewClusterPolicyValidator(m.vanClient)
 		if policyRes := policy.ValidateExpose("statefulset", statefulset.Name); !policyRes.Allowed() {
-			event.Recordf(DefinitionMonitorIgnored, "Resource exposure is not authorized (statefulset/%s)", statefulset.ObjectMeta.Name)
+			event.Recordf(DefinitionMonitorIgnored, "Policy validation error: statefulset/%s cannot be exposed", statefulset.ObjectMeta.Name)
 			return types.ServiceInterface{}, false
 		}
 		if policyRes := policy.ValidateImportService(svc.Address); !policyRes.Allowed() {
-			event.Recordf(DefinitionMonitorIgnored, "Service name is not authorized (%s)", svc.Address)
+			event.Recordf(DefinitionMonitorIgnored, "Policy validation error: service %s cannot be created", svc.Address)
 			return types.ServiceInterface{}, false
 		}
 
@@ -326,11 +326,11 @@ func (m *DefinitionMonitor) getServiceDefinitionFromAnnotatedDaemonSet(daemonset
 
 		policy := client.NewClusterPolicyValidator(m.vanClient)
 		if policyRes := policy.ValidateExpose("daemonset", daemonset.Name); !policyRes.Allowed() {
-			event.Recordf(DefinitionMonitorIgnored, "Resource exposure is not authorized (daemonset/%s)", daemonset.ObjectMeta.Name)
+			event.Recordf(DefinitionMonitorIgnored, "Policy validation error: daemonset/%s cannot be exposed", daemonset.ObjectMeta.Name)
 			return types.ServiceInterface{}, false
 		}
 		if policyRes := policy.ValidateImportService(svc.Address); !policyRes.Allowed() {
-			event.Recordf(DefinitionMonitorIgnored, "Service name is not authorized (%s)", svc.Address)
+			event.Recordf(DefinitionMonitorIgnored, "Policy validation error: service %s cannot be created", svc.Address)
 			return types.ServiceInterface{}, false
 		}
 
@@ -447,11 +447,11 @@ func (m *DefinitionMonitor) getServiceDefinitionFromAnnotatedService(service *co
 
 		policy := client.NewClusterPolicyValidator(m.vanClient)
 		if policyRes := policy.ValidateExpose("service", service.Name); !policyRes.Allowed() {
-			event.Recordf(DefinitionMonitorIgnored, "Resource exposure is not authorized (service/%s)", service.ObjectMeta.Name)
+			event.Recordf(DefinitionMonitorIgnored, "Policy validation error: service/%s cannot be exposed", service.ObjectMeta.Name)
 			return types.ServiceInterface{}, false
 		}
 		if policyRes := policy.ValidateImportService(svc.Address); !policyRes.Allowed() {
-			event.Recordf(DefinitionMonitorIgnored, "Service name is not authorized (%s)", svc.Address)
+			event.Recordf(DefinitionMonitorIgnored, "Policy validation error: service %s cannot be created", svc.Address)
 			return types.ServiceInterface{}, false
 		}
 
