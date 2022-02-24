@@ -624,7 +624,15 @@ func NewCmdStatus(newClient cobraFunc) *cobra.Command {
 				if vir.Status.SiteName != "" && vir.Status.SiteName != ns {
 					sitename = fmt.Sprintf(" with site name %q", vir.Status.SiteName)
 				}
-				fmt.Printf("Skupper is enabled for namespace %q%s%s.", ns, sitename, modedesc)
+				policyStr := ""
+				if vanClient, ok := cli.(*client.VanClient); ok {
+					p := client.NewPolicyValidatorAPI(vanClient)
+					r, err := p.IncomingLink()
+					if err == nil && r.Enabled {
+						policyStr = " (with policies)"
+					}
+				}
+				fmt.Printf("Skupper is enabled for namespace %q%s%s%s.", ns, sitename, modedesc, policyStr)
 				if vir.Status.TransportReadyReplicas == 0 {
 					fmt.Printf(" Status pending...")
 				} else {

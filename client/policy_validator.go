@@ -276,7 +276,7 @@ func (p *PolicyAPIClient) execGet(args ...string) (*PolicyAPIResult, error) {
 	}
 	ctx, cn := context.WithTimeout(context.Background(), time.Second*30)
 	defer cn()
-	err := utils.RetryWithContext(ctx, time.Second, func() (bool, error) {
+	err := utils.RetryWithContext(ctx, time.Millisecond*100, func() (bool, error) {
 		_, err := p.cli.exec([]string{"get", "policies", "-h"}, p.cli.GetNamespace())
 		if err != nil {
 			if err.Error() == "Not ready" {
@@ -287,7 +287,10 @@ func (p *PolicyAPIClient) execGet(args ...string) (*PolicyAPIResult, error) {
 		return true, nil
 	})
 	if err != nil {
-		event.Recordf("PolicyAPIError", "Unable to communicate with the API: %v", err)
+		err := fmt.Errorf("Unable to communicate with the API: %v", err)
+		if event.DefaultStore != nil {
+			event.Recordf("PolicyAPIError", err.Error())
+		}
 		return &PolicyAPIResult{
 			Allowed: false,
 			Enabled: false,
