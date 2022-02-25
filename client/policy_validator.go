@@ -281,6 +281,8 @@ func (p *PolicyAPIClient) execGet(args ...string) (*PolicyAPIResult, error) {
 		if err != nil {
 			if err.Error() == "Not ready" {
 				return false, nil
+			} else if err.Error() == "Not found" {
+				return false, fmt.Errorf("Skupper is not enabled in namespace '%s'", p.cli.Namespace)
 			}
 			return true, err
 		}

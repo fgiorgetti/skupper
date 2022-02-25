@@ -459,7 +459,7 @@ func TestGatewayExpose(t *testing.T) {
 	kubeConfigPath := ""
 	gatewayType := GatewayMockType
 
-	//isCluster := *clusterRun
+	// isCluster := *clusterRun
 	if *clusterRun {
 		cli, err = NewClient(namespace, kubeContext, kubeConfigPath)
 	} else {
@@ -576,7 +576,7 @@ func TestGatewayInit(t *testing.T) {
 	defer kube.DeleteNamespace(namespace, cli.KubeClient)
 
 	_, observedError := cli.GatewayInit(ctx, namespace, GatewayDockerType, "")
-	assert.Check(t, strings.Contains(observedError.Error(), "Skupper not initialized"))
+	assert.Check(t, strings.Contains(observedError.Error(), "Skupper is not enabled"))
 
 	// Create a router.
 	err = cli.RouterCreate(ctx, types.SiteConfig{
