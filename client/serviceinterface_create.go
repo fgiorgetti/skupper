@@ -83,7 +83,7 @@ func (cli *VanClient) ServiceInterfaceCreate(ctx context.Context, service *types
 
 		return updateServiceInterface(service, false, owner, cli)
 	} else if errors.IsNotFound(err) {
-		return fmt.Errorf("Skupper not initialised in %s", cli.Namespace)
+		return fmt.Errorf("Skupper is not enabled in namespace '%s'", cli.Namespace)
 	} else {
 		return err
 	}

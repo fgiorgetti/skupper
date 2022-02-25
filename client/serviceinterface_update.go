@@ -146,7 +146,7 @@ func (cli *VanClient) ServiceInterfaceUpdate(ctx context.Context, service *types
 			return fmt.Errorf("Service not found: %w", err)
 		}
 	} else if errors.IsNotFound(err) {
-		return fmt.Errorf("Skupper not initialised in %s", cli.Namespace)
+		return fmt.Errorf("Skupper is not enabled in namespace '%s'", cli.Namespace)
 	} else {
 		return err
 	}
@@ -199,7 +199,7 @@ func (cli *VanClient) ServiceInterfaceBind(ctx context.Context, service *types.S
 		service.AddTarget(target)
 		return updateServiceInterface(service, true, owner, cli)
 	} else if errors.IsNotFound(err) {
-		return fmt.Errorf("Skupper not initialised in %s", cli.Namespace)
+		return fmt.Errorf("Skupper is not enabled in namespace '%s'", cli.Namespace)
 	} else {
 		return err
 	}
