@@ -25,7 +25,12 @@ func fromPolicyValidationResult(res *client.PolicyValidationResult, notAllowedMe
 		err = res.Error().Error()
 	}
 	if !res.Allowed() {
-		err = fmt.Sprintf("Policy validation error: %s - %s", notAllowedMessage, err)
+		msg := fmt.Sprintf("Policy validation error: %s", notAllowedMessage)
+		if err != "" {
+			err = fmt.Sprintf("%s - %s", msg, err)
+		} else {
+			err = msg
+		}
 	}
 	return client.PolicyAPIResult{
 		Allowed:   res.Allowed(),
