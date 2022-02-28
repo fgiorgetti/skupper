@@ -289,6 +289,13 @@ func (p *PolicyAPIClient) execGet(args ...string) (*PolicyAPIResult, error) {
 		return true, nil
 	})
 	if err != nil {
+		if err.Error() == "command terminated with exit code 1" {
+			// site is running an older version without policy support
+			return &PolicyAPIResult{
+				Allowed: true,
+				Enabled: false,
+			}, nil
+		}
 		err := fmt.Errorf("Unable to communicate with the API: %v", err)
 		if event.DefaultStore != nil {
 			event.Recordf("PolicyAPIError", err.Error())
