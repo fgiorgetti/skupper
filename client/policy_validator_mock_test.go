@@ -56,7 +56,7 @@ func NewClusterPolicyValidatorMock(ns string, nsLabels map[string]string, polici
 	}
 }
 
-func TestMockValidateInc20omingLink(t *testing.T) {
+func TestMockValidateIncomingLink(t *testing.T) {
 	type tc struct {
 		name                string
 		ns                  string
@@ -109,7 +109,7 @@ func TestMockValidateInc20omingLink(t *testing.T) {
 			expAllowPolicyNames: []string{"policy-2", "policy-4"},
 		},
 		{
-			name:     "allow-ccc-ns-by-label",
+			name:     "allow-ccc-ns-label",
 			ns:       "ccc",
 			nsLabels: map[string]string{"app": "c"},
 			policies: addIncomingLinkPolicy([]policyData{
@@ -169,6 +169,7 @@ func TestMockValidateOutgoingLink(t *testing.T) {
 	type tc struct {
 		name                string
 		ns                  string
+		nsLabel             map[string]string
 		hostname            string
 		policies            []v1alpha1.SkupperClusterPolicy
 		expAllowed          bool
@@ -232,6 +233,20 @@ func TestMockValidateOutgoingLink(t *testing.T) {
 			expAllowPolicyNames: []string{"policy-3", "policy-4"},
 		},
 		{
+			name:     "allow-ns-label-and-hostname-regex",
+			ns:       "ccc",
+			nsLabel:  map[string]string{"app": "ccc"},
+			hostname: "hostname3.domain3",
+			policies: addOutgoingLinkPolicy([]policyData{
+				{name: "policy-1", namespaces: []string{"aaa"}, hostnames: []string{"hostname1.domain1"}},
+				{name: "policy-2", namespaces: []string{"bbb"}, hostnames: []string{"hostname2.domain2"}},
+				{name: "policy-3", namespaces: []string{"app=ccc"}, hostnames: []string{`hostname[0-9]\.domain[0-9]`}},
+				{name: "policy-4", namespaces: []string{"ccc"}, hostnames: []string{`hostname.*`}},
+			}),
+			expAllowed:          true,
+			expAllowPolicyNames: []string{"policy-3", "policy-4"},
+		},
+		{
 			name:     "deny-all-ns-no-hosts",
 			ns:       "aaa",
 			hostname: "hostname1.domain1",
@@ -268,7 +283,7 @@ func TestMockValidateOutgoingLink(t *testing.T) {
 
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
-			policyMock := NewClusterPolicyValidatorMock(scenario.ns, nil, scenario.policies)
+			policyMock := NewClusterPolicyValidatorMock(scenario.ns, scenario.nsLabel, scenario.policies)
 			res := policyMock.ValidateOutgoingLink(scenario.hostname)
 
 			// asserting results
@@ -287,6 +302,7 @@ func TestMockValidateExpose(t *testing.T) {
 	type tc struct {
 		name                string
 		ns                  string
+		nsLabel             map[string]string
 		resource            string
 		policies            []v1alpha1.SkupperClusterPolicy
 		expAllowed          bool
@@ -327,6 +343,20 @@ func TestMockValidateExpose(t *testing.T) {
 		{
 			name:     "allow-ns-resource",
 			ns:       "aaa",
+			resource: "deployment/my-app-3",
+			policies: addExposePolicy([]policyData{
+				{name: "policy-1", namespaces: []string{"aaa"}, resources: []string{"deployment/my-app-1"}},
+				{name: "policy-2", namespaces: []string{"aaa"}, resources: []string{"deployment/my-app-2"}},
+				{name: "policy-3", namespaces: []string{"aaa"}, resources: []string{"deployment/my-app-3"}},
+				{name: "policy-4", namespaces: []string{"bbb"}, resources: []string{"*"}},
+			}),
+			expAllowed:          true,
+			expAllowPolicyNames: []string{"policy-3"},
+		},
+		{
+			name:     "allow-ns-label-resource",
+			ns:       "aaa",
+			nsLabel:  map[string]string{"app": "aaa"},
 			resource: "deployment/my-app-3",
 			policies: addExposePolicy([]policyData{
 				{name: "policy-1", namespaces: []string{"aaa"}, resources: []string{"deployment/my-app-1"}},
@@ -383,7 +413,7 @@ func TestMockValidateExpose(t *testing.T) {
 
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
-			policyMock := NewClusterPolicyValidatorMock(scenario.ns, nil, scenario.policies)
+			policyMock := NewClusterPolicyValidatorMock(scenario.ns, scenario.nsLabel, scenario.policies)
 			resourceTypeName := strings.Split(scenario.resource, "/")
 			resourceType := resourceTypeName[0]
 			resourceName := resourceTypeName[1]
@@ -405,6 +435,7 @@ func TestMockValidateImportService(t *testing.T) {
 	type tc struct {
 		name                string
 		ns                  string
+		nsLabel             map[string]string
 		service             string
 		policies            []v1alpha1.SkupperClusterPolicy
 		expAllowed          bool
@@ -456,6 +487,20 @@ func TestMockValidateImportService(t *testing.T) {
 			expAllowPolicyNames: []string{"policy-2"},
 		},
 		{
+			name:    "allow-ns-label-service",
+			ns:      "aaa",
+			nsLabel: map[string]string{"app": "aaa"},
+			service: "service-4",
+			policies: addServicePolicy([]policyData{
+				{name: "policy-1", namespaces: []string{"aaa"}, services: []string{"service-1", "service-2"}},
+				{name: "policy-2", namespaces: []string{"app=aaa"}, services: []string{"service-3", "service-4"}},
+				{name: "policy-3", namespaces: []string{"bbb"}, services: []string{"service-1"}},
+				{name: "policy-4", namespaces: []string{"bbb"}, services: []string{"service-2"}},
+			}),
+			expAllowed:          true,
+			expAllowPolicyNames: []string{"policy-2"},
+		},
+		{
 			name:    "allow-ns-service-regex",
 			ns:      "aaa",
 			service: "my-service-99",
@@ -500,7 +545,7 @@ func TestMockValidateImportService(t *testing.T) {
 
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
-			policyMock := NewClusterPolicyValidatorMock(scenario.ns, nil, scenario.policies)
+			policyMock := NewClusterPolicyValidatorMock(scenario.ns, scenario.nsLabel, scenario.policies)
 			res := policyMock.ValidateImportService(scenario.service)
 
 			// asserting results
@@ -519,6 +564,7 @@ func TestMockValidateCreateGateway(t *testing.T) {
 	type tc struct {
 		name                string
 		ns                  string
+		nsLabel             map[string]string
 		policies            []v1alpha1.SkupperClusterPolicy
 		expAllowed          bool
 		expAllowPolicyNames []string
@@ -579,7 +625,7 @@ func TestMockValidateCreateGateway(t *testing.T) {
 		},
 		{
 			name: "allow-ddd-ns",
-			ns:   "ccc",
+			ns:   "ddd",
 			policies: addGatewayPolicy([]policyData{
 				{name: "policy-1", namespaces: []string{"aaa", "bbb", "ccc", "ddd", "eee"}, allow: true},
 				{name: "policy-2", namespaces: []string{"bbb"}, allow: true},
@@ -587,7 +633,20 @@ func TestMockValidateCreateGateway(t *testing.T) {
 				{name: "policy-4", namespaces: []string{"*"}, allow: true},
 			}),
 			expAllowed:          true,
-			expAllowPolicyNames: []string{"policy-1", "policy-3", "policy-4"},
+			expAllowPolicyNames: []string{"policy-1", "policy-4"},
+		},
+		{
+			name:    "allow-ddd-ns-label",
+			ns:      "ddd",
+			nsLabel: map[string]string{"app": "ddd"},
+			policies: addGatewayPolicy([]policyData{
+				{name: "policy-1", namespaces: []string{"aaa", "bbb", "ccc", "app=ddd", "eee"}, allow: true},
+				{name: "policy-2", namespaces: []string{"bbb"}, allow: true},
+				{name: "policy-3", namespaces: []string{"ccc"}, allow: true},
+				{name: "policy-4", namespaces: []string{"*"}, allow: true},
+			}),
+			expAllowed:          true,
+			expAllowPolicyNames: []string{"policy-1", "policy-4"},
 		},
 		{
 			name: "deny-ddd-ns",
@@ -616,7 +675,7 @@ func TestMockValidateCreateGateway(t *testing.T) {
 
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
-			policyMock := NewClusterPolicyValidatorMock(scenario.ns, nil, scenario.policies)
+			policyMock := NewClusterPolicyValidatorMock(scenario.ns, scenario.nsLabel, scenario.policies)
 			res := policyMock.ValidateCreateGateway()
 
 			// asserting results
