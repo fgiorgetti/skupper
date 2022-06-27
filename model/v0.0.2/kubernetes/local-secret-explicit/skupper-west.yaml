@@ -1,0 +1,21 @@
+site:
+  name: "west"
+  router-mode: "interior"
+services:
+  - address: "frontend"
+    protocol: "http"
+    ports:
+      - 8080: 8080
+    dependsOn:
+      - "backend"
+    target:
+      selectors:
+        - app: "frontend"
+credentials:
+  - name: "skupper-site-ca"
+    provider: "west-ca"
+credentialProviders:
+  - name: west-ca
+    properties:
+      tls.crt: "base64"
+      tls.key: "base64"
