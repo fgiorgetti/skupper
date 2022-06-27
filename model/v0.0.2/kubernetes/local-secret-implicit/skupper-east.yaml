@@ -1,0 +1,13 @@
+site:
+  name: "east"
+  router-mode: "edge"
+services:
+  - address: "backend"
+    protocol: "http"
+    ports:
+      - 8080: 8080
+    target:
+      selectors:
+        - app: "backend"
+links:
+  - credential: "east-to-west"

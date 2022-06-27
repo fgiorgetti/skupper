@@ -1,0 +1,17 @@
+site:
+  name: "west"
+  router-mode: "interior"
+services:
+  # just creates an ingress to the backend service
+  - address: "backend"
+    protocol: "http"
+    ports:
+      - 8080: 8080
+credentials:
+  - name: "skupper-site-ca"
+    provider: "west-ca"
+credentialProviders:
+  - name: west-ca
+    properties:
+      tls.crt: "base64"
+      tls.key: "base64"
