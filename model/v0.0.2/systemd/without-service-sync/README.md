@@ -9,3 +9,6 @@ Service controller (as well as service sync) are ignored at the moment, consider
 that non-k8s sites will simply have a skupper-router instance running.
 
 With that, changes to the yaml will need to be reprocessed by skupper (binary).
+
+On systemd, docker or podman sites, we might also need an environment variable
+or CLI option so that user can specify which local site is being managed.
