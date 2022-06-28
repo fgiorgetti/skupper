@@ -3,6 +3,8 @@ site:
   router-mode: "interior"
 services:
   # just creates an ingress to the backend service
+  # if we define a service-controller for non-k8s sites,
+  # these service entries can be removed
   - address: "backend"
     protocol: "http"
     ports:
