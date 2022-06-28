@@ -9,6 +9,13 @@
 * Service sync on non-k8s sites
 * How to do a gateway forward on new model
 * How a k8s service will be handled on non-k8s sites
+* Ingress must be considered so that tokens can be generated
+* Console could be a first class element
+* Ingresses could also be a first class element
+* Describe all internal features (service sync, ip lookup, console, ...)
+  *  They need to be accounted for all platforms
+* Rethink target service / host (maybe they represent the same thing)
+* Draw a UML diagram to represent all that Skupper can do
 
 # Model validation matrix
 
