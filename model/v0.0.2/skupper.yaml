@@ -72,11 +72,6 @@ credentialProviders:
     properties: # vault properties are just to illustrate not the real ones (tbd)
       url: "url"
       token: "token"
-      token_id: "token_id"
-      user_id: "user_id"
-      username: "username"
-      password: "password"
-      role: "role"
   - name: custom-site # properties to override an internal credential info
     properties:
       ca.crt: "base64"
