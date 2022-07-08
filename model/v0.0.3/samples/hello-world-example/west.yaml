@@ -1,0 +1,23 @@
+site:
+  name: "west"
+  mode: "interior"
+credentials:
+  # using a pre-defined CA (skupper-site-ca certs available on the platform)
+  - name: "skupper-site-ca"
+    type: "internal"
+    # or, optionally, explicitly defined in the model
+    properties:
+      ca.crt: "base64"
+      tls.crt: "base64"
+      tls.key: "base64"
+services:
+  - address: "frontend"
+    protocol: "http"
+    ports:
+      - 8080: 8080
+    waitTargetAvailable: true
+    dependsOn:
+      - "backend"
+    target:
+      selectors:
+        - app: "frontend"
