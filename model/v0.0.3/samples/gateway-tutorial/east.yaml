@@ -1,0 +1,30 @@
+site:
+  name: "east"
+  mode: "interior"
+links:
+  # the link defined here assumes we can predict the target host
+  - name: "west"
+    host: "west.domain"
+    port: 8443
+    credential: "east-to-west"
+credentials:
+  # using a pre-defined CA (skupper-site-ca certs available on the platform)
+  - name: "skupper-site-ca"
+    type: "internal"
+  # we could have a certificate identified locally by the name east-to-west only
+  - name: "east-to-west"
+    type: "internal"
+    # or, optionally, explicitly defined in the model
+    properties:
+      ca.crt: "base64"
+      tls.crt: "base64"
+      tls.key: "base64"
+services:
+  - address: "backend"
+    protocol: "http"
+    ports:
+      - 8080: 8080
+    skipIngress: "true"
+    target: # one of
+      service:
+        - name: "192.168.122.1" # backend IP address
