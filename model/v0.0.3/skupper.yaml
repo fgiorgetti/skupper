@@ -4,7 +4,8 @@ site:
   name: "site-1"
   mode: "interior"
   logging: "info"
-  service-controller: "true"
+  # static-config - if enabled (default is false) services ingress and egress must be statically defined (no service controller changes)
+  static-config: "true"
   service-sync: "true"
   routers: 1
 # Console configuration (optional)
@@ -25,12 +26,14 @@ ingress:
   controller-load-balancer-ip: ""
 # list of services to be created/exposed with all proposed options
 services:
+  # TODO think of a better representation for ingress/egress
   # only the common fields (to all kind of sites):
   - address: "my-service"
     protocol: "http"
     ports:
       - 8080: 8080
-    waitTargetAvailable: true
+    # Removed temporarily (waiting on team discussion)
+    # waitTargetAvailable: true
     skipIngress: "true" # if true (default is false) ingress will not be routed through Skupper
       # false on non-k8s also can be used to express a "forward" used by the gateway today
     # true on non-k8s is a gateway bind
@@ -68,8 +71,7 @@ links:
   # name, host and port are optional fields on kubernetes
   # as they can be provided by the credential (secret)
   - name: "site-2"
-    host: "host.domain"
-    port: 443
+    url: "10.0.0.1:8443"
     cost: 1
     credential: "site-2"
     password: "" # optional - if populated handle it internally as a token claim
@@ -97,6 +99,8 @@ credentials:
       tls.crt: "base64"
       tls.key: "base64"
 tokens:
+  # TODO Review and discuss responsibilities: service or site controller?
+  # TODO What is the each component role?
   # A regular request to create a token as done by the site-controller today
   # Not yet sure if it is actually needed here or if we should keep it in site-controller only
   - name: "site-3-to-site-1"
