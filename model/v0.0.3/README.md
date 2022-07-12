@@ -1,1 +1,0 @@
-See: [Skupper model draft proposal for multiple platforms](https://docs.google.com/document/d/1mWPjvH-Ef4EVYjg9CIzp6fM9YgIIYlw9jF4VACDhhk4/edit#).

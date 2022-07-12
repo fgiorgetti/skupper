@@ -240,3 +240,24 @@ func GetOriginalTargetPorts(service *corev1.Service) map[int]int {
 	originalTargetPort := service.Annotations[types.OriginalTargetPortQualifier]
 	return PortLabelStrToMap(originalTargetPort)
 }
+
+func IsOriginalServiceModified(name, namespace string, kubeclient kubernetes.Interface) bool {
+	svc, err := GetService(name, namespace, kubeclient)
+	if err != nil {
+		return false
+	}
+	_, origSelector := svc.Annotations[types.OriginalSelectorQualifier]
+	_, origTargetPorts := svc.Annotations[types.OriginalTargetPortQualifier]
+	return origSelector || origTargetPorts
+}
+
+func RemoveServiceAnnotations(name, namespace string, kubeclient kubernetes.Interface, annotations []string) (*corev1.Service, error) {
+	svc, err := GetService(name, namespace, kubeclient)
+	if err != nil {
+		return nil, err
+	}
+	for _, annotation := range annotations {
+		delete(svc.ObjectMeta.Annotations, annotation)
+	}
+	return kubeclient.CoreV1().Services(namespace).Update(svc)
+}
