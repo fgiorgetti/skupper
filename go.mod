@@ -16,13 +16,6 @@ require (
 	github.com/tsenart/vegeta/v12 v12.8.3
 	go.mongodb.org/mongo-driver v1.5.1
 	golang.org/x/net v0.0.0-20201224014010-6772e930b67b
-	google.golang.org/grpc v1.35.0
-	google.golang.org/protobuf v1.25.0
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
-	gotest.tools v2.2.0+incompatible
-	k8s.io/api v0.17.0
-	k8s.io/apimachinery v0.17.0
-	k8s.io/client-go v0.17.0
 )
 
 require (
