@@ -6,6 +6,7 @@ TEST_IMAGE := quay.io/skupper/skupper-tests
 TEST_BINARIES_FOLDER := ${PWD}/test/integration/bin
 DOCKER := docker
 LDFLAGS := -X github.com/skupperproject/skupper/client.Version=${VERSION}
+LIBPOD_SPEC := https://storage.googleapis.com/libpod-master-releases/swagger-v3.4.7.yaml
 
 all: build-cmd build-get build-config-sync build-controllers build-tests
 
@@ -55,6 +56,7 @@ format:
 
 generate-client:
 	./scripts/update-codegen.sh
+	./scripts/swagger-generate.sh client/generated/libpod ${LIBPOD_SPEC}
 
 client-mock-test:
 	go test -v -count=1 ./client

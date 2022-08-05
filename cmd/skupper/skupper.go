@@ -290,7 +290,7 @@ func NewClientHandleError(namespace string, context string, kubeConfigPath strin
 	case types.PlatformKubernetes:
 		cli, err = client.NewClient(namespace, context, kubeConfigPath)
 	case types.PlatformPodman:
-		err = fmt.Errorf("VanClientInterface not implemented for podman")
+		cli, err = podman.NewClient(context)
 	}
 	if err != nil {
 		if exitOnError {
