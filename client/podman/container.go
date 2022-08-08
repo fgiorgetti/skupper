@@ -11,7 +11,6 @@ import (
 
 /*
 	TODO
-	ContainerCreate(container *Container) error
 	ContainerRemove(id string) error
 	ContainerExec(id string, command []string) (string, string, error)
 	ContainerLogs(id string) (string, error)
@@ -49,10 +48,34 @@ func (p *PodmanRestClient) ContainerInspect(id string) (*container.Container, er
 	return FromInspectContainer(*res.Payload), nil
 }
 
+func (p *PodmanRestClient) ContainerCreate(container *container.Container) error {
+	cli := containers.New(p.RestClient, formats)
+	params := containers.NewContainerCreateLibpodParams()
+	params.Create = container.ToSpecGenerator()
+	_, err := cli.ContainerCreateLibpod(params)
+	if err != nil {
+		return fmt.Errorf("error creating container %s: %v", container.Name, err)
+	}
+	return nil
+}
+
+func (p *PodmanRestClient) ContainerRemove(name string) error {
+	cli := containers.New(p.RestClient, formats)
+	params := containers.NewContainerDeleteLibpodParams()
+	params.Name = name
+	params.Force = boolTrue()
+	_, err := cli.ContainerDeleteLibpod(params)
+	if err != nil {
+		return fmt.Errorf("error deleting container %s: %v", name, err)
+	}
+	return nil
+}
+
 func FromListContainer(c models.ListContainer) *container.Container {
 	ct := &container.Container{
 		ID:        c.ID,
 		Name:      c.Names[0],
+		Pod:       c.Pod,
 		Image:     c.Image,
 		Labels:    c.Labels,
 		Command:   c.Command,
@@ -93,9 +116,11 @@ func FromInspectContainer(c containers.ContainerInspectLibpodOKBody) *container.
 		Name:         c.Name,
 		RestartCount: int(c.RestartCount),
 		CreatedAt:    c.Created.String(),
+		Pod:          c.Pod,
 	}
 	ct.Networks = map[string]container.NetworkInfo{}
 	ct.Labels = map[string]string{}
+	ct.Annotations = map[string]string{}
 	ct.Env = map[string]string{}
 
 	// Volume mounts
@@ -115,10 +140,19 @@ func FromInspectContainer(c containers.ContainerInspectLibpodOKBody) *container.
 		ct.Image = config.Image
 		ct.FromEnv(config.Env)
 		ct.Labels = config.Labels
+		ct.Annotations = config.Annotations
 		if config.Entrypoint != "" {
 			ct.EntryPoint = []string{config.Entrypoint}
 		}
 		ct.Command = config.Cmd
+	}
+
+	// HostConfig
+	if c.HostConfig != nil {
+		hostConfig := c.HostConfig
+		if hostConfig.RestartPolicy != nil {
+			ct.RestartPolicy = hostConfig.RestartPolicy.Name
+		}
 	}
 
 	// Network info
