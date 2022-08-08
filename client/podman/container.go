@@ -11,12 +11,8 @@ import (
 
 /*
 	TODO
-	ContainerRemove(id string) error
 	ContainerExec(id string, command []string) (string, string, error)
 	ContainerLogs(id string) (string, error)
-	ContainerStart(id string) error
-	ContainerStop(id string) error
-	ContainerRestart(id string) error
 */
 
 func (p *PodmanRestClient) ContainerList() ([]*container.Container, error) {
@@ -67,6 +63,39 @@ func (p *PodmanRestClient) ContainerRemove(name string) error {
 	_, err := cli.ContainerDeleteLibpod(params)
 	if err != nil {
 		return fmt.Errorf("error deleting container %s: %v", name, err)
+	}
+	return nil
+}
+
+func (p *PodmanRestClient) ContainerStart(name string) error {
+	cli := containers.New(p.RestClient, formats)
+	params := containers.NewContainerStartLibpodParams()
+	params.Name = name
+	_, err := cli.ContainerStartLibpod(params)
+	if err != nil {
+		return fmt.Errorf("error starting container %s: %v", name, err)
+	}
+	return nil
+}
+
+func (p *PodmanRestClient) ContainerStop(name string) error {
+	cli := containers.New(p.RestClient, formats)
+	params := containers.NewContainerStopLibpodParams()
+	params.Name = name
+	_, err := cli.ContainerStopLibpod(params)
+	if err != nil {
+		return fmt.Errorf("error stopping container %s: %v", name, err)
+	}
+	return nil
+}
+
+func (p *PodmanRestClient) ContainerRestart(name string) error {
+	cli := containers.New(p.RestClient, formats)
+	params := containers.NewContainerRestartLibpodParams()
+	params.Name = name
+	_, err := cli.ContainerRestartLibpod(params)
+	if err != nil {
+		return fmt.Errorf("error restarting container %s: %v", name, err)
 	}
 	return nil
 }
