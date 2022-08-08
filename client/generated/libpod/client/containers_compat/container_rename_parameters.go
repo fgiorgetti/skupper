@@ -61,15 +61,15 @@ type ContainerRenameParams struct {
 
 	/* Name.
 
-	   Full or partial ID or full name of the container to rename
-	*/
-	PathName string
-
-	/* Name.
-
 	   New name for the container
 	*/
 	QueryName string
+
+	/* Name.
+
+	   Full or partial ID or full name of the container to rename
+	*/
+	PathName string
 
 	timeout    time.Duration
 	Context    context.Context
@@ -124,17 +124,6 @@ func (o *ContainerRenameParams) SetHTTPClient(client *http.Client) {
 	o.HTTPClient = client
 }
 
-// WithPathName adds the name to the container rename params
-func (o *ContainerRenameParams) WithPathName(name string) *ContainerRenameParams {
-	o.SetPathName(name)
-	return o
-}
-
-// SetPathName adds the name to the container rename params
-func (o *ContainerRenameParams) SetPathName(name string) {
-	o.PathName = name
-}
-
 // WithQueryName adds the name to the container rename params
 func (o *ContainerRenameParams) WithQueryName(name string) *ContainerRenameParams {
 	o.SetQueryName(name)
@@ -146,6 +135,17 @@ func (o *ContainerRenameParams) SetQueryName(name string) {
 	o.QueryName = name
 }
 
+// WithPathName adds the name to the container rename params
+func (o *ContainerRenameParams) WithPathName(name string) *ContainerRenameParams {
+	o.SetPathName(name)
+	return o
+}
+
+// SetPathName adds the name to the container rename params
+func (o *ContainerRenameParams) SetPathName(name string) {
+	o.PathName = name
+}
+
 // WriteToRequest writes these params to a swagger request
 func (o *ContainerRenameParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
 
@@ -153,11 +153,6 @@ func (o *ContainerRenameParams) WriteToRequest(r runtime.ClientRequest, reg strf
 		return err
 	}
 	var res []error
-
-	// path param name
-	if err := r.SetPathParam("name", o.PathName); err != nil {
-		return err
-	}
 
 	// query param name
 	qrName := o.QueryName
@@ -167,6 +162,11 @@ func (o *ContainerRenameParams) WriteToRequest(r runtime.ClientRequest, reg strf
 		if err := r.SetQueryParam("name", qName); err != nil {
 			return err
 		}
+	}
+
+	// path param name
+	if err := r.SetPathParam("name", o.PathName); err != nil {
+		return err
 	}
 
 	if len(res) > 0 {

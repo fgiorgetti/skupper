@@ -8,66 +8,195 @@ package models
 import (
 	"context"
 
+	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
+	"github.com/go-openapi/validate"
 )
 
-// ImageSummary image summary
+// ImageSummary ImageSummary image summary
 //
 // swagger:model ImageSummary
 type ImageSummary struct {
 
-	// config digest
-	ConfigDigest string `json:"ConfigDigest,omitempty"`
-
 	// containers
-	Containers int64 `json:"Containers,omitempty"`
+	// Required: true
+	Containers *int64 `json:"Containers"`
 
 	// created
-	Created int64 `json:"Created,omitempty"`
+	// Required: true
+	Created *int64 `json:"Created"`
 
-	// dangling
-	Dangling bool `json:"Dangling,omitempty"`
-
-	// digest
-	Digest string `json:"Digest,omitempty"`
-
-	// history
-	History []string `json:"History"`
-
-	// ID
-	ID string `json:"Id,omitempty"`
+	// Id
+	// Required: true
+	ID *string `json:"Id"`
 
 	// labels
-	Labels map[string]string `json:"Labels,omitempty"`
-
-	// Podman extensions
-	Names []string `json:"Names"`
+	// Required: true
+	Labels map[string]string `json:"Labels"`
 
 	// parent Id
-	ParentID string `json:"ParentId,omitempty"`
-
-	// read only
-	ReadOnly bool `json:"ReadOnly,omitempty"`
+	// Required: true
+	ParentID *string `json:"ParentId"`
 
 	// repo digests
+	// Required: true
 	RepoDigests []string `json:"RepoDigests"`
 
 	// repo tags
+	// Required: true
 	RepoTags []string `json:"RepoTags"`
 
 	// shared size
-	SharedSize int64 `json:"SharedSize,omitempty"`
+	// Required: true
+	SharedSize *int64 `json:"SharedSize"`
 
 	// size
-	Size int64 `json:"Size,omitempty"`
+	// Required: true
+	Size *int64 `json:"Size"`
 
 	// virtual size
-	VirtualSize int64 `json:"VirtualSize,omitempty"`
+	// Required: true
+	VirtualSize *int64 `json:"VirtualSize"`
 }
 
 // Validate validates this image summary
 func (m *ImageSummary) Validate(formats strfmt.Registry) error {
+	var res []error
+
+	if err := m.validateContainers(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateCreated(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateID(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateLabels(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateParentID(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateRepoDigests(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateRepoTags(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateSharedSize(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateSize(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateVirtualSize(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (m *ImageSummary) validateContainers(formats strfmt.Registry) error {
+
+	if err := validate.Required("Containers", "body", m.Containers); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *ImageSummary) validateCreated(formats strfmt.Registry) error {
+
+	if err := validate.Required("Created", "body", m.Created); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *ImageSummary) validateID(formats strfmt.Registry) error {
+
+	if err := validate.Required("Id", "body", m.ID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *ImageSummary) validateLabels(formats strfmt.Registry) error {
+
+	if err := validate.Required("Labels", "body", m.Labels); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *ImageSummary) validateParentID(formats strfmt.Registry) error {
+
+	if err := validate.Required("ParentId", "body", m.ParentID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *ImageSummary) validateRepoDigests(formats strfmt.Registry) error {
+
+	if err := validate.Required("RepoDigests", "body", m.RepoDigests); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *ImageSummary) validateRepoTags(formats strfmt.Registry) error {
+
+	if err := validate.Required("RepoTags", "body", m.RepoTags); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *ImageSummary) validateSharedSize(formats strfmt.Registry) error {
+
+	if err := validate.Required("SharedSize", "body", m.SharedSize); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *ImageSummary) validateSize(formats strfmt.Registry) error {
+
+	if err := validate.Required("Size", "body", m.Size); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *ImageSummary) validateVirtualSize(formats strfmt.Registry) error {
+
+	if err := validate.Required("VirtualSize", "body", m.VirtualSize); err != nil {
+		return err
+	}
+
 	return nil
 }
 

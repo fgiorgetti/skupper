@@ -96,9 +96,8 @@ func (c *Container) VolumesToMounts() []*models.Mount {
 			Source:      v.Source,
 			Target:      v.Destination,
 			Destination: v.Destination,
-			// TmpfsOptions:  nil,
-			Type: "bind",
-			// VolumeOptions: nil,
+			Type:        "bind",
+			Options:     []string{"Z"},
 		}
 		mounts = append(mounts, m)
 	}
@@ -136,6 +135,7 @@ func (c *Container) ToSpecGenerator() *models.SpecGenerator {
 		PortMappings:  c.ToPortmappings(),
 		RestartPolicy: c.RestartPolicy,
 	}
+
 	// Network info
 	spec.Aliases = map[string][]string{}
 	for networkName, network := range c.Networks {

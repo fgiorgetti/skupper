@@ -61,15 +61,15 @@ type ContainerRenameLibpodParams struct {
 
 	/* Name.
 
-	   New name for the container
-	*/
-	QueryName string
-
-	/* Name.
-
 	   Full or partial ID or full name of the container to rename
 	*/
 	PathName string
+
+	/* Name.
+
+	   New name for the container
+	*/
+	QueryName string
 
 	timeout    time.Duration
 	Context    context.Context
@@ -124,17 +124,6 @@ func (o *ContainerRenameLibpodParams) SetHTTPClient(client *http.Client) {
 	o.HTTPClient = client
 }
 
-// WithQueryName adds the name to the container rename libpod params
-func (o *ContainerRenameLibpodParams) WithQueryName(name string) *ContainerRenameLibpodParams {
-	o.SetQueryName(name)
-	return o
-}
-
-// SetQueryName adds the name to the container rename libpod params
-func (o *ContainerRenameLibpodParams) SetQueryName(name string) {
-	o.QueryName = name
-}
-
 // WithPathName adds the name to the container rename libpod params
 func (o *ContainerRenameLibpodParams) WithPathName(name string) *ContainerRenameLibpodParams {
 	o.SetPathName(name)
@@ -146,6 +135,17 @@ func (o *ContainerRenameLibpodParams) SetPathName(name string) {
 	o.PathName = name
 }
 
+// WithQueryName adds the name to the container rename libpod params
+func (o *ContainerRenameLibpodParams) WithQueryName(name string) *ContainerRenameLibpodParams {
+	o.SetQueryName(name)
+	return o
+}
+
+// SetQueryName adds the name to the container rename libpod params
+func (o *ContainerRenameLibpodParams) SetQueryName(name string) {
+	o.QueryName = name
+}
+
 // WriteToRequest writes these params to a swagger request
 func (o *ContainerRenameLibpodParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
 
@@ -153,6 +153,11 @@ func (o *ContainerRenameLibpodParams) WriteToRequest(r runtime.ClientRequest, re
 		return err
 	}
 	var res []error
+
+	// path param name
+	if err := r.SetPathParam("name", o.PathName); err != nil {
+		return err
+	}
 
 	// query param name
 	qrName := o.QueryName
@@ -162,11 +167,6 @@ func (o *ContainerRenameLibpodParams) WriteToRequest(r runtime.ClientRequest, re
 		if err := r.SetQueryParam("name", qName); err != nil {
 			return err
 		}
-	}
-
-	// path param name
-	if err := r.SetPathParam("name", o.PathName); err != nil {
-		return err
 	}
 
 	if len(res) > 0 {
