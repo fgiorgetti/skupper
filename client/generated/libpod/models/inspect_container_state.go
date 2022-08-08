@@ -26,8 +26,18 @@ type InspectContainerState struct {
 	// cgroup path
 	CgroupPath string `json:"CgroupPath,omitempty"`
 
+	// checkpoint log
+	CheckpointLog string `json:"CheckpointLog,omitempty"`
+
+	// checkpoint path
+	CheckpointPath string `json:"CheckpointPath,omitempty"`
+
 	// checkpointed
 	Checkpointed bool `json:"Checkpointed,omitempty"`
+
+	// checkpointed at
+	// Format: date-time
+	CheckpointedAt strfmt.DateTime `json:"CheckpointedAt,omitempty"`
 
 	// conmon pid
 	ConmonPid int64 `json:"ConmonPid,omitempty"`
@@ -45,8 +55,8 @@ type InspectContainerState struct {
 	// Format: date-time
 	FinishedAt strfmt.DateTime `json:"FinishedAt,omitempty"`
 
-	// healthcheck
-	Healthcheck *HealthCheckResults `json:"Healthcheck,omitempty"`
+	// health
+	Health *HealthCheckResults `json:"Health,omitempty"`
 
 	// o o m killed
 	OOMKilled bool `json:"OOMKilled,omitempty"`
@@ -63,6 +73,16 @@ type InspectContainerState struct {
 	// restarting
 	Restarting bool `json:"Restarting,omitempty"`
 
+	// restore log
+	RestoreLog string `json:"RestoreLog,omitempty"`
+
+	// restored
+	Restored bool `json:"Restored,omitempty"`
+
+	// restored at
+	// Format: date-time
+	RestoredAt strfmt.DateTime `json:"RestoredAt,omitempty"`
+
 	// running
 	Running bool `json:"Running,omitempty"`
 
@@ -78,11 +98,19 @@ type InspectContainerState struct {
 func (m *InspectContainerState) Validate(formats strfmt.Registry) error {
 	var res []error
 
+	if err := m.validateCheckpointedAt(formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.validateFinishedAt(formats); err != nil {
 		res = append(res, err)
 	}
 
-	if err := m.validateHealthcheck(formats); err != nil {
+	if err := m.validateHealth(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateRestoredAt(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -93,6 +121,18 @@ func (m *InspectContainerState) Validate(formats strfmt.Registry) error {
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
+	return nil
+}
+
+func (m *InspectContainerState) validateCheckpointedAt(formats strfmt.Registry) error {
+	if swag.IsZero(m.CheckpointedAt) { // not required
+		return nil
+	}
+
+	if err := validate.FormatOf("CheckpointedAt", "body", "date-time", m.CheckpointedAt.String(), formats); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -108,20 +148,32 @@ func (m *InspectContainerState) validateFinishedAt(formats strfmt.Registry) erro
 	return nil
 }
 
-func (m *InspectContainerState) validateHealthcheck(formats strfmt.Registry) error {
-	if swag.IsZero(m.Healthcheck) { // not required
+func (m *InspectContainerState) validateHealth(formats strfmt.Registry) error {
+	if swag.IsZero(m.Health) { // not required
 		return nil
 	}
 
-	if m.Healthcheck != nil {
-		if err := m.Healthcheck.Validate(formats); err != nil {
+	if m.Health != nil {
+		if err := m.Health.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
-				return ve.ValidateName("Healthcheck")
+				return ve.ValidateName("Health")
 			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("Healthcheck")
+				return ce.ValidateName("Health")
 			}
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (m *InspectContainerState) validateRestoredAt(formats strfmt.Registry) error {
+	if swag.IsZero(m.RestoredAt) { // not required
+		return nil
+	}
+
+	if err := validate.FormatOf("RestoredAt", "body", "date-time", m.RestoredAt.String(), formats); err != nil {
+		return err
 	}
 
 	return nil
@@ -143,7 +195,7 @@ func (m *InspectContainerState) validateStartedAt(formats strfmt.Registry) error
 func (m *InspectContainerState) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	var res []error
 
-	if err := m.contextValidateHealthcheck(ctx, formats); err != nil {
+	if err := m.contextValidateHealth(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -153,14 +205,14 @@ func (m *InspectContainerState) ContextValidate(ctx context.Context, formats str
 	return nil
 }
 
-func (m *InspectContainerState) contextValidateHealthcheck(ctx context.Context, formats strfmt.Registry) error {
+func (m *InspectContainerState) contextValidateHealth(ctx context.Context, formats strfmt.Registry) error {
 
-	if m.Healthcheck != nil {
-		if err := m.Healthcheck.ContextValidate(ctx, formats); err != nil {
+	if m.Health != nil {
+		if err := m.Health.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
-				return ve.ValidateName("Healthcheck")
+				return ve.ValidateName("Health")
 			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("Healthcheck")
+				return ce.ValidateName("Health")
 			}
 			return err
 		}

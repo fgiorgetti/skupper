@@ -18,13 +18,14 @@ import (
 type LibpodContainersPruneReport struct {
 
 	// ID
-	ID string `json:"id,omitempty"`
+	ID string `json:"Id,omitempty"`
 
-	// prune error
-	PruneError string `json:"error,omitempty"`
+	// Error which occurred during prune operation (if any).
+	// This field is optional and may be omitted if no error occurred.
+	PruneError *string `json:"Err,omitempty"`
 
 	// space reclaimed
-	SpaceReclaimed int64 `json:"space,omitempty"`
+	SpaceReclaimed int64 `json:"Size,omitempty"`
 }
 
 // Validate validates this libpod containers prune report

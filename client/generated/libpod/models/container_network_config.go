@@ -12,6 +12,7 @@ import (
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
+	"github.com/go-openapi/validate"
 )
 
 // ContainerNetworkConfig ContainerNetworkConfig contains information on a container's network
@@ -20,16 +21,13 @@ import (
 // swagger:model ContainerNetworkConfig
 type ContainerNetworkConfig struct {
 
-	// Aliases are a list of network-scoped aliases for container
-	// Optional
-	Aliases map[string][]string `json:"aliases,omitempty"`
-
 	// CNINetworks is a list of CNI networks to join the container to.
 	// If this list is empty, the default CNI network will be joined
 	// instead. If at least one entry is present, we will not join the
 	// default network (unless it is part of this list).
 	// Only available if NetNS is set to bridge.
 	// Optional.
+	// Deprecated: as of podman 4.0 use "Networks" instead.
 	CNINetworks []string `json:"cni_networks"`
 
 	// DNSOptions is a set of DNS options that will be used in the
@@ -56,7 +54,7 @@ type ContainerNetworkConfig struct {
 	// Expose is a number of ports that will be forwarded to the container
 	// if PublishExposedPorts is set.
 	// Expose is a map of uint16 (port number) to a string representing
-	// protocol. Allowed protocols are "tcp", "udp", and "sctp", or some
+	// protocol i.e map[uint16]string. Allowed protocols are "tcp", "udp", and "sctp", or some
 	// combination of the three separated by commas.
 	// If protocol is set to "" we will assume TCP.
 	// Only available if NetNS is set to Bridge or Slirp, and
@@ -73,6 +71,14 @@ type ContainerNetworkConfig struct {
 	// NetworkOptions are additional options for each network
 	// Optional.
 	NetworkOptions map[string][]string `json:"network_options,omitempty"`
+
+	// Map of networks names or ids that the container should join.
+	// You can request additional settings for each network, you can
+	// set network aliases, static ips, static mac address  and the
+	// network interface name for this container on the specific network.
+	// If the map is empty and the bridge network mode is set the container
+	// will be joined to the default network.
+	Networks map[string]PerNetworkOptions `json:"Networks,omitempty"`
 
 	// PortBindings is a set of ports to map into the container.
 	// Only available if NetNS is set to bridge or slirp.
@@ -98,15 +104,6 @@ type ContainerNetworkConfig struct {
 
 	// netns
 	Netns *Namespace `json:"netns,omitempty"`
-
-	// static ip
-	StaticIP IP `json:"static_ip,omitempty"`
-
-	// static ipv6
-	StaticIPV6 IP `json:"static_ipv6,omitempty"`
-
-	// static mac
-	StaticMac HardwareAddr `json:"static_mac,omitempty"`
 }
 
 // Validate validates this container network config
@@ -117,23 +114,15 @@ func (m *ContainerNetworkConfig) Validate(formats strfmt.Registry) error {
 		res = append(res, err)
 	}
 
+	if err := m.validateNetworks(formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.validatePortMappings(formats); err != nil {
 		res = append(res, err)
 	}
 
 	if err := m.validateNetns(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateStaticIP(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateStaticIPV6(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateStaticMac(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -157,6 +146,32 @@ func (m *ContainerNetworkConfig) validateDNSServers(formats strfmt.Registry) err
 				return ce.ValidateName("dns_server" + "." + strconv.Itoa(i))
 			}
 			return err
+		}
+
+	}
+
+	return nil
+}
+
+func (m *ContainerNetworkConfig) validateNetworks(formats strfmt.Registry) error {
+	if swag.IsZero(m.Networks) { // not required
+		return nil
+	}
+
+	for k := range m.Networks {
+
+		if err := validate.Required("Networks"+"."+k, "body", m.Networks[k]); err != nil {
+			return err
+		}
+		if val, ok := m.Networks[k]; ok {
+			if err := val.Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("Networks" + "." + k)
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("Networks" + "." + k)
+				}
+				return err
+			}
 		}
 
 	}
@@ -209,57 +224,6 @@ func (m *ContainerNetworkConfig) validateNetns(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *ContainerNetworkConfig) validateStaticIP(formats strfmt.Registry) error {
-	if swag.IsZero(m.StaticIP) { // not required
-		return nil
-	}
-
-	if err := m.StaticIP.Validate(formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_ip")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_ip")
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (m *ContainerNetworkConfig) validateStaticIPV6(formats strfmt.Registry) error {
-	if swag.IsZero(m.StaticIPV6) { // not required
-		return nil
-	}
-
-	if err := m.StaticIPV6.Validate(formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_ipv6")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_ipv6")
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (m *ContainerNetworkConfig) validateStaticMac(formats strfmt.Registry) error {
-	if swag.IsZero(m.StaticMac) { // not required
-		return nil
-	}
-
-	if err := m.StaticMac.Validate(formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_mac")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_mac")
-		}
-		return err
-	}
-
-	return nil
-}
-
 // ContextValidate validate this container network config based on the context it is used
 func (m *ContainerNetworkConfig) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	var res []error
@@ -268,23 +232,15 @@ func (m *ContainerNetworkConfig) ContextValidate(ctx context.Context, formats st
 		res = append(res, err)
 	}
 
+	if err := m.contextValidateNetworks(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.contextValidatePortMappings(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
 	if err := m.contextValidateNetns(ctx, formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.contextValidateStaticIP(ctx, formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.contextValidateStaticIPV6(ctx, formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.contextValidateStaticMac(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -305,6 +261,21 @@ func (m *ContainerNetworkConfig) contextValidateDNSServers(ctx context.Context, 
 				return ce.ValidateName("dns_server" + "." + strconv.Itoa(i))
 			}
 			return err
+		}
+
+	}
+
+	return nil
+}
+
+func (m *ContainerNetworkConfig) contextValidateNetworks(ctx context.Context, formats strfmt.Registry) error {
+
+	for k := range m.Networks {
+
+		if val, ok := m.Networks[k]; ok {
+			if err := val.ContextValidate(ctx, formats); err != nil {
+				return err
+			}
 		}
 
 	}
@@ -343,48 +314,6 @@ func (m *ContainerNetworkConfig) contextValidateNetns(ctx context.Context, forma
 			}
 			return err
 		}
-	}
-
-	return nil
-}
-
-func (m *ContainerNetworkConfig) contextValidateStaticIP(ctx context.Context, formats strfmt.Registry) error {
-
-	if err := m.StaticIP.ContextValidate(ctx, formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_ip")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_ip")
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (m *ContainerNetworkConfig) contextValidateStaticIPV6(ctx context.Context, formats strfmt.Registry) error {
-
-	if err := m.StaticIPV6.ContextValidate(ctx, formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_ipv6")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_ipv6")
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (m *ContainerNetworkConfig) contextValidateStaticMac(ctx context.Context, formats strfmt.Registry) error {
-
-	if err := m.StaticMac.ContextValidate(ctx, formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_mac")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_mac")
-		}
-		return err
 	}
 
 	return nil

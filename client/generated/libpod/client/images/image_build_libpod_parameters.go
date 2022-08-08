@@ -60,6 +60,15 @@ func NewImageBuildLibpodParamsWithHTTPClient(client *http.Client) *ImageBuildLib
 */
 type ImageBuildLibpodParams struct {
 
+	/* Allplatforms.
+
+	     Instead of building for a set of platforms specified using the platform option, inspect the build's base images,
+	and build for all of the platforms that are available.  Stages that use *scratch* as a starting point can not be inspected,
+	so at least one non-*scratch* stage must be present for detection to work usefully.
+
+	*/
+	Allplatforms *bool
+
 	/* Buildargs.
 
 	     JSON map of string pairs denoting build-time variables.
@@ -299,6 +308,12 @@ type ImageBuildLibpodParams struct {
 	*/
 	Target *string
 
+	/* Unsetenv.
+
+	   Unset environment variables from the final image.
+	*/
+	Unsetenv []string
+
 	timeout    time.Duration
 	Context    context.Context
 	HTTPClient *http.Client
@@ -317,6 +332,8 @@ func (o *ImageBuildLibpodParams) WithDefaults() *ImageBuildLibpodParams {
 // All values with no default are reset to their zero value.
 func (o *ImageBuildLibpodParams) SetDefaults() {
 	var (
+		allplatformsDefault = bool(false)
+
 		dockerfileDefault = string("Dockerfile")
 
 		forcermDefault = bool(false)
@@ -341,17 +358,18 @@ func (o *ImageBuildLibpodParams) SetDefaults() {
 	)
 
 	val := ImageBuildLibpodParams{
-		Dockerfile:  &dockerfileDefault,
-		Forcerm:     &forcermDefault,
-		Layers:      &layersDefault,
-		Networkmode: &networkmodeDefault,
-		Nocache:     &nocacheDefault,
-		Pull:        &pullDefault,
-		Q:           &qDefault,
-		Rm:          &rmDefault,
-		Shmsize:     &shmsizeDefault,
-		Squash:      &squashDefault,
-		T:           &tDefault,
+		Allplatforms: &allplatformsDefault,
+		Dockerfile:   &dockerfileDefault,
+		Forcerm:      &forcermDefault,
+		Layers:       &layersDefault,
+		Networkmode:  &networkmodeDefault,
+		Nocache:      &nocacheDefault,
+		Pull:         &pullDefault,
+		Q:            &qDefault,
+		Rm:           &rmDefault,
+		Shmsize:      &shmsizeDefault,
+		Squash:       &squashDefault,
+		T:            &tDefault,
 	}
 
 	val.timeout = o.timeout
@@ -391,6 +409,17 @@ func (o *ImageBuildLibpodParams) WithHTTPClient(client *http.Client) *ImageBuild
 // SetHTTPClient adds the HTTPClient to the image build libpod params
 func (o *ImageBuildLibpodParams) SetHTTPClient(client *http.Client) {
 	o.HTTPClient = client
+}
+
+// WithAllplatforms adds the allplatforms to the image build libpod params
+func (o *ImageBuildLibpodParams) WithAllplatforms(allplatforms *bool) *ImageBuildLibpodParams {
+	o.SetAllplatforms(allplatforms)
+	return o
+}
+
+// SetAllplatforms adds the allplatforms to the image build libpod params
+func (o *ImageBuildLibpodParams) SetAllplatforms(allplatforms *bool) {
+	o.Allplatforms = allplatforms
 }
 
 // WithBuildargs adds the buildargs to the image build libpod params
@@ -679,6 +708,17 @@ func (o *ImageBuildLibpodParams) SetTarget(target *string) {
 	o.Target = target
 }
 
+// WithUnsetenv adds the unsetenv to the image build libpod params
+func (o *ImageBuildLibpodParams) WithUnsetenv(unsetenv []string) *ImageBuildLibpodParams {
+	o.SetUnsetenv(unsetenv)
+	return o
+}
+
+// SetUnsetenv adds the unsetenv to the image build libpod params
+func (o *ImageBuildLibpodParams) SetUnsetenv(unsetenv []string) {
+	o.Unsetenv = unsetenv
+}
+
 // WriteToRequest writes these params to a swagger request
 func (o *ImageBuildLibpodParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
 
@@ -686,6 +726,23 @@ func (o *ImageBuildLibpodParams) WriteToRequest(r runtime.ClientRequest, reg str
 		return err
 	}
 	var res []error
+
+	if o.Allplatforms != nil {
+
+		// query param allplatforms
+		var qrAllplatforms bool
+
+		if o.Allplatforms != nil {
+			qrAllplatforms = *o.Allplatforms
+		}
+		qAllplatforms := swag.FormatBool(qrAllplatforms)
+		if qAllplatforms != "" {
+
+			if err := r.SetQueryParam("allplatforms", qAllplatforms); err != nil {
+				return err
+			}
+		}
+	}
 
 	if o.Buildargs != nil {
 
@@ -1129,8 +1186,36 @@ func (o *ImageBuildLibpodParams) WriteToRequest(r runtime.ClientRequest, reg str
 		}
 	}
 
+	if o.Unsetenv != nil {
+
+		// binding items for unsetenv
+		joinedUnsetenv := o.bindParamUnsetenv(reg)
+
+		// query array param unsetenv
+		if err := r.SetQueryParam("unsetenv", joinedUnsetenv...); err != nil {
+			return err
+		}
+	}
+
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
 	return nil
+}
+
+// bindParamImageBuildLibpod binds the parameter unsetenv
+func (o *ImageBuildLibpodParams) bindParamUnsetenv(formats strfmt.Registry) []string {
+	unsetenvIR := o.Unsetenv
+
+	var unsetenvIC []string
+	for _, unsetenvIIR := range unsetenvIR { // explode []string
+
+		unsetenvIIV := unsetenvIIR // string as string
+		unsetenvIC = append(unsetenvIC, unsetenvIIV)
+	}
+
+	// items.CollectionFormat: ""
+	unsetenvIS := swag.JoinByFormat(unsetenvIC, "")
+
+	return unsetenvIS
 }

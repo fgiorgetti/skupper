@@ -33,7 +33,7 @@ type ClientOption func(*runtime.ClientOperation)
 type ClientService interface {
 	ImageBuild(params *ImageBuildParams, opts ...ClientOption) (*ImageBuildOK, error)
 
-	ImageCreate(params *ImageCreateParams, opts ...ClientOption) (*ImageCreateOK, error)
+	ImageCreate(params *ImageCreateParams, writer io.Writer, opts ...ClientOption) (*ImageCreateOK, error)
 
 	ImageDelete(params *ImageDeleteParams, opts ...ClientOption) (*ImageDeleteOK, error)
 
@@ -105,7 +105,7 @@ func (a *Client) ImageBuild(params *ImageBuildParams, opts ...ClientOption) (*Im
 
   Create an image by either pulling it from a registry or importing it.
 */
-func (a *Client) ImageCreate(params *ImageCreateParams, opts ...ClientOption) (*ImageCreateOK, error) {
+func (a *Client) ImageCreate(params *ImageCreateParams, writer io.Writer, opts ...ClientOption) (*ImageCreateOK, error) {
 	// TODO: Validate the params before sending
 	if params == nil {
 		params = NewImageCreateParams()
@@ -118,7 +118,7 @@ func (a *Client) ImageCreate(params *ImageCreateParams, opts ...ClientOption) (*
 		ConsumesMediaTypes: []string{"application/octet-stream", "text/plain"},
 		Schemes:            []string{"http", "https"},
 		Params:             params,
-		Reader:             &ImageCreateReader{formats: a.formats},
+		Reader:             &ImageCreateReader{formats: a.formats, writer: writer},
 		Context:            params.Context,
 		Client:             params.HTTPClient,
 	}

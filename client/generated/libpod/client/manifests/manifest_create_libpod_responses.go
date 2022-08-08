@@ -25,8 +25,8 @@ type ManifestCreateLibpodReader struct {
 // ReadResponse reads a server response into the received o.
 func (o *ManifestCreateLibpodReader) ReadResponse(response runtime.ClientResponse, consumer runtime.Consumer) (interface{}, error) {
 	switch response.Code() {
-	case 200:
-		result := NewManifestCreateLibpodOK()
+	case 201:
+		result := NewManifestCreateLibpodCreated()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
 			return nil, err
 		}
@@ -54,27 +54,27 @@ func (o *ManifestCreateLibpodReader) ReadResponse(response runtime.ClientRespons
 	}
 }
 
-// NewManifestCreateLibpodOK creates a ManifestCreateLibpodOK with default headers values
-func NewManifestCreateLibpodOK() *ManifestCreateLibpodOK {
-	return &ManifestCreateLibpodOK{}
+// NewManifestCreateLibpodCreated creates a ManifestCreateLibpodCreated with default headers values
+func NewManifestCreateLibpodCreated() *ManifestCreateLibpodCreated {
+	return &ManifestCreateLibpodCreated{}
 }
 
-/* ManifestCreateLibpodOK describes a response with status code 200, with default header values.
+/* ManifestCreateLibpodCreated describes a response with status code 201, with default header values.
 
-ManifestCreateLibpodOK manifest create libpod o k
+ManifestCreateLibpodCreated manifest create libpod created
 */
-type ManifestCreateLibpodOK struct {
+type ManifestCreateLibpodCreated struct {
 	Payload *models.IDResponse
 }
 
-func (o *ManifestCreateLibpodOK) Error() string {
-	return fmt.Sprintf("[POST /libpod/manifests/create][%d] manifestCreateLibpodOK  %+v", 200, o.Payload)
+func (o *ManifestCreateLibpodCreated) Error() string {
+	return fmt.Sprintf("[POST /libpod/manifests][%d] manifestCreateLibpodCreated  %+v", 201, o.Payload)
 }
-func (o *ManifestCreateLibpodOK) GetPayload() *models.IDResponse {
+func (o *ManifestCreateLibpodCreated) GetPayload() *models.IDResponse {
 	return o.Payload
 }
 
-func (o *ManifestCreateLibpodOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
+func (o *ManifestCreateLibpodCreated) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
 	o.Payload = new(models.IDResponse)
 
@@ -100,7 +100,7 @@ type ManifestCreateLibpodBadRequest struct {
 }
 
 func (o *ManifestCreateLibpodBadRequest) Error() string {
-	return fmt.Sprintf("[POST /libpod/manifests/create][%d] manifestCreateLibpodBadRequest  %+v", 400, o.Payload)
+	return fmt.Sprintf("[POST /libpod/manifests][%d] manifestCreateLibpodBadRequest  %+v", 400, o.Payload)
 }
 func (o *ManifestCreateLibpodBadRequest) GetPayload() *ManifestCreateLibpodBadRequestBody {
 	return o.Payload
@@ -132,7 +132,7 @@ type ManifestCreateLibpodNotFound struct {
 }
 
 func (o *ManifestCreateLibpodNotFound) Error() string {
-	return fmt.Sprintf("[POST /libpod/manifests/create][%d] manifestCreateLibpodNotFound  %+v", 404, o.Payload)
+	return fmt.Sprintf("[POST /libpod/manifests][%d] manifestCreateLibpodNotFound  %+v", 404, o.Payload)
 }
 func (o *ManifestCreateLibpodNotFound) GetPayload() *ManifestCreateLibpodNotFoundBody {
 	return o.Payload
@@ -164,7 +164,7 @@ type ManifestCreateLibpodInternalServerError struct {
 }
 
 func (o *ManifestCreateLibpodInternalServerError) Error() string {
-	return fmt.Sprintf("[POST /libpod/manifests/create][%d] manifestCreateLibpodInternalServerError  %+v", 500, o.Payload)
+	return fmt.Sprintf("[POST /libpod/manifests][%d] manifestCreateLibpodInternalServerError  %+v", 500, o.Payload)
 }
 func (o *ManifestCreateLibpodInternalServerError) GetPayload() *ManifestCreateLibpodInternalServerErrorBody {
 	return o.Payload

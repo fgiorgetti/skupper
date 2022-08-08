@@ -12,33 +12,36 @@ import (
 	"github.com/go-openapi/swag"
 )
 
-// ManifestAddOptions manifest add options
+// ManifestAddOptions ManifestAddOptions provides model for adding digests to manifest list
 //
 // swagger:model ManifestAddOptions
 type ManifestAddOptions struct {
 
-	// all
+	// True when operating on a list to include all images
 	All bool `json:"all,omitempty"`
 
-	// annotation
+	// Annotation to add to manifest list
 	Annotation []string `json:"annotation"`
 
-	// arch
+	// Arch overrides the architecture for the image
 	Arch string `json:"arch,omitempty"`
 
-	// features
+	// Feature list for the image
 	Features []string `json:"features"`
 
-	// images
+	// Images is an optional list of images to add to manifest list
 	Images []string `json:"images"`
 
-	// o s
+	// OS overrides the operating system for the image
 	OS string `json:"os,omitempty"`
 
-	// o s version
+	// OS features for the image
+	OSFeatures []string `json:"os_features"`
+
+	// OSVersion overrides the operating system for the image
 	OSVersion string `json:"os_version,omitempty"`
 
-	// variant
+	// Variant for the image
 	Variant string `json:"variant,omitempty"`
 }
 

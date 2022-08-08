@@ -61,7 +61,7 @@ type ManifestInspectLibpodParams struct {
 
 	/* Name.
 
-	   the name or ID of the manifest
+	   the name or ID of the manifest list
 	*/
 	Name string
 

@@ -20,8 +20,11 @@ type VolumeCreateOptions struct {
 	// Volume driver to use
 	Driver string `json:"Driver,omitempty"`
 
-	// User-defined key/value metadata.
+	// User-defined key/value metadata. Provided for compatibility
 	Label map[string]string `json:"Label,omitempty"`
+
+	// User-defined key/value metadata. Preferred field, will override Label
+	Labels map[string]string `json:"Labels,omitempty"`
 
 	// New volume's name. Can be left blank
 	Name string `json:"Name,omitempty"`

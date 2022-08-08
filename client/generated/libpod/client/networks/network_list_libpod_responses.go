@@ -52,13 +52,13 @@ func NewNetworkListLibpodOK() *NetworkListLibpodOK {
 Network list
 */
 type NetworkListLibpodOK struct {
-	Payload []*models.NetworkListReport
+	Payload []*models.Network
 }
 
 func (o *NetworkListLibpodOK) Error() string {
 	return fmt.Sprintf("[GET /libpod/networks/json][%d] networkListLibpodOK  %+v", 200, o.Payload)
 }
-func (o *NetworkListLibpodOK) GetPayload() []*models.NetworkListReport {
+func (o *NetworkListLibpodOK) GetPayload() []*models.Network {
 	return o.Payload
 }
 

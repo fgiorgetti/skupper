@@ -61,7 +61,7 @@ type ManifestExistsLibpodParams struct {
 
 	/* Name.
 
-	   the name of the manifest list
+	   the name or ID of the manifest list
 	*/
 	Name string
 

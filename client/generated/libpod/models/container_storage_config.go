@@ -25,13 +25,19 @@ type ContainerStorageConfig struct {
 	// Optional.
 	CreateWorkingDir bool `json:"create_working_dir,omitempty"`
 
-	// DeviceCGroupRule are device cgroup rules that allow containers
+	// DeviceCgroupRule are device cgroup rules that allow containers
 	// to use additional types of devices.
-	DeviceCGroupRule []*LinuxDeviceCgroup `json:"device_cgroup_rule"`
+	DeviceCgroupRule []*LinuxDeviceCgroup `json:"device_cgroup_rule"`
 
 	// Devices are devices that will be added to the container.
 	// Optional.
 	Devices []*LinuxDevice `json:"devices"`
+
+	// DevicesFrom is a way to ensure your container inherits device specific information from another container
+	DevicesFrom []string `json:"devices_from"`
+
+	// HostDeviceList is used to recreate the mounted device on inherited containers
+	HostDeviceList []*LinuxDevice `json:"host_device_list"`
 
 	// Image is the image the container will be based on. The image will be
 	// used as the container's root filesystem, and its environment vars,
@@ -78,6 +84,9 @@ type ContainerStorageConfig struct {
 	// At least one of Image or Rootfs must be specified.
 	Rootfs string `json:"rootfs,omitempty"`
 
+	// RootfsOverlay tells if rootfs is actually an overlay on top of base path
+	RootfsOverlay bool `json:"rootfs_overlay,omitempty"`
+
 	// RootfsPropagation is the rootfs propagation mode for the container.
 	// If not set, the default of rslave will be used.
 	// Optional.
@@ -91,6 +100,10 @@ type ContainerStorageConfig struct {
 	// Conflicts with ShmSize if IpcNS is not private.
 	// Optional.
 	ShmSize int64 `json:"shm_size,omitempty"`
+
+	// StorageOpts is the container's storage options
+	// Optional.
+	StorageOpts map[string]string `json:"storage_opts,omitempty"`
 
 	// Volatile specifies whether the container storage can be optimized
 	// at the cost of not syncing all the dirty files in memory.
@@ -122,11 +135,15 @@ type ContainerStorageConfig struct {
 func (m *ContainerStorageConfig) Validate(formats strfmt.Registry) error {
 	var res []error
 
-	if err := m.validateDeviceCGroupRule(formats); err != nil {
+	if err := m.validateDeviceCgroupRule(formats); err != nil {
 		res = append(res, err)
 	}
 
 	if err := m.validateDevices(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateHostDeviceList(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -160,18 +177,18 @@ func (m *ContainerStorageConfig) Validate(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *ContainerStorageConfig) validateDeviceCGroupRule(formats strfmt.Registry) error {
-	if swag.IsZero(m.DeviceCGroupRule) { // not required
+func (m *ContainerStorageConfig) validateDeviceCgroupRule(formats strfmt.Registry) error {
+	if swag.IsZero(m.DeviceCgroupRule) { // not required
 		return nil
 	}
 
-	for i := 0; i < len(m.DeviceCGroupRule); i++ {
-		if swag.IsZero(m.DeviceCGroupRule[i]) { // not required
+	for i := 0; i < len(m.DeviceCgroupRule); i++ {
+		if swag.IsZero(m.DeviceCgroupRule[i]) { // not required
 			continue
 		}
 
-		if m.DeviceCGroupRule[i] != nil {
-			if err := m.DeviceCGroupRule[i].Validate(formats); err != nil {
+		if m.DeviceCgroupRule[i] != nil {
+			if err := m.DeviceCgroupRule[i].Validate(formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("device_cgroup_rule" + "." + strconv.Itoa(i))
 				} else if ce, ok := err.(*errors.CompositeError); ok {
@@ -202,6 +219,32 @@ func (m *ContainerStorageConfig) validateDevices(formats strfmt.Registry) error 
 					return ve.ValidateName("devices" + "." + strconv.Itoa(i))
 				} else if ce, ok := err.(*errors.CompositeError); ok {
 					return ce.ValidateName("devices" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *ContainerStorageConfig) validateHostDeviceList(formats strfmt.Registry) error {
+	if swag.IsZero(m.HostDeviceList) { // not required
+		return nil
+	}
+
+	for i := 0; i < len(m.HostDeviceList); i++ {
+		if swag.IsZero(m.HostDeviceList[i]) { // not required
+			continue
+		}
+
+		if m.HostDeviceList[i] != nil {
+			if err := m.HostDeviceList[i].Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("host_device_list" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("host_device_list" + "." + strconv.Itoa(i))
 				}
 				return err
 			}
@@ -365,11 +408,15 @@ func (m *ContainerStorageConfig) validateIpcns(formats strfmt.Registry) error {
 func (m *ContainerStorageConfig) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	var res []error
 
-	if err := m.contextValidateDeviceCGroupRule(ctx, formats); err != nil {
+	if err := m.contextValidateDeviceCgroupRule(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
 	if err := m.contextValidateDevices(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.contextValidateHostDeviceList(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -403,12 +450,12 @@ func (m *ContainerStorageConfig) ContextValidate(ctx context.Context, formats st
 	return nil
 }
 
-func (m *ContainerStorageConfig) contextValidateDeviceCGroupRule(ctx context.Context, formats strfmt.Registry) error {
+func (m *ContainerStorageConfig) contextValidateDeviceCgroupRule(ctx context.Context, formats strfmt.Registry) error {
 
-	for i := 0; i < len(m.DeviceCGroupRule); i++ {
+	for i := 0; i < len(m.DeviceCgroupRule); i++ {
 
-		if m.DeviceCGroupRule[i] != nil {
-			if err := m.DeviceCGroupRule[i].ContextValidate(ctx, formats); err != nil {
+		if m.DeviceCgroupRule[i] != nil {
+			if err := m.DeviceCgroupRule[i].ContextValidate(ctx, formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("device_cgroup_rule" + "." + strconv.Itoa(i))
 				} else if ce, ok := err.(*errors.CompositeError); ok {
@@ -433,6 +480,26 @@ func (m *ContainerStorageConfig) contextValidateDevices(ctx context.Context, for
 					return ve.ValidateName("devices" + "." + strconv.Itoa(i))
 				} else if ce, ok := err.(*errors.CompositeError); ok {
 					return ce.ValidateName("devices" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *ContainerStorageConfig) contextValidateHostDeviceList(ctx context.Context, formats strfmt.Registry) error {
+
+	for i := 0; i < len(m.HostDeviceList); i++ {
+
+		if m.HostDeviceList[i] != nil {
+			if err := m.HostDeviceList[i].ContextValidate(ctx, formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("host_device_list" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("host_device_list" + "." + strconv.Itoa(i))
 				}
 				return err
 			}

@@ -67,6 +67,13 @@ type ImagePruneLibpodParams struct {
 	*/
 	All *bool
 
+	/* External.
+
+	   Remove images even when they are used by external containers (e.g, by build containers)
+
+	*/
+	External *bool
+
 	/* Filters.
 
 	   filters to apply to image pruning, encoded as JSON (map[string][]string). Available filters:
@@ -98,10 +105,13 @@ func (o *ImagePruneLibpodParams) WithDefaults() *ImagePruneLibpodParams {
 func (o *ImagePruneLibpodParams) SetDefaults() {
 	var (
 		allDefault = bool(false)
+
+		externalDefault = bool(false)
 	)
 
 	val := ImagePruneLibpodParams{
-		All: &allDefault,
+		All:      &allDefault,
+		External: &externalDefault,
 	}
 
 	val.timeout = o.timeout
@@ -154,6 +164,17 @@ func (o *ImagePruneLibpodParams) SetAll(all *bool) {
 	o.All = all
 }
 
+// WithExternal adds the external to the image prune libpod params
+func (o *ImagePruneLibpodParams) WithExternal(external *bool) *ImagePruneLibpodParams {
+	o.SetExternal(external)
+	return o
+}
+
+// SetExternal adds the external to the image prune libpod params
+func (o *ImagePruneLibpodParams) SetExternal(external *bool) {
+	o.External = external
+}
+
 // WithFilters adds the filters to the image prune libpod params
 func (o *ImagePruneLibpodParams) WithFilters(filters *string) *ImagePruneLibpodParams {
 	o.SetFilters(filters)
@@ -185,6 +206,23 @@ func (o *ImagePruneLibpodParams) WriteToRequest(r runtime.ClientRequest, reg str
 		if qAll != "" {
 
 			if err := r.SetQueryParam("all", qAll); err != nil {
+				return err
+			}
+		}
+	}
+
+	if o.External != nil {
+
+		// query param external
+		var qrExternal bool
+
+		if o.External != nil {
+			qrExternal = *o.External
+		}
+		qExternal := swag.FormatBool(qrExternal)
+		if qExternal != "" {
+
+			if err := r.SetQueryParam("external", qExternal); err != nil {
 				return err
 			}
 		}

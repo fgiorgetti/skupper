@@ -63,7 +63,7 @@ type VolumeCreateParams struct {
 
 	/* Create.
 
-	     attributes for creating a container.
+	     attributes for creating a volume.
 	Note: If a volume by the same name exists, a 201 response with that volume's information will be generated.
 
 	*/

@@ -90,6 +90,12 @@ type ContainerCheckpointLibpodParams struct {
 	*/
 	Name string
 
+	/* PrintStats.
+
+	   add checkpoint statistics to the returned CheckpointReport
+	*/
+	PrintStats *bool
+
 	/* TCPEstablished.
 
 	   checkpoint a container with established TCP connections
@@ -204,6 +210,17 @@ func (o *ContainerCheckpointLibpodParams) SetName(name string) {
 	o.Name = name
 }
 
+// WithPrintStats adds the printStats to the container checkpoint libpod params
+func (o *ContainerCheckpointLibpodParams) WithPrintStats(printStats *bool) *ContainerCheckpointLibpodParams {
+	o.SetPrintStats(printStats)
+	return o
+}
+
+// SetPrintStats adds the printStats to the container checkpoint libpod params
+func (o *ContainerCheckpointLibpodParams) SetPrintStats(printStats *bool) {
+	o.PrintStats = printStats
+}
+
 // WithTCPEstablished adds the tCPEstablished to the container checkpoint libpod params
 func (o *ContainerCheckpointLibpodParams) WithTCPEstablished(tCPEstablished *bool) *ContainerCheckpointLibpodParams {
 	o.SetTCPEstablished(tCPEstablished)
@@ -294,6 +311,23 @@ func (o *ContainerCheckpointLibpodParams) WriteToRequest(r runtime.ClientRequest
 	// path param name
 	if err := r.SetPathParam("name", o.Name); err != nil {
 		return err
+	}
+
+	if o.PrintStats != nil {
+
+		// query param printStats
+		var qrPrintStats bool
+
+		if o.PrintStats != nil {
+			qrPrintStats = *o.PrintStats
+		}
+		qPrintStats := swag.FormatBool(qrPrintStats)
+		if qPrintStats != "" {
+
+			if err := r.SetQueryParam("printStats", qPrintStats); err != nil {
+				return err
+			}
+		}
 	}
 
 	if o.TCPEstablished != nil {

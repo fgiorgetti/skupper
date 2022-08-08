@@ -24,9 +24,6 @@ type HostInfo struct {
 	// buildah version
 	BuildahVersion string `json:"buildahVersion,omitempty"`
 
-	// c groups version
-	CGroupsVersion string `json:"cgroupVersion,omitempty"`
-
 	// c p us
 	CPUs int64 `json:"cpus,omitempty"`
 
@@ -35,6 +32,9 @@ type HostInfo struct {
 
 	// cgroup manager
 	CgroupManager string `json:"cgroupManager,omitempty"`
+
+	// cgroups version
+	CgroupsVersion string `json:"cgroupVersion,omitempty"`
 
 	// event logger
 	EventLogger string `json:"eventLogger,omitempty"`
@@ -56,6 +56,9 @@ type HostInfo struct {
 
 	// mem total
 	MemTotal int64 `json:"memTotal,omitempty"`
+
+	// network backend
+	NetworkBackend string `json:"networkBackend,omitempty"`
 
 	// o s
 	OS string `json:"os,omitempty"`

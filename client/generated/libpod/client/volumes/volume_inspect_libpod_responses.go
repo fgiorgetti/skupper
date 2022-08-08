@@ -263,11 +263,22 @@ type VolumeInspectLibpodOKBody struct {
 	// party tools.
 	Labels map[string]string `json:"Labels,omitempty"`
 
+	// MountCount is the number of times this volume has been mounted.
+	MountCount uint64 `json:"MountCount,omitempty"`
+
 	// Mountpoint is the path on the host where the volume is mounted.
 	Mountpoint string `json:"Mountpoint,omitempty"`
 
 	// Name is the name of the volume.
 	Name string `json:"Name,omitempty"`
+
+	// NeedsChown indicates that the next time the volume is mounted into
+	// a container, the container will chown the volume to the container process
+	// UID/GID.
+	NeedsChown bool `json:"NeedsChown,omitempty"`
+
+	// NeedsCopyUp indicates that the next time the volume is mounted into
+	NeedsCopyUp bool `json:"NeedsCopyUp,omitempty"`
 
 	// Options is a set of options that were used when creating the volume.
 	// For the Local driver, these are mount options that will be used to

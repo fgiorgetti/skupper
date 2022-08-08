@@ -19,7 +19,7 @@ import (
 // swagger:model PodCgroupConfig
 type PodCgroupConfig struct {
 
-	// CgroupParent is the parent for the CGroup that the pod will create.
+	// CgroupParent is the parent for the Cgroup that the pod will create.
 	// This pod cgroup will, in turn, be the default cgroup parent for all
 	// containers in the pod.
 	// Optional.

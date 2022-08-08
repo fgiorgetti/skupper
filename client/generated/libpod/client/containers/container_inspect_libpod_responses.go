@@ -273,9 +273,6 @@ type ContainerInspectLibpodOKBody struct {
 	// exec i ds
 	ExecIDs []string `json:"ExecIDs"`
 
-	// exit command
-	ExitCommand []string `json:"ExitCommand"`
-
 	// graph driver
 	GraphDriver *models.DriverData `json:"GraphDriver,omitempty"`
 

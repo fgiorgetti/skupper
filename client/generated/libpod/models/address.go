@@ -12,7 +12,7 @@ import (
 	"github.com/go-openapi/swag"
 )
 
-// Address Address represents an IP address
+// Address Address represents an IP address.
 //
 // swagger:model Address
 type Address struct {
@@ -20,8 +20,8 @@ type Address struct {
 	// addr
 	Addr string `json:"Addr,omitempty"`
 
-	// prefix len
-	PrefixLen int64 `json:"PrefixLen,omitempty"`
+	// prefix length
+	PrefixLength int64 `json:"PrefixLength,omitempty"`
 }
 
 // Validate validates this address

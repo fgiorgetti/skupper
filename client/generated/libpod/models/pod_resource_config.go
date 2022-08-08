@@ -11,6 +11,7 @@ import (
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
+	"github.com/go-openapi/validate"
 )
 
 // PodResourceConfig pod resource config
@@ -24,6 +25,9 @@ type PodResourceConfig struct {
 	// CPU quota of the cpuset, determined by --cpus
 	CPUQuota int64 `json:"cpu_quota,omitempty"`
 
+	// ThrottleReadBpsDevice contains the rate at which the devices in the pod can be read from/accessed
+	ThrottleReadBpsDevice map[string]LinuxThrottleDevice `json:"throttleReadBpsDevice,omitempty"`
+
 	// resource limits
 	ResourceLimits *LinuxResources `json:"resource_limits,omitempty"`
 }
@@ -32,6 +36,10 @@ type PodResourceConfig struct {
 func (m *PodResourceConfig) Validate(formats strfmt.Registry) error {
 	var res []error
 
+	if err := m.validateThrottleReadBpsDevice(formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.validateResourceLimits(formats); err != nil {
 		res = append(res, err)
 	}
@@ -39,6 +47,32 @@ func (m *PodResourceConfig) Validate(formats strfmt.Registry) error {
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
+	return nil
+}
+
+func (m *PodResourceConfig) validateThrottleReadBpsDevice(formats strfmt.Registry) error {
+	if swag.IsZero(m.ThrottleReadBpsDevice) { // not required
+		return nil
+	}
+
+	for k := range m.ThrottleReadBpsDevice {
+
+		if err := validate.Required("throttleReadBpsDevice"+"."+k, "body", m.ThrottleReadBpsDevice[k]); err != nil {
+			return err
+		}
+		if val, ok := m.ThrottleReadBpsDevice[k]; ok {
+			if err := val.Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("throttleReadBpsDevice" + "." + k)
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("throttleReadBpsDevice" + "." + k)
+				}
+				return err
+			}
+		}
+
+	}
+
 	return nil
 }
 
@@ -65,6 +99,10 @@ func (m *PodResourceConfig) validateResourceLimits(formats strfmt.Registry) erro
 func (m *PodResourceConfig) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	var res []error
 
+	if err := m.contextValidateThrottleReadBpsDevice(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.contextValidateResourceLimits(ctx, formats); err != nil {
 		res = append(res, err)
 	}
@@ -72,6 +110,21 @@ func (m *PodResourceConfig) ContextValidate(ctx context.Context, formats strfmt.
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
+	return nil
+}
+
+func (m *PodResourceConfig) contextValidateThrottleReadBpsDevice(ctx context.Context, formats strfmt.Registry) error {
+
+	for k := range m.ThrottleReadBpsDevice {
+
+		if val, ok := m.ThrottleReadBpsDevice[k]; ok {
+			if err := val.ContextValidate(ctx, formats); err != nil {
+				return err
+			}
+		}
+
+	}
+
 	return nil
 }
 

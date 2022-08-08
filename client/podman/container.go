@@ -60,7 +60,7 @@ func (p *PodmanRestClient) ContainerRemove(name string) error {
 	params := containers.NewContainerDeleteLibpodParams()
 	params.Name = name
 	params.Force = boolTrue()
-	_, err := cli.ContainerDeleteLibpod(params)
+	_, _, err := cli.ContainerDeleteLibpod(params)
 	if err != nil {
 		return fmt.Errorf("error deleting container %s: %v", name, err)
 	}

@@ -82,7 +82,7 @@ type InspectContainerHostConfig struct {
 
 	// BlkioWeight indicates the I/O resources allocated to the container.
 	// It is a relative weight in the scheduler for assigning I/O time
-	// versus other CGroups.
+	// versus other Cgroups.
 	BlkioWeight uint16 `json:"BlkioWeight,omitempty"`
 
 	// BlkioWeightDevice is an array of I/O resource priorities for
@@ -128,13 +128,13 @@ type InspectContainerHostConfig struct {
 	// ns:<path> - A path to a cgroup namespace has been specified
 	CgroupMode string `json:"CgroupMode,omitempty"`
 
-	// CgroupParent is the CGroup parent of the container.
+	// CgroupParent is the Cgroup parent of the container.
 	// Only set if not default.
 	CgroupParent string `json:"CgroupParent,omitempty"`
 
-	// Cgroups contains the container's CGroup mode.
-	// Allowed values are "default" (container is creating CGroups) and
-	// "disabled" (container is not creating CGroups).
+	// Cgroups contains the container's Cgroup mode.
+	// Allowed values are "default" (container is creating Cgroups) and
+	// "disabled" (container is not creating Cgroups).
 	// This is Libpod-specific and not included in `docker inspect`.
 	Cgroups string `json:"Cgroups,omitempty"`
 
@@ -174,7 +174,7 @@ type InspectContainerHostConfig struct {
 
 	// CpuShares indicates the CPU resources allocated to the container.
 	// It is a relative weight in the scheduler for assigning CPU time
-	// versus other CGroups.
+	// versus other Cgroups.
 	CPUShares uint64 `json:"CpuShares,omitempty"`
 
 	// CpusetCpus is the is the set of CPUs that the container will execute
@@ -218,6 +218,9 @@ type InspectContainerHostConfig struct {
 	// GroupAdd contains groups that the user inside the container will be
 	// added to.
 	GroupAdd []string `json:"GroupAdd"`
+
+	// ID mappings
+	IDMappings *InspectIDMappings `json:"IDMappings,omitempty"`
 
 	// IOMaximumBandwidth is Windows-only and not presently implemented.
 	IOMaximumBandwidth uint64 `json:"IOMaximumBandwidth,omitempty"`
@@ -347,7 +350,7 @@ type InspectContainerHostConfig struct {
 	// container.
 	SecurityOpt []string `json:"SecurityOpt"`
 
-	// ShmSize is the size of the container's SHM device.
+	// shm size
 	ShmSize int64 `json:"ShmSize,omitempty"`
 
 	// Tmpfs is a list of tmpfs filesystems that will be mounted into the
@@ -416,6 +419,10 @@ func (m *InspectContainerHostConfig) Validate(formats strfmt.Registry) error {
 	}
 
 	if err := m.validateDevices(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateIDMappings(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -597,6 +604,25 @@ func (m *InspectContainerHostConfig) validateDevices(formats strfmt.Registry) er
 	return nil
 }
 
+func (m *InspectContainerHostConfig) validateIDMappings(formats strfmt.Registry) error {
+	if swag.IsZero(m.IDMappings) { // not required
+		return nil
+	}
+
+	if m.IDMappings != nil {
+		if err := m.IDMappings.Validate(formats); err != nil {
+			if ve, ok := err.(*errors.Validation); ok {
+				return ve.ValidateName("IDMappings")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("IDMappings")
+			}
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (m *InspectContainerHostConfig) validateLogConfig(formats strfmt.Registry) error {
 	if swag.IsZero(m.LogConfig) { // not required
 		return nil
@@ -715,6 +741,10 @@ func (m *InspectContainerHostConfig) ContextValidate(ctx context.Context, format
 	}
 
 	if err := m.contextValidateDevices(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.contextValidateIDMappings(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -855,6 +885,22 @@ func (m *InspectContainerHostConfig) contextValidateDevices(ctx context.Context,
 			}
 		}
 
+	}
+
+	return nil
+}
+
+func (m *InspectContainerHostConfig) contextValidateIDMappings(ctx context.Context, formats strfmt.Registry) error {
+
+	if m.IDMappings != nil {
+		if err := m.IDMappings.ContextValidate(ctx, formats); err != nil {
+			if ve, ok := err.(*errors.Validation); ok {
+				return ve.ValidateName("IDMappings")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("IDMappings")
+			}
+			return err
+		}
 	}
 
 	return nil

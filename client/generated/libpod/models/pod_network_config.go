@@ -12,6 +12,7 @@ import (
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
+	"github.com/go-openapi/validate"
 )
 
 // PodNetworkConfig PodNetworkConfig contains networking configuration for a pod.
@@ -19,12 +20,13 @@ import (
 // swagger:model PodNetworkConfig
 type PodNetworkConfig struct {
 
-	// CNINetworks is a list of CNI networks that the infra container will
-	// join. As, by default, containers share their network with the infra
-	// container, these networks will effectively be joined by the
-	// entire pod.
-	// Only available when NetNS is set to Bridge, the default for root.
+	// CNINetworks is a list of CNI networks to join the container to.
+	// If this list is empty, the default CNI network will be joined
+	// instead. If at least one entry is present, we will not join the
+	// default network (unless it is part of this list).
+	// Only available if NetNS is set to bridge.
 	// Optional.
+	// Deprecated: as of podman 4.0 use "Networks" instead.
 	CNINetworks []string `json:"cni_networks"`
 
 	// DNSOption is a set of DNS options that will be used in the infra
@@ -64,6 +66,14 @@ type PodNetworkConfig struct {
 	// Optional.
 	NetworkOptions map[string][]string `json:"network_options,omitempty"`
 
+	// Map of networks names to ids the container should join to.
+	// You can request additional settings for each network, you can
+	// set network aliases, static ips, static mac address  and the
+	// network interface name for this container on the specific network.
+	// If the map is empty and the bridge network mode is set the container
+	// will be joined to the default network.
+	Networks map[string]PerNetworkOptions `json:"Networks,omitempty"`
+
 	// NoManageHosts indicates that /etc/hosts should not be managed by the
 	// pod. Instead, each container will create a separate /etc/hosts as
 	// they would if not in a pod.
@@ -86,12 +96,6 @@ type PodNetworkConfig struct {
 
 	// netns
 	Netns *Namespace `json:"netns,omitempty"`
-
-	// static ip
-	StaticIP IP `json:"static_ip,omitempty"`
-
-	// static mac
-	StaticMac HardwareAddr `json:"static_mac,omitempty"`
 }
 
 // Validate validates this pod network config
@@ -102,19 +106,15 @@ func (m *PodNetworkConfig) Validate(formats strfmt.Registry) error {
 		res = append(res, err)
 	}
 
+	if err := m.validateNetworks(formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.validatePortMappings(formats); err != nil {
 		res = append(res, err)
 	}
 
 	if err := m.validateNetns(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateStaticIP(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateStaticMac(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -138,6 +138,32 @@ func (m *PodNetworkConfig) validateDNSServer(formats strfmt.Registry) error {
 				return ce.ValidateName("dns_server" + "." + strconv.Itoa(i))
 			}
 			return err
+		}
+
+	}
+
+	return nil
+}
+
+func (m *PodNetworkConfig) validateNetworks(formats strfmt.Registry) error {
+	if swag.IsZero(m.Networks) { // not required
+		return nil
+	}
+
+	for k := range m.Networks {
+
+		if err := validate.Required("Networks"+"."+k, "body", m.Networks[k]); err != nil {
+			return err
+		}
+		if val, ok := m.Networks[k]; ok {
+			if err := val.Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("Networks" + "." + k)
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("Networks" + "." + k)
+				}
+				return err
+			}
 		}
 
 	}
@@ -190,40 +216,6 @@ func (m *PodNetworkConfig) validateNetns(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *PodNetworkConfig) validateStaticIP(formats strfmt.Registry) error {
-	if swag.IsZero(m.StaticIP) { // not required
-		return nil
-	}
-
-	if err := m.StaticIP.Validate(formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_ip")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_ip")
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (m *PodNetworkConfig) validateStaticMac(formats strfmt.Registry) error {
-	if swag.IsZero(m.StaticMac) { // not required
-		return nil
-	}
-
-	if err := m.StaticMac.Validate(formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_mac")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_mac")
-		}
-		return err
-	}
-
-	return nil
-}
-
 // ContextValidate validate this pod network config based on the context it is used
 func (m *PodNetworkConfig) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	var res []error
@@ -232,19 +224,15 @@ func (m *PodNetworkConfig) ContextValidate(ctx context.Context, formats strfmt.R
 		res = append(res, err)
 	}
 
+	if err := m.contextValidateNetworks(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.contextValidatePortMappings(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
 	if err := m.contextValidateNetns(ctx, formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.contextValidateStaticIP(ctx, formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.contextValidateStaticMac(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -265,6 +253,21 @@ func (m *PodNetworkConfig) contextValidateDNSServer(ctx context.Context, formats
 				return ce.ValidateName("dns_server" + "." + strconv.Itoa(i))
 			}
 			return err
+		}
+
+	}
+
+	return nil
+}
+
+func (m *PodNetworkConfig) contextValidateNetworks(ctx context.Context, formats strfmt.Registry) error {
+
+	for k := range m.Networks {
+
+		if val, ok := m.Networks[k]; ok {
+			if err := val.ContextValidate(ctx, formats); err != nil {
+				return err
+			}
 		}
 
 	}
@@ -303,34 +306,6 @@ func (m *PodNetworkConfig) contextValidateNetns(ctx context.Context, formats str
 			}
 			return err
 		}
-	}
-
-	return nil
-}
-
-func (m *PodNetworkConfig) contextValidateStaticIP(ctx context.Context, formats strfmt.Registry) error {
-
-	if err := m.StaticIP.ContextValidate(ctx, formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_ip")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_ip")
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (m *PodNetworkConfig) contextValidateStaticMac(ctx context.Context, formats strfmt.Registry) error {
-
-	if err := m.StaticMac.ContextValidate(ctx, formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_mac")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_mac")
-		}
-		return err
 	}
 
 	return nil

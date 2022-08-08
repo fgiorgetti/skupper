@@ -17,8 +17,8 @@ import (
 // swagger:model PodCreateConfig
 type PodCreateConfig struct {
 
-	// c group parent
-	CGroupParent string `json:"cgroup-parent,omitempty"`
+	// cgroup parent
+	CgroupParent string `json:"cgroup-parent,omitempty"`
 
 	// hostname
 	Hostname string `json:"hostname,omitempty"`

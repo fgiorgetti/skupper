@@ -63,7 +63,7 @@ type NetworkCreateParams struct {
 
 	/* Create.
 
-	   attributes for creating a container
+	   attributes for creating a network
 	*/
 	Create *models.NetworkCreateRequest
 

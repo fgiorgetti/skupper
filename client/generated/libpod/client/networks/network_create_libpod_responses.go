@@ -37,6 +37,12 @@ func (o *NetworkCreateLibpodReader) ReadResponse(response runtime.ClientResponse
 			return nil, err
 		}
 		return nil, result
+	case 409:
+		result := NewNetworkCreateLibpodConflict()
+		if err := result.readResponse(response, consumer, o.formats); err != nil {
+			return nil, err
+		}
+		return nil, result
 	case 500:
 		result := NewNetworkCreateLibpodInternalServerError()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
@@ -58,19 +64,19 @@ func NewNetworkCreateLibpodOK() *NetworkCreateLibpodOK {
 Network create
 */
 type NetworkCreateLibpodOK struct {
-	Payload *models.NetworkCreateReport
+	Payload *models.Network
 }
 
 func (o *NetworkCreateLibpodOK) Error() string {
 	return fmt.Sprintf("[POST /libpod/networks/create][%d] networkCreateLibpodOK  %+v", 200, o.Payload)
 }
-func (o *NetworkCreateLibpodOK) GetPayload() *models.NetworkCreateReport {
+func (o *NetworkCreateLibpodOK) GetPayload() *models.Network {
 	return o.Payload
 }
 
 func (o *NetworkCreateLibpodOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
-	o.Payload = new(models.NetworkCreateReport)
+	o.Payload = new(models.Network)
 
 	// response payload
 	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
@@ -103,6 +109,38 @@ func (o *NetworkCreateLibpodBadRequest) GetPayload() *NetworkCreateLibpodBadRequ
 func (o *NetworkCreateLibpodBadRequest) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
 	o.Payload = new(NetworkCreateLibpodBadRequestBody)
+
+	// response payload
+	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
+		return err
+	}
+
+	return nil
+}
+
+// NewNetworkCreateLibpodConflict creates a NetworkCreateLibpodConflict with default headers values
+func NewNetworkCreateLibpodConflict() *NetworkCreateLibpodConflict {
+	return &NetworkCreateLibpodConflict{}
+}
+
+/* NetworkCreateLibpodConflict describes a response with status code 409, with default header values.
+
+Conflict error in operation
+*/
+type NetworkCreateLibpodConflict struct {
+	Payload *NetworkCreateLibpodConflictBody
+}
+
+func (o *NetworkCreateLibpodConflict) Error() string {
+	return fmt.Sprintf("[POST /libpod/networks/create][%d] networkCreateLibpodConflict  %+v", 409, o.Payload)
+}
+func (o *NetworkCreateLibpodConflict) GetPayload() *NetworkCreateLibpodConflictBody {
+	return o.Payload
+}
+
+func (o *NetworkCreateLibpodConflict) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
+
+	o.Payload = new(NetworkCreateLibpodConflictBody)
 
 	// response payload
 	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
@@ -182,6 +220,51 @@ func (o *NetworkCreateLibpodBadRequestBody) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary interface implementation
 func (o *NetworkCreateLibpodBadRequestBody) UnmarshalBinary(b []byte) error {
 	var res NetworkCreateLibpodBadRequestBody
+	if err := swag.ReadJSON(b, &res); err != nil {
+		return err
+	}
+	*o = res
+	return nil
+}
+
+/*NetworkCreateLibpodConflictBody network create libpod conflict body
+swagger:model NetworkCreateLibpodConflictBody
+*/
+type NetworkCreateLibpodConflictBody struct {
+
+	// API root cause formatted for automated parsing
+	// Example: API root cause
+	Because string `json:"cause,omitempty"`
+
+	// human error message, formatted for a human to read
+	// Example: human error message
+	Message string `json:"message,omitempty"`
+
+	// http response code
+	ResponseCode int64 `json:"response,omitempty"`
+}
+
+// Validate validates this network create libpod conflict body
+func (o *NetworkCreateLibpodConflictBody) Validate(formats strfmt.Registry) error {
+	return nil
+}
+
+// ContextValidate validates this network create libpod conflict body based on context it is used
+func (o *NetworkCreateLibpodConflictBody) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	return nil
+}
+
+// MarshalBinary interface implementation
+func (o *NetworkCreateLibpodConflictBody) MarshalBinary() ([]byte, error) {
+	if o == nil {
+		return nil, nil
+	}
+	return swag.WriteJSON(o)
+}
+
+// UnmarshalBinary interface implementation
+func (o *NetworkCreateLibpodConflictBody) UnmarshalBinary(b []byte) error {
+	var res NetworkCreateLibpodConflictBody
 	if err := swag.ReadJSON(b, &res); err != nil {
 		return err
 	}

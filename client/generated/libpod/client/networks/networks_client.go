@@ -92,7 +92,7 @@ func (a *Client) NetworkConnectLibpod(params *NetworkConnectLibpodParams, opts .
 /*
   NetworkCreateLibpod creates network
 
-  Create a new CNI network configuration
+  Create a new network configuration
 */
 func (a *Client) NetworkCreateLibpod(params *NetworkCreateLibpodParams, opts ...ClientOption) (*NetworkCreateLibpodOK, error) {
 	// TODO: Validate the params before sending

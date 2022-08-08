@@ -80,11 +80,11 @@ type InspectNetworkSettings struct {
 
 	// SecondaryIPAddresses is a list of extra IP Addresses that the
 	// container has been assigned in this network.
-	SecondaryIPAddresses []string `json:"SecondaryIPAddresses"`
+	SecondaryIPAddresses []*Address `json:"SecondaryIPAddresses"`
 
 	// SecondaryIPv6Addresses is a list of extra IPv6 Addresses that the
 	// container has been assigned in this network.
-	SecondaryIPV6Addresses []string `json:"SecondaryIPv6Addresses"`
+	SecondaryIPV6Addresses []*Address `json:"SecondaryIPv6Addresses"`
 }
 
 // Validate validates this inspect network settings
@@ -96,6 +96,14 @@ func (m *InspectNetworkSettings) Validate(formats strfmt.Registry) error {
 	}
 
 	if err := m.validatePorts(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateSecondaryIPAddresses(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateSecondaryIPV6Addresses(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -160,6 +168,58 @@ func (m *InspectNetworkSettings) validatePorts(formats strfmt.Registry) error {
 	return nil
 }
 
+func (m *InspectNetworkSettings) validateSecondaryIPAddresses(formats strfmt.Registry) error {
+	if swag.IsZero(m.SecondaryIPAddresses) { // not required
+		return nil
+	}
+
+	for i := 0; i < len(m.SecondaryIPAddresses); i++ {
+		if swag.IsZero(m.SecondaryIPAddresses[i]) { // not required
+			continue
+		}
+
+		if m.SecondaryIPAddresses[i] != nil {
+			if err := m.SecondaryIPAddresses[i].Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("SecondaryIPAddresses" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("SecondaryIPAddresses" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *InspectNetworkSettings) validateSecondaryIPV6Addresses(formats strfmt.Registry) error {
+	if swag.IsZero(m.SecondaryIPV6Addresses) { // not required
+		return nil
+	}
+
+	for i := 0; i < len(m.SecondaryIPV6Addresses); i++ {
+		if swag.IsZero(m.SecondaryIPV6Addresses[i]) { // not required
+			continue
+		}
+
+		if m.SecondaryIPV6Addresses[i] != nil {
+			if err := m.SecondaryIPV6Addresses[i].Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("SecondaryIPv6Addresses" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("SecondaryIPv6Addresses" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
 // ContextValidate validate this inspect network settings based on the context it is used
 func (m *InspectNetworkSettings) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	var res []error
@@ -169,6 +229,14 @@ func (m *InspectNetworkSettings) ContextValidate(ctx context.Context, formats st
 	}
 
 	if err := m.contextValidatePorts(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.contextValidateSecondaryIPAddresses(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.contextValidateSecondaryIPV6Addresses(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -208,6 +276,46 @@ func (m *InspectNetworkSettings) contextValidatePorts(ctx context.Context, forma
 				return err
 			}
 
+		}
+
+	}
+
+	return nil
+}
+
+func (m *InspectNetworkSettings) contextValidateSecondaryIPAddresses(ctx context.Context, formats strfmt.Registry) error {
+
+	for i := 0; i < len(m.SecondaryIPAddresses); i++ {
+
+		if m.SecondaryIPAddresses[i] != nil {
+			if err := m.SecondaryIPAddresses[i].ContextValidate(ctx, formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("SecondaryIPAddresses" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("SecondaryIPAddresses" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *InspectNetworkSettings) contextValidateSecondaryIPV6Addresses(ctx context.Context, formats strfmt.Registry) error {
+
+	for i := 0; i < len(m.SecondaryIPV6Addresses); i++ {
+
+		if m.SecondaryIPV6Addresses[i] != nil {
+			if err := m.SecondaryIPV6Addresses[i].ContextValidate(ctx, formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("SecondaryIPv6Addresses" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("SecondaryIPv6Addresses" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
 		}
 
 	}

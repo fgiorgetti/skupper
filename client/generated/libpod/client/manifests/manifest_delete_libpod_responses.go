@@ -31,12 +31,6 @@ func (o *ManifestDeleteLibpodReader) ReadResponse(response runtime.ClientRespons
 			return nil, err
 		}
 		return result, nil
-	case 400:
-		result := NewManifestDeleteLibpodBadRequest()
-		if err := result.readResponse(response, consumer, o.formats); err != nil {
-			return nil, err
-		}
-		return nil, result
 	case 404:
 		result := NewManifestDeleteLibpodNotFound()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
@@ -61,54 +55,22 @@ func NewManifestDeleteLibpodOK() *ManifestDeleteLibpodOK {
 
 /* ManifestDeleteLibpodOK describes a response with status code 200, with default header values.
 
-ManifestDeleteLibpodOK manifest delete libpod o k
+Remove response
 */
 type ManifestDeleteLibpodOK struct {
-	Payload *models.IDResponse
+	Payload *models.LibpodImagesRemoveReport
 }
 
 func (o *ManifestDeleteLibpodOK) Error() string {
 	return fmt.Sprintf("[DELETE /libpod/manifests/{name}][%d] manifestDeleteLibpodOK  %+v", 200, o.Payload)
 }
-func (o *ManifestDeleteLibpodOK) GetPayload() *models.IDResponse {
+func (o *ManifestDeleteLibpodOK) GetPayload() *models.LibpodImagesRemoveReport {
 	return o.Payload
 }
 
 func (o *ManifestDeleteLibpodOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
-	o.Payload = new(models.IDResponse)
-
-	// response payload
-	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
-		return err
-	}
-
-	return nil
-}
-
-// NewManifestDeleteLibpodBadRequest creates a ManifestDeleteLibpodBadRequest with default headers values
-func NewManifestDeleteLibpodBadRequest() *ManifestDeleteLibpodBadRequest {
-	return &ManifestDeleteLibpodBadRequest{}
-}
-
-/* ManifestDeleteLibpodBadRequest describes a response with status code 400, with default header values.
-
-Bad parameter in request
-*/
-type ManifestDeleteLibpodBadRequest struct {
-	Payload *ManifestDeleteLibpodBadRequestBody
-}
-
-func (o *ManifestDeleteLibpodBadRequest) Error() string {
-	return fmt.Sprintf("[DELETE /libpod/manifests/{name}][%d] manifestDeleteLibpodBadRequest  %+v", 400, o.Payload)
-}
-func (o *ManifestDeleteLibpodBadRequest) GetPayload() *ManifestDeleteLibpodBadRequestBody {
-	return o.Payload
-}
-
-func (o *ManifestDeleteLibpodBadRequest) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
-
-	o.Payload = new(ManifestDeleteLibpodBadRequestBody)
+	o.Payload = new(models.LibpodImagesRemoveReport)
 
 	// response payload
 	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
@@ -179,51 +141,6 @@ func (o *ManifestDeleteLibpodInternalServerError) readResponse(response runtime.
 		return err
 	}
 
-	return nil
-}
-
-/*ManifestDeleteLibpodBadRequestBody manifest delete libpod bad request body
-swagger:model ManifestDeleteLibpodBadRequestBody
-*/
-type ManifestDeleteLibpodBadRequestBody struct {
-
-	// API root cause formatted for automated parsing
-	// Example: API root cause
-	Because string `json:"cause,omitempty"`
-
-	// human error message, formatted for a human to read
-	// Example: human error message
-	Message string `json:"message,omitempty"`
-
-	// http response code
-	ResponseCode int64 `json:"response,omitempty"`
-}
-
-// Validate validates this manifest delete libpod bad request body
-func (o *ManifestDeleteLibpodBadRequestBody) Validate(formats strfmt.Registry) error {
-	return nil
-}
-
-// ContextValidate validates this manifest delete libpod bad request body based on context it is used
-func (o *ManifestDeleteLibpodBadRequestBody) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
-	return nil
-}
-
-// MarshalBinary interface implementation
-func (o *ManifestDeleteLibpodBadRequestBody) MarshalBinary() ([]byte, error) {
-	if o == nil {
-		return nil, nil
-	}
-	return swag.WriteJSON(o)
-}
-
-// UnmarshalBinary interface implementation
-func (o *ManifestDeleteLibpodBadRequestBody) UnmarshalBinary(b []byte) error {
-	var res ManifestDeleteLibpodBadRequestBody
-	if err := swag.ReadJSON(b, &res); err != nil {
-		return err
-	}
-	*o = res
 	return nil
 }
 

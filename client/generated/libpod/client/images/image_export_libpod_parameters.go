@@ -72,6 +72,12 @@ type ImageExportLibpodParams struct {
 	*/
 	Format *string
 
+	/* OciAcceptUncompressedLayers.
+
+	   accept uncompressed layers when copying OCI images
+	*/
+	OciAcceptUncompressedLayers *bool
+
 	/* References.
 
 	   references to images to export
@@ -153,6 +159,17 @@ func (o *ImageExportLibpodParams) SetFormat(format *string) {
 	o.Format = format
 }
 
+// WithOciAcceptUncompressedLayers adds the ociAcceptUncompressedLayers to the image export libpod params
+func (o *ImageExportLibpodParams) WithOciAcceptUncompressedLayers(ociAcceptUncompressedLayers *bool) *ImageExportLibpodParams {
+	o.SetOciAcceptUncompressedLayers(ociAcceptUncompressedLayers)
+	return o
+}
+
+// SetOciAcceptUncompressedLayers adds the ociAcceptUncompressedLayers to the image export libpod params
+func (o *ImageExportLibpodParams) SetOciAcceptUncompressedLayers(ociAcceptUncompressedLayers *bool) {
+	o.OciAcceptUncompressedLayers = ociAcceptUncompressedLayers
+}
+
 // WithReferences adds the references to the image export libpod params
 func (o *ImageExportLibpodParams) WithReferences(references []string) *ImageExportLibpodParams {
 	o.SetReferences(references)
@@ -201,6 +218,23 @@ func (o *ImageExportLibpodParams) WriteToRequest(r runtime.ClientRequest, reg st
 		if qFormat != "" {
 
 			if err := r.SetQueryParam("format", qFormat); err != nil {
+				return err
+			}
+		}
+	}
+
+	if o.OciAcceptUncompressedLayers != nil {
+
+		// query param ociAcceptUncompressedLayers
+		var qrOciAcceptUncompressedLayers bool
+
+		if o.OciAcceptUncompressedLayers != nil {
+			qrOciAcceptUncompressedLayers = *o.OciAcceptUncompressedLayers
+		}
+		qOciAcceptUncompressedLayers := swag.FormatBool(qrOciAcceptUncompressedLayers)
+		if qOciAcceptUncompressedLayers != "" {
+
+			if err := r.SetQueryParam("ociAcceptUncompressedLayers", qOciAcceptUncompressedLayers); err != nil {
 				return err
 			}
 		}

@@ -63,7 +63,7 @@ type VolumeCreateLibpodParams struct {
 
 	/* Create.
 
-	   attributes for creating a container
+	   attributes for creating a volume
 	*/
 	Create *models.VolumeCreateOptions
 

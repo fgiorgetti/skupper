@@ -66,6 +66,9 @@ type InspectContainerConfig struct {
 	// Whether the container leaves STDIN open
 	OpenStdin bool `json:"OpenStdin,omitempty"`
 
+	// Passwd determines whether or not podman can add entries to /etc/passwd and /etc/group
+	Passwd bool `json:"Passwd,omitempty"`
+
 	// Secrets are the secrets mounted in the container
 	Secrets []*InspectSecret `json:"Secrets"`
 

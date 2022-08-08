@@ -58,19 +58,19 @@ func NewNetworkInspectLibpodOK() *NetworkInspectLibpodOK {
 Network inspect
 */
 type NetworkInspectLibpodOK struct {
-	Payload *models.NetworkConfigList
+	Payload *models.Network
 }
 
 func (o *NetworkInspectLibpodOK) Error() string {
 	return fmt.Sprintf("[GET /libpod/networks/{name}/json][%d] networkInspectLibpodOK  %+v", 200, o.Payload)
 }
-func (o *NetworkInspectLibpodOK) GetPayload() *models.NetworkConfigList {
+func (o *NetworkInspectLibpodOK) GetPayload() *models.Network {
 	return o.Payload
 }
 
 func (o *NetworkInspectLibpodOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
-	o.Payload = new(models.NetworkConfigList)
+	o.Payload = new(models.Network)
 
 	// response payload
 	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {

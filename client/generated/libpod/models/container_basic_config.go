@@ -73,6 +73,10 @@ type ContainerBasicConfig struct {
 	// Optional.
 	HTTPProxy bool `json:"httpproxy,omitempty"`
 
+	// HostUses is a list of host usernames or UIDs to add to the container
+	// etc/passwd file
+	HostUsers []string `json:"hostusers"`
+
 	// Hostname is the container's hostname. If not set, the hostname will
 	// not be modified (if UtsNS is not private) or will be set to the
 	// container ID (if UtsNS is private).
@@ -103,6 +107,9 @@ type ContainerBasicConfig struct {
 	// If not specified, the default will be used.
 	// Optional.
 	OCIRuntime string `json:"oci_runtime,omitempty"`
+
+	// Passwd is a container run option that determines if we are validating users/groups before running the container
+	Passwd bool `json:"manage_password,omitempty"`
 
 	// Pod is the ID of the pod the container will join.
 	// Optional.
@@ -174,6 +181,15 @@ type ContainerBasicConfig struct {
 	// Local means it has the same timezone as the host machine
 	// Optional.
 	Timezone string `json:"timezone,omitempty"`
+
+	// UnsetEnv unsets the specified default environment variables from the image or from buildin or containers.conf
+	// Optional.
+	UnsetEnv []string `json:"unsetenv"`
+
+	// UnsetEnvAll unsetall default environment variables from the image or from buildin or containers.conf
+	// UnsetEnvAll unsets all default environment variables from the image or from buildin
+	// Optional.
+	UnsetEnvAll bool `json:"unsetenvall,omitempty"`
 
 	// log configuration
 	LogConfiguration *LogConfig `json:"log_configuration,omitempty"`

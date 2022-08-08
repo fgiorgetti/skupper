@@ -52,13 +52,13 @@ func NewVolumeListLibpodOK() *VolumeListLibpodOK {
 Volume list
 */
 type VolumeListLibpodOK struct {
-	Payload []*models.Volume
+	Payload []*models.VolumeConfigResponse
 }
 
 func (o *VolumeListLibpodOK) Error() string {
 	return fmt.Sprintf("[GET /libpod/volumes/json][%d] volumeListLibpodOK  %+v", 200, o.Payload)
 }
-func (o *VolumeListLibpodOK) GetPayload() []*models.Volume {
+func (o *VolumeListLibpodOK) GetPayload() []*models.VolumeConfigResponse {
 	return o.Payload
 }
 

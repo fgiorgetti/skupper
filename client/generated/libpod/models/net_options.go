@@ -12,9 +12,11 @@ import (
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
+	"github.com/go-openapi/validate"
 )
 
-// NetOptions net options
+// NetOptions NetOptions reflect the shared network options between
+// pods and containers
 //
 // swagger:model NetOptions
 type NetOptions struct {
@@ -24,9 +26,6 @@ type NetOptions struct {
 
 	// aliases
 	Aliases []string `json:"network_alias"`
-
-	// c n i networks
-	CNINetworks []string `json:"cni_networks"`
 
 	// DNS options
 	DNSOptions []string `json:"dns_option"`
@@ -40,6 +39,9 @@ type NetOptions struct {
 	// NetworkOptions are additional options for each network
 	NetworkOptions map[string][]string `json:"network_options,omitempty"`
 
+	// networks
+	Networks map[string]PerNetworkOptions `json:"networks,omitempty"`
+
 	// no hosts
 	NoHosts bool `json:"no_manage_hosts,omitempty"`
 
@@ -51,12 +53,6 @@ type NetOptions struct {
 
 	// netns
 	Netns *Namespace `json:"netns,omitempty"`
-
-	// static ip
-	StaticIP IP `json:"static_ip,omitempty"`
-
-	// static mac
-	StaticMac HardwareAddr `json:"static_mac,omitempty"`
 }
 
 // Validate validates this net options
@@ -67,19 +63,15 @@ func (m *NetOptions) Validate(formats strfmt.Registry) error {
 		res = append(res, err)
 	}
 
+	if err := m.validateNetworks(formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.validatePublishPorts(formats); err != nil {
 		res = append(res, err)
 	}
 
 	if err := m.validateNetns(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateStaticIP(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateStaticMac(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -103,6 +95,32 @@ func (m *NetOptions) validateDNSServers(formats strfmt.Registry) error {
 				return ce.ValidateName("dns_server" + "." + strconv.Itoa(i))
 			}
 			return err
+		}
+
+	}
+
+	return nil
+}
+
+func (m *NetOptions) validateNetworks(formats strfmt.Registry) error {
+	if swag.IsZero(m.Networks) { // not required
+		return nil
+	}
+
+	for k := range m.Networks {
+
+		if err := validate.Required("networks"+"."+k, "body", m.Networks[k]); err != nil {
+			return err
+		}
+		if val, ok := m.Networks[k]; ok {
+			if err := val.Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("networks" + "." + k)
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("networks" + "." + k)
+				}
+				return err
+			}
 		}
 
 	}
@@ -155,40 +173,6 @@ func (m *NetOptions) validateNetns(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *NetOptions) validateStaticIP(formats strfmt.Registry) error {
-	if swag.IsZero(m.StaticIP) { // not required
-		return nil
-	}
-
-	if err := m.StaticIP.Validate(formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_ip")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_ip")
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (m *NetOptions) validateStaticMac(formats strfmt.Registry) error {
-	if swag.IsZero(m.StaticMac) { // not required
-		return nil
-	}
-
-	if err := m.StaticMac.Validate(formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_mac")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_mac")
-		}
-		return err
-	}
-
-	return nil
-}
-
 // ContextValidate validate this net options based on the context it is used
 func (m *NetOptions) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	var res []error
@@ -197,19 +181,15 @@ func (m *NetOptions) ContextValidate(ctx context.Context, formats strfmt.Registr
 		res = append(res, err)
 	}
 
+	if err := m.contextValidateNetworks(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.contextValidatePublishPorts(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
 	if err := m.contextValidateNetns(ctx, formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.contextValidateStaticIP(ctx, formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.contextValidateStaticMac(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -230,6 +210,21 @@ func (m *NetOptions) contextValidateDNSServers(ctx context.Context, formats strf
 				return ce.ValidateName("dns_server" + "." + strconv.Itoa(i))
 			}
 			return err
+		}
+
+	}
+
+	return nil
+}
+
+func (m *NetOptions) contextValidateNetworks(ctx context.Context, formats strfmt.Registry) error {
+
+	for k := range m.Networks {
+
+		if val, ok := m.Networks[k]; ok {
+			if err := val.ContextValidate(ctx, formats); err != nil {
+				return err
+			}
 		}
 
 	}
@@ -268,34 +263,6 @@ func (m *NetOptions) contextValidateNetns(ctx context.Context, formats strfmt.Re
 			}
 			return err
 		}
-	}
-
-	return nil
-}
-
-func (m *NetOptions) contextValidateStaticIP(ctx context.Context, formats strfmt.Registry) error {
-
-	if err := m.StaticIP.ContextValidate(ctx, formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_ip")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_ip")
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (m *NetOptions) contextValidateStaticMac(ctx context.Context, formats strfmt.Registry) error {
-
-	if err := m.StaticMac.ContextValidate(ctx, formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_mac")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_mac")
-		}
-		return err
 	}
 
 	return nil

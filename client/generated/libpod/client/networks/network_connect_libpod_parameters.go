@@ -65,7 +65,7 @@ type NetworkConnectLibpodParams struct {
 
 	   attributes for connecting a container to a network
 	*/
-	Create *models.SwagCompatNetworkConnectRequest
+	Create *models.SwagNetworkConnectRequest
 
 	/* Name.
 
@@ -127,13 +127,13 @@ func (o *NetworkConnectLibpodParams) SetHTTPClient(client *http.Client) {
 }
 
 // WithCreate adds the create to the network connect libpod params
-func (o *NetworkConnectLibpodParams) WithCreate(create *models.SwagCompatNetworkConnectRequest) *NetworkConnectLibpodParams {
+func (o *NetworkConnectLibpodParams) WithCreate(create *models.SwagNetworkConnectRequest) *NetworkConnectLibpodParams {
 	o.SetCreate(create)
 	return o
 }
 
 // SetCreate adds the create to the network connect libpod params
-func (o *NetworkConnectLibpodParams) SetCreate(create *models.SwagCompatNetworkConnectRequest) {
+func (o *NetworkConnectLibpodParams) SetCreate(create *models.SwagNetworkConnectRequest) {
 	o.Create = create
 }
 

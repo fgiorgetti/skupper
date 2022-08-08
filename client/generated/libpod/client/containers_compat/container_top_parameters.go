@@ -68,6 +68,8 @@ type ContainerTopParams struct {
 	/* PsArgs.
 
 	   arguments to pass to ps such as aux. Requires ps(1) to be installed in the container if no ps(1) compatible AIX descriptors are used.
+
+	   Default: "-ef"
 	*/
 	PsArgs *string
 
@@ -88,7 +90,18 @@ func (o *ContainerTopParams) WithDefaults() *ContainerTopParams {
 //
 // All values with no default are reset to their zero value.
 func (o *ContainerTopParams) SetDefaults() {
-	// no default values defined for this parameter
+	var (
+		psArgsDefault = string("-ef")
+	)
+
+	val := ContainerTopParams{
+		PsArgs: &psArgsDefault,
+	}
+
+	val.timeout = o.timeout
+	val.Context = o.Context
+	val.HTTPClient = o.HTTPClient
+	*o = val
 }
 
 // WithTimeout adds the timeout to the container top params
