@@ -18,15 +18,18 @@ import (
 // swagger:model swagCompatNetworkConnectRequest
 type SwagCompatNetworkConnectRequest struct {
 
-	// body
-	Body *NetworkConnectRequestBody `json:"Body,omitempty"`
+	// container
+	Container string `json:"Container,omitempty"`
+
+	// endpoint config
+	EndpointConfig *EndpointSettings `json:"EndpointConfig,omitempty"`
 }
 
 // Validate validates this swag compat network connect request
 func (m *SwagCompatNetworkConnectRequest) Validate(formats strfmt.Registry) error {
 	var res []error
 
-	if err := m.validateBody(formats); err != nil {
+	if err := m.validateEndpointConfig(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -36,17 +39,17 @@ func (m *SwagCompatNetworkConnectRequest) Validate(formats strfmt.Registry) erro
 	return nil
 }
 
-func (m *SwagCompatNetworkConnectRequest) validateBody(formats strfmt.Registry) error {
-	if swag.IsZero(m.Body) { // not required
+func (m *SwagCompatNetworkConnectRequest) validateEndpointConfig(formats strfmt.Registry) error {
+	if swag.IsZero(m.EndpointConfig) { // not required
 		return nil
 	}
 
-	if m.Body != nil {
-		if err := m.Body.Validate(formats); err != nil {
+	if m.EndpointConfig != nil {
+		if err := m.EndpointConfig.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
-				return ve.ValidateName("Body")
+				return ve.ValidateName("EndpointConfig")
 			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("Body")
+				return ce.ValidateName("EndpointConfig")
 			}
 			return err
 		}
@@ -59,7 +62,7 @@ func (m *SwagCompatNetworkConnectRequest) validateBody(formats strfmt.Registry) 
 func (m *SwagCompatNetworkConnectRequest) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	var res []error
 
-	if err := m.contextValidateBody(ctx, formats); err != nil {
+	if err := m.contextValidateEndpointConfig(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -69,14 +72,14 @@ func (m *SwagCompatNetworkConnectRequest) ContextValidate(ctx context.Context, f
 	return nil
 }
 
-func (m *SwagCompatNetworkConnectRequest) contextValidateBody(ctx context.Context, formats strfmt.Registry) error {
+func (m *SwagCompatNetworkConnectRequest) contextValidateEndpointConfig(ctx context.Context, formats strfmt.Registry) error {
 
-	if m.Body != nil {
-		if err := m.Body.ContextValidate(ctx, formats); err != nil {
+	if m.EndpointConfig != nil {
+		if err := m.EndpointConfig.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
-				return ve.ValidateName("Body")
+				return ve.ValidateName("EndpointConfig")
 			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("Body")
+				return ce.ValidateName("EndpointConfig")
 			}
 			return err
 		}
@@ -96,99 +99,6 @@ func (m *SwagCompatNetworkConnectRequest) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary interface implementation
 func (m *SwagCompatNetworkConnectRequest) UnmarshalBinary(b []byte) error {
 	var res SwagCompatNetworkConnectRequest
-	if err := swag.ReadJSON(b, &res); err != nil {
-		return err
-	}
-	*m = res
-	return nil
-}
-
-// NetworkConnectRequestBody in:body
-//
-// swagger:model NetworkConnectRequestBody
-type NetworkConnectRequestBody struct {
-
-	// container
-	Container string `json:"Container,omitempty"`
-
-	// endpoint config
-	EndpointConfig *EndpointSettings `json:"EndpointConfig,omitempty"`
-}
-
-// Validate validates this network connect request body
-func (m *NetworkConnectRequestBody) Validate(formats strfmt.Registry) error {
-	var res []error
-
-	if err := m.validateEndpointConfig(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if len(res) > 0 {
-		return errors.CompositeValidationError(res...)
-	}
-	return nil
-}
-
-func (m *NetworkConnectRequestBody) validateEndpointConfig(formats strfmt.Registry) error {
-	if swag.IsZero(m.EndpointConfig) { // not required
-		return nil
-	}
-
-	if m.EndpointConfig != nil {
-		if err := m.EndpointConfig.Validate(formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
-				return ve.ValidateName("Body" + "." + "EndpointConfig")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("Body" + "." + "EndpointConfig")
-			}
-			return err
-		}
-	}
-
-	return nil
-}
-
-// ContextValidate validate this network connect request body based on the context it is used
-func (m *NetworkConnectRequestBody) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
-	var res []error
-
-	if err := m.contextValidateEndpointConfig(ctx, formats); err != nil {
-		res = append(res, err)
-	}
-
-	if len(res) > 0 {
-		return errors.CompositeValidationError(res...)
-	}
-	return nil
-}
-
-func (m *NetworkConnectRequestBody) contextValidateEndpointConfig(ctx context.Context, formats strfmt.Registry) error {
-
-	if m.EndpointConfig != nil {
-		if err := m.EndpointConfig.ContextValidate(ctx, formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
-				return ve.ValidateName("Body" + "." + "EndpointConfig")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("Body" + "." + "EndpointConfig")
-			}
-			return err
-		}
-	}
-
-	return nil
-}
-
-// MarshalBinary interface implementation
-func (m *NetworkConnectRequestBody) MarshalBinary() ([]byte, error) {
-	if m == nil {
-		return nil, nil
-	}
-	return swag.WriteJSON(m)
-}
-
-// UnmarshalBinary interface implementation
-func (m *NetworkConnectRequestBody) UnmarshalBinary(b []byte) error {
-	var res NetworkConnectRequestBody
 	if err := swag.ReadJSON(b, &res); err != nil {
 		return err
 	}

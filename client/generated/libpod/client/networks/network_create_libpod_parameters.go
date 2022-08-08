@@ -63,15 +63,9 @@ type NetworkCreateLibpodParams struct {
 
 	/* Create.
 
-	   attributes for creating a container
+	   attributes for creating a network
 	*/
-	Create *models.NetworkCreateOptions
-
-	/* Name.
-
-	   optional name for new network
-	*/
-	Name *string
+	Create *models.SwagNetworkCreateLibpod
 
 	timeout    time.Duration
 	Context    context.Context
@@ -127,25 +121,14 @@ func (o *NetworkCreateLibpodParams) SetHTTPClient(client *http.Client) {
 }
 
 // WithCreate adds the create to the network create libpod params
-func (o *NetworkCreateLibpodParams) WithCreate(create *models.NetworkCreateOptions) *NetworkCreateLibpodParams {
+func (o *NetworkCreateLibpodParams) WithCreate(create *models.SwagNetworkCreateLibpod) *NetworkCreateLibpodParams {
 	o.SetCreate(create)
 	return o
 }
 
 // SetCreate adds the create to the network create libpod params
-func (o *NetworkCreateLibpodParams) SetCreate(create *models.NetworkCreateOptions) {
+func (o *NetworkCreateLibpodParams) SetCreate(create *models.SwagNetworkCreateLibpod) {
 	o.Create = create
-}
-
-// WithName adds the name to the network create libpod params
-func (o *NetworkCreateLibpodParams) WithName(name *string) *NetworkCreateLibpodParams {
-	o.SetName(name)
-	return o
-}
-
-// SetName adds the name to the network create libpod params
-func (o *NetworkCreateLibpodParams) SetName(name *string) {
-	o.Name = name
 }
 
 // WriteToRequest writes these params to a swagger request
@@ -158,23 +141,6 @@ func (o *NetworkCreateLibpodParams) WriteToRequest(r runtime.ClientRequest, reg 
 	if o.Create != nil {
 		if err := r.SetBodyParam(o.Create); err != nil {
 			return err
-		}
-	}
-
-	if o.Name != nil {
-
-		// query param name
-		var qrName string
-
-		if o.Name != nil {
-			qrName = *o.Name
-		}
-		qName := qrName
-		if qName != "" {
-
-			if err := r.SetQueryParam("name", qName); err != nil {
-				return err
-			}
 		}
 	}
 

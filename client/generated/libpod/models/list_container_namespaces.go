@@ -12,7 +12,7 @@ import (
 	"github.com/go-openapi/swag"
 )
 
-// ListContainerNamespaces ListContainer Namespaces contains the identifiers of the container's Linux namespaces
+// ListContainerNamespaces ListContainerNamespaces contains the identifiers of the container's Linux namespaces
 //
 // swagger:model ListContainerNamespaces
 type ListContainerNamespaces struct {

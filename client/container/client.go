@@ -137,9 +137,14 @@ func (c *Container) ToSpecGenerator() *models.SpecGenerator {
 	}
 
 	// Network info
-	spec.Aliases = map[string][]string{}
+	spec.Networks = map[string]models.PerNetworkOptions{}
+	spec.Netns = &models.Namespace{
+		Nsmode: "bridge",
+	}
 	for networkName, network := range c.Networks {
-		spec.Aliases[networkName] = network.Aliases
+		spec.Networks[networkName] = models.PerNetworkOptions{
+			Aliases: network.Aliases,
+		}
 	}
 	return spec
 }

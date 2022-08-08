@@ -19,7 +19,7 @@ import (
 // swagger:model ContainerCgroupConfig
 type ContainerCgroupConfig struct {
 
-	// CgroupParent is the container's CGroup parent.
+	// CgroupParent is the container's Cgroup parent.
 	// If not set, the default for the current cgroup driver will be used.
 	// Optional.
 	CgroupParent string `json:"cgroup_parent,omitempty"`

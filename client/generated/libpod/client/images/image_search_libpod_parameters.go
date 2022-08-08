@@ -73,20 +73,28 @@ type ImageSearchLibpodParams struct {
 	/* Limit.
 
 	   maximum number of results
+
+	   Default: 25
 	*/
 	Limit *int64
 
-	/* NoTrunc.
+	/* ListTags.
 
-	   do not truncate any of the result strings
+	   list the available tags in the repository
 	*/
-	NoTrunc *bool
+	ListTags *bool
 
 	/* Term.
 
 	   term to search
 	*/
 	Term *string
+
+	/* TLSVerify.
+
+	   skip TLS verification for registries
+	*/
+	TLSVerify *bool
 
 	timeout    time.Duration
 	Context    context.Context
@@ -105,7 +113,24 @@ func (o *ImageSearchLibpodParams) WithDefaults() *ImageSearchLibpodParams {
 //
 // All values with no default are reset to their zero value.
 func (o *ImageSearchLibpodParams) SetDefaults() {
-	// no default values defined for this parameter
+	var (
+		limitDefault = int64(25)
+
+		listTagsDefault = bool(false)
+
+		tLSVerifyDefault = bool(false)
+	)
+
+	val := ImageSearchLibpodParams{
+		Limit:     &limitDefault,
+		ListTags:  &listTagsDefault,
+		TLSVerify: &tLSVerifyDefault,
+	}
+
+	val.timeout = o.timeout
+	val.Context = o.Context
+	val.HTTPClient = o.HTTPClient
+	*o = val
 }
 
 // WithTimeout adds the timeout to the image search libpod params
@@ -163,15 +188,15 @@ func (o *ImageSearchLibpodParams) SetLimit(limit *int64) {
 	o.Limit = limit
 }
 
-// WithNoTrunc adds the noTrunc to the image search libpod params
-func (o *ImageSearchLibpodParams) WithNoTrunc(noTrunc *bool) *ImageSearchLibpodParams {
-	o.SetNoTrunc(noTrunc)
+// WithListTags adds the listTags to the image search libpod params
+func (o *ImageSearchLibpodParams) WithListTags(listTags *bool) *ImageSearchLibpodParams {
+	o.SetListTags(listTags)
 	return o
 }
 
-// SetNoTrunc adds the noTrunc to the image search libpod params
-func (o *ImageSearchLibpodParams) SetNoTrunc(noTrunc *bool) {
-	o.NoTrunc = noTrunc
+// SetListTags adds the listTags to the image search libpod params
+func (o *ImageSearchLibpodParams) SetListTags(listTags *bool) {
+	o.ListTags = listTags
 }
 
 // WithTerm adds the term to the image search libpod params
@@ -183,6 +208,17 @@ func (o *ImageSearchLibpodParams) WithTerm(term *string) *ImageSearchLibpodParam
 // SetTerm adds the term to the image search libpod params
 func (o *ImageSearchLibpodParams) SetTerm(term *string) {
 	o.Term = term
+}
+
+// WithTLSVerify adds the tLSVerify to the image search libpod params
+func (o *ImageSearchLibpodParams) WithTLSVerify(tLSVerify *bool) *ImageSearchLibpodParams {
+	o.SetTLSVerify(tLSVerify)
+	return o
+}
+
+// SetTLSVerify adds the tlsVerify to the image search libpod params
+func (o *ImageSearchLibpodParams) SetTLSVerify(tLSVerify *bool) {
+	o.TLSVerify = tLSVerify
 }
 
 // WriteToRequest writes these params to a swagger request
@@ -227,18 +263,18 @@ func (o *ImageSearchLibpodParams) WriteToRequest(r runtime.ClientRequest, reg st
 		}
 	}
 
-	if o.NoTrunc != nil {
+	if o.ListTags != nil {
 
-		// query param noTrunc
-		var qrNoTrunc bool
+		// query param listTags
+		var qrListTags bool
 
-		if o.NoTrunc != nil {
-			qrNoTrunc = *o.NoTrunc
+		if o.ListTags != nil {
+			qrListTags = *o.ListTags
 		}
-		qNoTrunc := swag.FormatBool(qrNoTrunc)
-		if qNoTrunc != "" {
+		qListTags := swag.FormatBool(qrListTags)
+		if qListTags != "" {
 
-			if err := r.SetQueryParam("noTrunc", qNoTrunc); err != nil {
+			if err := r.SetQueryParam("listTags", qListTags); err != nil {
 				return err
 			}
 		}
@@ -256,6 +292,23 @@ func (o *ImageSearchLibpodParams) WriteToRequest(r runtime.ClientRequest, reg st
 		if qTerm != "" {
 
 			if err := r.SetQueryParam("term", qTerm); err != nil {
+				return err
+			}
+		}
+	}
+
+	if o.TLSVerify != nil {
+
+		// query param tlsVerify
+		var qrTLSVerify bool
+
+		if o.TLSVerify != nil {
+			qrTLSVerify = *o.TLSVerify
+		}
+		qTLSVerify := swag.FormatBool(qrTLSVerify)
+		if qTLSVerify != "" {
+
+			if err := r.SetQueryParam("tlsVerify", qTLSVerify); err != nil {
 				return err
 			}
 		}

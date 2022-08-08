@@ -21,10 +21,6 @@ import (
 // swagger:model SpecGenerator
 type SpecGenerator struct {
 
-	// Aliases are a list of network-scoped aliases for container
-	// Optional
-	Aliases map[string][]string `json:"aliases,omitempty"`
-
 	// Annotations are key-value options passed into the container runtime
 	// that can be used to trigger special behavior.
 	// Optional.
@@ -41,6 +37,7 @@ type SpecGenerator struct {
 	// default network (unless it is part of this list).
 	// Only available if NetNS is set to bridge.
 	// Optional.
+	// Deprecated: as of podman 4.0 use "Networks" instead.
 	CNINetworks []string `json:"cni_networks"`
 
 	// CPU period of the cpuset, determined by --cpus
@@ -64,7 +61,7 @@ type SpecGenerator struct {
 	// Optional.
 	CgroupConf map[string]string `json:"unified,omitempty"`
 
-	// CgroupParent is the container's CGroup parent.
+	// CgroupParent is the container's Cgroup parent.
 	// If not set, the default for the current cgroup driver will be used.
 	// Optional.
 	CgroupParent string `json:"cgroup_parent,omitempty"`
@@ -125,13 +122,16 @@ type SpecGenerator struct {
 	// Optional.
 	DependencyContainers []string `json:"dependencyContainers"`
 
-	// DeviceCGroupRule are device cgroup rules that allow containers
+	// DeviceCgroupRule are device cgroup rules that allow containers
 	// to use additional types of devices.
-	DeviceCGroupRule []*LinuxDeviceCgroup `json:"device_cgroup_rule"`
+	DeviceCgroupRule []*LinuxDeviceCgroup `json:"device_cgroup_rule"`
 
 	// Devices are devices that will be added to the container.
 	// Optional.
 	Devices []*LinuxDevice `json:"devices"`
+
+	// DevicesFrom is a way to ensure your container inherits device specific information from another container
+	DevicesFrom []string `json:"devices_from"`
 
 	// Entrypoint is the container's entrypoint.
 	// If not given and Image is specified, this will be populated by the
@@ -155,7 +155,7 @@ type SpecGenerator struct {
 	// Expose is a number of ports that will be forwarded to the container
 	// if PublishExposedPorts is set.
 	// Expose is a map of uint16 (port number) to a string representing
-	// protocol. Allowed protocols are "tcp", "udp", and "sctp", or some
+	// protocol i.e map[uint16]string. Allowed protocols are "tcp", "udp", and "sctp", or some
 	// combination of the three separated by commas.
 	// If protocol is set to "" we will assume TCP.
 	// Only available if NetNS is set to Bridge or Slirp, and
@@ -178,6 +178,13 @@ type SpecGenerator struct {
 	// Conflicts with UseImageHosts.
 	// Optional.
 	HostAdd []string `json:"hostadd"`
+
+	// HostDeviceList is used to recreate the mounted device on inherited containers
+	HostDeviceList []*LinuxDevice `json:"host_device_list"`
+
+	// HostUses is a list of host usernames or UIDs to add to the container
+	// etc/passwd file
+	HostUsers []string `json:"hostusers"`
 
 	// Hostname is the container's hostname. If not set, the hostname will
 	// not be modified (if UtsNS is not private) or will be set to the
@@ -247,6 +254,14 @@ type SpecGenerator struct {
 	// Optional.
 	NetworkOptions map[string][]string `json:"network_options,omitempty"`
 
+	// Map of networks names or ids that the container should join.
+	// You can request additional settings for each network, you can
+	// set network aliases, static ips, static mac address  and the
+	// network interface name for this container on the specific network.
+	// If the map is empty and the bridge network mode is set the container
+	// will be joined to the default network.
+	Networks map[string]PerNetworkOptions `json:"Networks,omitempty"`
+
 	// NoNewPrivileges is whether the container will set the no new
 	// privileges flag on create, which disables gaining additional
 	// privileges (e.g. via setuid) in the container.
@@ -266,6 +281,9 @@ type SpecGenerator struct {
 	// Overlay volumes are named volumes that will be added to the container.
 	// Optional.
 	OverlayVolumes []*OverlayVolume `json:"overlay_volumes"`
+
+	// Passwd is a container run option that determines if we are validating users/groups before running the container
+	Passwd bool `json:"manage_password,omitempty"`
 
 	// Pod is the ID of the pod the container will join.
 	// Optional.
@@ -331,6 +349,9 @@ type SpecGenerator struct {
 	// At least one of Image or Rootfs must be specified.
 	Rootfs string `json:"rootfs,omitempty"`
 
+	// RootfsOverlay tells if rootfs is actually an overlay on top of base path
+	RootfsOverlay bool `json:"rootfs_overlay,omitempty"`
+
 	// RootfsPropagation is the rootfs propagation mode for the container.
 	// If not set, the default of rslave will be used.
 	// Optional.
@@ -377,6 +398,10 @@ type SpecGenerator struct {
 	// instead.
 	// Optional.
 	StopTimeout uint64 `json:"stop_timeout,omitempty"`
+
+	// StorageOpts is the container's storage options
+	// Optional.
+	StorageOpts map[string]string `json:"storage_opts,omitempty"`
 
 	// Sysctl sets kernel parameters for the container
 	Sysctl map[string]string `json:"sysctl,omitempty"`
@@ -426,6 +451,15 @@ type SpecGenerator struct {
 	// Unmask is the path we want to unmask in the container. To override
 	// all the default paths that are masked, set unmask=ALL.
 	Unmask []string `json:"unmask"`
+
+	// UnsetEnv unsets the specified default environment variables from the image or from buildin or containers.conf
+	// Optional.
+	UnsetEnv []string `json:"unsetenv"`
+
+	// UnsetEnvAll unsetall default environment variables from the image or from buildin or containers.conf
+	// UnsetEnvAll unsets all default environment variables from the image or from buildin
+	// Optional.
+	UnsetEnvAll bool `json:"unsetenvall,omitempty"`
 
 	// UseImageHosts indicates that /etc/hosts should not be managed by
 	// Podman, and instead sourced from the image.
@@ -496,15 +530,6 @@ type SpecGenerator struct {
 	// resource limits
 	ResourceLimits *LinuxResources `json:"resource_limits,omitempty"`
 
-	// static ip
-	StaticIP IP `json:"static_ip,omitempty"`
-
-	// static ipv6
-	StaticIPV6 IP `json:"static_ipv6,omitempty"`
-
-	// static mac
-	StaticMac HardwareAddr `json:"static_mac,omitempty"`
-
 	// stop signal
 	StopSignal Signal `json:"stop_signal,omitempty"`
 
@@ -523,11 +548,15 @@ func (m *SpecGenerator) Validate(formats strfmt.Registry) error {
 		res = append(res, err)
 	}
 
-	if err := m.validateDeviceCGroupRule(formats); err != nil {
+	if err := m.validateDeviceCgroupRule(formats); err != nil {
 		res = append(res, err)
 	}
 
 	if err := m.validateDevices(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateHostDeviceList(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -536,6 +565,10 @@ func (m *SpecGenerator) Validate(formats strfmt.Registry) error {
 	}
 
 	if err := m.validateMounts(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateNetworks(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -615,18 +648,6 @@ func (m *SpecGenerator) Validate(formats strfmt.Registry) error {
 		res = append(res, err)
 	}
 
-	if err := m.validateStaticIP(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateStaticIPV6(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateStaticMac(formats); err != nil {
-		res = append(res, err)
-	}
-
 	if err := m.validateStopSignal(formats); err != nil {
 		res = append(res, err)
 	}
@@ -666,18 +687,18 @@ func (m *SpecGenerator) validateDNSServers(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *SpecGenerator) validateDeviceCGroupRule(formats strfmt.Registry) error {
-	if swag.IsZero(m.DeviceCGroupRule) { // not required
+func (m *SpecGenerator) validateDeviceCgroupRule(formats strfmt.Registry) error {
+	if swag.IsZero(m.DeviceCgroupRule) { // not required
 		return nil
 	}
 
-	for i := 0; i < len(m.DeviceCGroupRule); i++ {
-		if swag.IsZero(m.DeviceCGroupRule[i]) { // not required
+	for i := 0; i < len(m.DeviceCgroupRule); i++ {
+		if swag.IsZero(m.DeviceCgroupRule[i]) { // not required
 			continue
 		}
 
-		if m.DeviceCGroupRule[i] != nil {
-			if err := m.DeviceCGroupRule[i].Validate(formats); err != nil {
+		if m.DeviceCgroupRule[i] != nil {
+			if err := m.DeviceCgroupRule[i].Validate(formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("device_cgroup_rule" + "." + strconv.Itoa(i))
 				} else if ce, ok := err.(*errors.CompositeError); ok {
@@ -708,6 +729,32 @@ func (m *SpecGenerator) validateDevices(formats strfmt.Registry) error {
 					return ve.ValidateName("devices" + "." + strconv.Itoa(i))
 				} else if ce, ok := err.(*errors.CompositeError); ok {
 					return ce.ValidateName("devices" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *SpecGenerator) validateHostDeviceList(formats strfmt.Registry) error {
+	if swag.IsZero(m.HostDeviceList) { // not required
+		return nil
+	}
+
+	for i := 0; i < len(m.HostDeviceList); i++ {
+		if swag.IsZero(m.HostDeviceList[i]) { // not required
+			continue
+		}
+
+		if m.HostDeviceList[i] != nil {
+			if err := m.HostDeviceList[i].Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("host_device_list" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("host_device_list" + "." + strconv.Itoa(i))
 				}
 				return err
 			}
@@ -760,6 +807,32 @@ func (m *SpecGenerator) validateMounts(formats strfmt.Registry) error {
 					return ve.ValidateName("mounts" + "." + strconv.Itoa(i))
 				} else if ce, ok := err.(*errors.CompositeError); ok {
 					return ce.ValidateName("mounts" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *SpecGenerator) validateNetworks(formats strfmt.Registry) error {
+	if swag.IsZero(m.Networks) { // not required
+		return nil
+	}
+
+	for k := range m.Networks {
+
+		if err := validate.Required("Networks"+"."+k, "body", m.Networks[k]); err != nil {
+			return err
+		}
+		if val, ok := m.Networks[k]; ok {
+			if err := val.Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("Networks" + "." + k)
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("Networks" + "." + k)
 				}
 				return err
 			}
@@ -1201,57 +1274,6 @@ func (m *SpecGenerator) validateResourceLimits(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *SpecGenerator) validateStaticIP(formats strfmt.Registry) error {
-	if swag.IsZero(m.StaticIP) { // not required
-		return nil
-	}
-
-	if err := m.StaticIP.Validate(formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_ip")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_ip")
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (m *SpecGenerator) validateStaticIPV6(formats strfmt.Registry) error {
-	if swag.IsZero(m.StaticIPV6) { // not required
-		return nil
-	}
-
-	if err := m.StaticIPV6.Validate(formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_ipv6")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_ipv6")
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (m *SpecGenerator) validateStaticMac(formats strfmt.Registry) error {
-	if swag.IsZero(m.StaticMac) { // not required
-		return nil
-	}
-
-	if err := m.StaticMac.Validate(formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_mac")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_mac")
-		}
-		return err
-	}
-
-	return nil
-}
-
 func (m *SpecGenerator) validateStopSignal(formats strfmt.Registry) error {
 	if swag.IsZero(m.StopSignal) { // not required
 		return nil
@@ -1315,11 +1337,15 @@ func (m *SpecGenerator) ContextValidate(ctx context.Context, formats strfmt.Regi
 		res = append(res, err)
 	}
 
-	if err := m.contextValidateDeviceCGroupRule(ctx, formats); err != nil {
+	if err := m.contextValidateDeviceCgroupRule(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
 	if err := m.contextValidateDevices(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.contextValidateHostDeviceList(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -1328,6 +1354,10 @@ func (m *SpecGenerator) ContextValidate(ctx context.Context, formats strfmt.Regi
 	}
 
 	if err := m.contextValidateMounts(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.contextValidateNetworks(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -1407,18 +1437,6 @@ func (m *SpecGenerator) ContextValidate(ctx context.Context, formats strfmt.Regi
 		res = append(res, err)
 	}
 
-	if err := m.contextValidateStaticIP(ctx, formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.contextValidateStaticIPV6(ctx, formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.contextValidateStaticMac(ctx, formats); err != nil {
-		res = append(res, err)
-	}
-
 	if err := m.contextValidateStopSignal(ctx, formats); err != nil {
 		res = append(res, err)
 	}
@@ -1455,12 +1473,12 @@ func (m *SpecGenerator) contextValidateDNSServers(ctx context.Context, formats s
 	return nil
 }
 
-func (m *SpecGenerator) contextValidateDeviceCGroupRule(ctx context.Context, formats strfmt.Registry) error {
+func (m *SpecGenerator) contextValidateDeviceCgroupRule(ctx context.Context, formats strfmt.Registry) error {
 
-	for i := 0; i < len(m.DeviceCGroupRule); i++ {
+	for i := 0; i < len(m.DeviceCgroupRule); i++ {
 
-		if m.DeviceCGroupRule[i] != nil {
-			if err := m.DeviceCGroupRule[i].ContextValidate(ctx, formats); err != nil {
+		if m.DeviceCgroupRule[i] != nil {
+			if err := m.DeviceCgroupRule[i].ContextValidate(ctx, formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("device_cgroup_rule" + "." + strconv.Itoa(i))
 				} else if ce, ok := err.(*errors.CompositeError); ok {
@@ -1485,6 +1503,26 @@ func (m *SpecGenerator) contextValidateDevices(ctx context.Context, formats strf
 					return ve.ValidateName("devices" + "." + strconv.Itoa(i))
 				} else if ce, ok := err.(*errors.CompositeError); ok {
 					return ce.ValidateName("devices" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *SpecGenerator) contextValidateHostDeviceList(ctx context.Context, formats strfmt.Registry) error {
+
+	for i := 0; i < len(m.HostDeviceList); i++ {
+
+		if m.HostDeviceList[i] != nil {
+			if err := m.HostDeviceList[i].ContextValidate(ctx, formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("host_device_list" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("host_device_list" + "." + strconv.Itoa(i))
 				}
 				return err
 			}
@@ -1526,6 +1564,21 @@ func (m *SpecGenerator) contextValidateMounts(ctx context.Context, formats strfm
 				} else if ce, ok := err.(*errors.CompositeError); ok {
 					return ce.ValidateName("mounts" + "." + strconv.Itoa(i))
 				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *SpecGenerator) contextValidateNetworks(ctx context.Context, formats strfmt.Registry) error {
+
+	for k := range m.Networks {
+
+		if val, ok := m.Networks[k]; ok {
+			if err := val.ContextValidate(ctx, formats); err != nil {
 				return err
 			}
 		}
@@ -1849,48 +1902,6 @@ func (m *SpecGenerator) contextValidateResourceLimits(ctx context.Context, forma
 			}
 			return err
 		}
-	}
-
-	return nil
-}
-
-func (m *SpecGenerator) contextValidateStaticIP(ctx context.Context, formats strfmt.Registry) error {
-
-	if err := m.StaticIP.ContextValidate(ctx, formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_ip")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_ip")
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (m *SpecGenerator) contextValidateStaticIPV6(ctx context.Context, formats strfmt.Registry) error {
-
-	if err := m.StaticIPV6.ContextValidate(ctx, formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_ipv6")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_ipv6")
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (m *SpecGenerator) contextValidateStaticMac(ctx context.Context, formats strfmt.Registry) error {
-
-	if err := m.StaticMac.ContextValidate(ctx, formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_mac")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_mac")
-		}
-		return err
 	}
 
 	return nil

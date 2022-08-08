@@ -8,7 +8,6 @@ package models
 import (
 	"context"
 
-	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
 )
@@ -18,70 +17,20 @@ import (
 // swagger:model swagCompatNetworkDisconnectRequest
 type SwagCompatNetworkDisconnectRequest struct {
 
-	// body
-	Body *NetworkDisconnectRequestBody `json:"Body,omitempty"`
+	// container
+	Container string `json:"Container,omitempty"`
+
+	// force
+	Force bool `json:"Force,omitempty"`
 }
 
 // Validate validates this swag compat network disconnect request
 func (m *SwagCompatNetworkDisconnectRequest) Validate(formats strfmt.Registry) error {
-	var res []error
-
-	if err := m.validateBody(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if len(res) > 0 {
-		return errors.CompositeValidationError(res...)
-	}
 	return nil
 }
 
-func (m *SwagCompatNetworkDisconnectRequest) validateBody(formats strfmt.Registry) error {
-	if swag.IsZero(m.Body) { // not required
-		return nil
-	}
-
-	if m.Body != nil {
-		if err := m.Body.Validate(formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
-				return ve.ValidateName("Body")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("Body")
-			}
-			return err
-		}
-	}
-
-	return nil
-}
-
-// ContextValidate validate this swag compat network disconnect request based on the context it is used
+// ContextValidate validates this swag compat network disconnect request based on context it is used
 func (m *SwagCompatNetworkDisconnectRequest) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
-	var res []error
-
-	if err := m.contextValidateBody(ctx, formats); err != nil {
-		res = append(res, err)
-	}
-
-	if len(res) > 0 {
-		return errors.CompositeValidationError(res...)
-	}
-	return nil
-}
-
-func (m *SwagCompatNetworkDisconnectRequest) contextValidateBody(ctx context.Context, formats strfmt.Registry) error {
-
-	if m.Body != nil {
-		if err := m.Body.ContextValidate(ctx, formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
-				return ve.ValidateName("Body")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("Body")
-			}
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -96,46 +45,6 @@ func (m *SwagCompatNetworkDisconnectRequest) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary interface implementation
 func (m *SwagCompatNetworkDisconnectRequest) UnmarshalBinary(b []byte) error {
 	var res SwagCompatNetworkDisconnectRequest
-	if err := swag.ReadJSON(b, &res); err != nil {
-		return err
-	}
-	*m = res
-	return nil
-}
-
-// NetworkDisconnectRequestBody in:body
-//
-// swagger:model NetworkDisconnectRequestBody
-type NetworkDisconnectRequestBody struct {
-
-	// container
-	Container string `json:"Container,omitempty"`
-
-	// force
-	Force bool `json:"Force,omitempty"`
-}
-
-// Validate validates this network disconnect request body
-func (m *NetworkDisconnectRequestBody) Validate(formats strfmt.Registry) error {
-	return nil
-}
-
-// ContextValidate validates this network disconnect request body based on context it is used
-func (m *NetworkDisconnectRequestBody) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
-	return nil
-}
-
-// MarshalBinary interface implementation
-func (m *NetworkDisconnectRequestBody) MarshalBinary() ([]byte, error) {
-	if m == nil {
-		return nil, nil
-	}
-	return swag.WriteJSON(m)
-}
-
-// UnmarshalBinary interface implementation
-func (m *NetworkDisconnectRequestBody) UnmarshalBinary(b []byte) error {
-	var res NetworkDisconnectRequestBody
 	if err := swag.ReadJSON(b, &res); err != nil {
 		return err
 	}

@@ -68,9 +68,9 @@ type PlayKubeLibpodParams struct {
 
 	/* Network.
 
-	   Connect the pod to this network.
+	   USe the network mode or specify an array of networks.
 	*/
-	Network *string
+	Network []string
 
 	/* Request.
 
@@ -185,13 +185,13 @@ func (o *PlayKubeLibpodParams) SetLogDriver(logDriver *string) {
 }
 
 // WithNetwork adds the network to the play kube libpod params
-func (o *PlayKubeLibpodParams) WithNetwork(network *string) *PlayKubeLibpodParams {
+func (o *PlayKubeLibpodParams) WithNetwork(network []string) *PlayKubeLibpodParams {
 	o.SetNetwork(network)
 	return o
 }
 
 // SetNetwork adds the network to the play kube libpod params
-func (o *PlayKubeLibpodParams) SetNetwork(network *string) {
+func (o *PlayKubeLibpodParams) SetNetwork(network []string) {
 	o.Network = network
 }
 
@@ -277,18 +277,12 @@ func (o *PlayKubeLibpodParams) WriteToRequest(r runtime.ClientRequest, reg strfm
 
 	if o.Network != nil {
 
-		// query param network
-		var qrNetwork string
+		// binding items for network
+		joinedNetwork := o.bindParamNetwork(reg)
 
-		if o.Network != nil {
-			qrNetwork = *o.Network
-		}
-		qNetwork := qrNetwork
-		if qNetwork != "" {
-
-			if err := r.SetQueryParam("network", qNetwork); err != nil {
-				return err
-			}
+		// query array param network
+		if err := r.SetQueryParam("network", joinedNetwork...); err != nil {
+			return err
 		}
 	}
 	if err := r.SetBodyParam(o.Request); err != nil {
@@ -355,6 +349,23 @@ func (o *PlayKubeLibpodParams) WriteToRequest(r runtime.ClientRequest, reg strfm
 		return errors.CompositeValidationError(res...)
 	}
 	return nil
+}
+
+// bindParamPlayKubeLibpod binds the parameter network
+func (o *PlayKubeLibpodParams) bindParamNetwork(formats strfmt.Registry) []string {
+	networkIR := o.Network
+
+	var networkIC []string
+	for _, networkIIR := range networkIR { // explode []string
+
+		networkIIV := networkIIR // string as string
+		networkIC = append(networkIC, networkIIV)
+	}
+
+	// items.CollectionFormat: ""
+	networkIS := swag.JoinByFormat(networkIC, "")
+
+	return networkIS
 }
 
 // bindParamPlayKubeLibpod binds the parameter staticIPs

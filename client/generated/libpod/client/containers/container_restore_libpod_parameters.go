@@ -98,15 +98,21 @@ type ContainerRestoreLibpodParams struct {
 
 	/* Name.
 
+	   the name of the container when restored from a tar. can only be used with import
+	*/
+	QueryName *string
+
+	/* Name.
+
 	   the name or id of the container
 	*/
 	PathName string
 
-	/* Name.
+	/* PrintStats.
 
-	   the name of the container when restored from a tar. can only be used with import
+	   add restore statistics to the returned RestoreReport
 	*/
-	QueryName *string
+	PrintStats *bool
 
 	/* TCPEstablished.
 
@@ -233,6 +239,17 @@ func (o *ContainerRestoreLibpodParams) SetLeaveRunning(leaveRunning *bool) {
 	o.LeaveRunning = leaveRunning
 }
 
+// WithQueryName adds the name to the container restore libpod params
+func (o *ContainerRestoreLibpodParams) WithQueryName(name *string) *ContainerRestoreLibpodParams {
+	o.SetQueryName(name)
+	return o
+}
+
+// SetQueryName adds the name to the container restore libpod params
+func (o *ContainerRestoreLibpodParams) SetQueryName(name *string) {
+	o.QueryName = name
+}
+
 // WithPathName adds the name to the container restore libpod params
 func (o *ContainerRestoreLibpodParams) WithPathName(name string) *ContainerRestoreLibpodParams {
 	o.SetPathName(name)
@@ -244,15 +261,15 @@ func (o *ContainerRestoreLibpodParams) SetPathName(name string) {
 	o.PathName = name
 }
 
-// WithQueryName adds the name to the container restore libpod params
-func (o *ContainerRestoreLibpodParams) WithQueryName(name *string) *ContainerRestoreLibpodParams {
-	o.SetQueryName(name)
+// WithPrintStats adds the printStats to the container restore libpod params
+func (o *ContainerRestoreLibpodParams) WithPrintStats(printStats *bool) *ContainerRestoreLibpodParams {
+	o.SetPrintStats(printStats)
 	return o
 }
 
-// SetQueryName adds the name to the container restore libpod params
-func (o *ContainerRestoreLibpodParams) SetQueryName(name *string) {
-	o.QueryName = name
+// SetPrintStats adds the printStats to the container restore libpod params
+func (o *ContainerRestoreLibpodParams) SetPrintStats(printStats *bool) {
+	o.PrintStats = printStats
 }
 
 // WithTCPEstablished adds the tCPEstablished to the container restore libpod params
@@ -376,11 +393,6 @@ func (o *ContainerRestoreLibpodParams) WriteToRequest(r runtime.ClientRequest, r
 		}
 	}
 
-	// path param name
-	if err := r.SetPathParam("name", o.PathName); err != nil {
-		return err
-	}
-
 	if o.QueryName != nil {
 
 		// query param name
@@ -393,6 +405,28 @@ func (o *ContainerRestoreLibpodParams) WriteToRequest(r runtime.ClientRequest, r
 		if qName != "" {
 
 			if err := r.SetQueryParam("name", qName); err != nil {
+				return err
+			}
+		}
+	}
+
+	// path param name
+	if err := r.SetPathParam("name", o.PathName); err != nil {
+		return err
+	}
+
+	if o.PrintStats != nil {
+
+		// query param printStats
+		var qrPrintStats bool
+
+		if o.PrintStats != nil {
+			qrPrintStats = *o.PrintStats
+		}
+		qPrintStats := swag.FormatBool(qrPrintStats)
+		if qPrintStats != "" {
+
+			if err := r.SetQueryParam("printStats", qPrintStats); err != nil {
 				return err
 			}
 		}

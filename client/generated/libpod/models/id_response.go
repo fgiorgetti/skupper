@@ -8,42 +8,21 @@ package models
 import (
 	"context"
 
-	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
-	"github.com/go-openapi/validate"
 )
 
-// IDResponse IDResponse Response to an API call that returns just an Id
+// IDResponse ID response
 //
 // swagger:model IDResponse
 type IDResponse struct {
 
-	// The id of the newly created object.
-	// Required: true
-	ID *string `json:"Id"`
+	// ID
+	ID string `json:"Id,omitempty"`
 }
 
 // Validate validates this ID response
 func (m *IDResponse) Validate(formats strfmt.Registry) error {
-	var res []error
-
-	if err := m.validateID(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if len(res) > 0 {
-		return errors.CompositeValidationError(res...)
-	}
-	return nil
-}
-
-func (m *IDResponse) validateID(formats strfmt.Registry) error {
-
-	if err := validate.Required("Id", "body", m.ID); err != nil {
-		return err
-	}
-
 	return nil
 }
 

@@ -13,6 +13,8 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
+
+	"github.com/skupperproject/skupper/client/generated/libpod/models"
 )
 
 // ImageDeleteLibpodReader is a Reader for the ImageDeleteLibpod structure.
@@ -65,23 +67,25 @@ func NewImageDeleteLibpodOK() *ImageDeleteLibpodOK {
 
 /* ImageDeleteLibpodOK describes a response with status code 200, with default header values.
 
-Delete response
+Remove response
 */
 type ImageDeleteLibpodOK struct {
-	Payload []*ImageDeleteLibpodOKBodyItems0
+	Payload *models.LibpodImagesRemoveReport
 }
 
 func (o *ImageDeleteLibpodOK) Error() string {
 	return fmt.Sprintf("[DELETE /libpod/images/{name}][%d] imageDeleteLibpodOK  %+v", 200, o.Payload)
 }
-func (o *ImageDeleteLibpodOK) GetPayload() []*ImageDeleteLibpodOKBodyItems0 {
+func (o *ImageDeleteLibpodOK) GetPayload() *models.LibpodImagesRemoveReport {
 	return o.Payload
 }
 
 func (o *ImageDeleteLibpodOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
+	o.Payload = new(models.LibpodImagesRemoveReport)
+
 	// response payload
-	if err := consumer.Consume(response.Body(), &o.Payload); err != nil && err != io.EOF {
+	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
 		return err
 	}
 
@@ -389,46 +393,6 @@ func (o *ImageDeleteLibpodNotFoundBody) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary interface implementation
 func (o *ImageDeleteLibpodNotFoundBody) UnmarshalBinary(b []byte) error {
 	var res ImageDeleteLibpodNotFoundBody
-	if err := swag.ReadJSON(b, &res); err != nil {
-		return err
-	}
-	*o = res
-	return nil
-}
-
-/*ImageDeleteLibpodOKBodyItems0 image delete libpod o k body items0
-swagger:model ImageDeleteLibpodOKBodyItems0
-*/
-type ImageDeleteLibpodOKBodyItems0 struct {
-
-	// deleted
-	Deleted string `json:"deleted,omitempty"`
-
-	// untagged
-	Untagged []string `json:"untagged"`
-}
-
-// Validate validates this image delete libpod o k body items0
-func (o *ImageDeleteLibpodOKBodyItems0) Validate(formats strfmt.Registry) error {
-	return nil
-}
-
-// ContextValidate validates this image delete libpod o k body items0 based on context it is used
-func (o *ImageDeleteLibpodOKBodyItems0) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
-	return nil
-}
-
-// MarshalBinary interface implementation
-func (o *ImageDeleteLibpodOKBodyItems0) MarshalBinary() ([]byte, error) {
-	if o == nil {
-		return nil, nil
-	}
-	return swag.WriteJSON(o)
-}
-
-// UnmarshalBinary interface implementation
-func (o *ImageDeleteLibpodOKBodyItems0) UnmarshalBinary(b []byte) error {
-	var res ImageDeleteLibpodOKBodyItems0
 	if err := swag.ReadJSON(b, &res); err != nil {
 		return err
 	}

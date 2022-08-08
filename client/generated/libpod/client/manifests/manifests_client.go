@@ -32,7 +32,7 @@ type ClientOption func(*runtime.ClientOperation)
 type ClientService interface {
 	ManifestAddLibpod(params *ManifestAddLibpodParams, opts ...ClientOption) (*ManifestAddLibpodOK, error)
 
-	ManifestCreateLibpod(params *ManifestCreateLibpodParams, opts ...ClientOption) (*ManifestCreateLibpodOK, error)
+	ManifestCreateLibpod(params *ManifestCreateLibpodParams, opts ...ClientOption) (*ManifestCreateLibpodCreated, error)
 
 	ManifestDeleteLibpod(params *ManifestDeleteLibpodParams, opts ...ClientOption) (*ManifestDeleteLibpodOK, error)
 
@@ -40,7 +40,11 @@ type ClientService interface {
 
 	ManifestInspectLibpod(params *ManifestInspectLibpodParams, opts ...ClientOption) (*ManifestInspectLibpodOK, error)
 
+	ManifestModifyLibpod(params *ManifestModifyLibpodParams, opts ...ClientOption) (*ManifestModifyLibpodOK, error)
+
 	ManifestPushLibpod(params *ManifestPushLibpodParams, opts ...ClientOption) (*ManifestPushLibpodOK, error)
+
+	ManifestPushV3Libpod(params *ManifestPushV3LibpodParams, opts ...ClientOption) (*ManifestPushV3LibpodOK, error)
 
 	SetTransport(transport runtime.ClientTransport)
 }
@@ -49,6 +53,9 @@ type ClientService interface {
   ManifestAddLibpod adds image
 
   Add an image to a manifest list
+
+Deprecated: As of 4.0.0 use ManifestModifyLibpod instead
+
 */
 func (a *Client) ManifestAddLibpod(params *ManifestAddLibpodParams, opts ...ClientOption) (*ManifestAddLibpodOK, error) {
 	// TODO: Validate the params before sending
@@ -90,7 +97,7 @@ func (a *Client) ManifestAddLibpod(params *ManifestAddLibpodParams, opts ...Clie
 
   Create a manifest list
 */
-func (a *Client) ManifestCreateLibpod(params *ManifestCreateLibpodParams, opts ...ClientOption) (*ManifestCreateLibpodOK, error) {
+func (a *Client) ManifestCreateLibpod(params *ManifestCreateLibpodParams, opts ...ClientOption) (*ManifestCreateLibpodCreated, error) {
 	// TODO: Validate the params before sending
 	if params == nil {
 		params = NewManifestCreateLibpodParams()
@@ -98,7 +105,7 @@ func (a *Client) ManifestCreateLibpod(params *ManifestCreateLibpodParams, opts .
 	op := &runtime.ClientOperation{
 		ID:                 "ManifestCreateLibpod",
 		Method:             "POST",
-		PathPattern:        "/libpod/manifests/create",
+		PathPattern:        "/libpod/manifests",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json", "application/x-tar"},
 		Schemes:            []string{"http", "https"},
@@ -115,7 +122,7 @@ func (a *Client) ManifestCreateLibpod(params *ManifestCreateLibpodParams, opts .
 	if err != nil {
 		return nil, err
 	}
-	success, ok := result.(*ManifestCreateLibpodOK)
+	success, ok := result.(*ManifestCreateLibpodCreated)
 	if ok {
 		return success, nil
 	}
@@ -126,9 +133,12 @@ func (a *Client) ManifestCreateLibpod(params *ManifestCreateLibpodParams, opts .
 }
 
 /*
-  ManifestDeleteLibpod removes
+  ManifestDeleteLibpod deletes manifest list
 
-  Remove an image from a manifest list
+  Delete named manifest list
+
+As of v4.0.0
+
 */
 func (a *Client) ManifestDeleteLibpod(params *ManifestDeleteLibpodParams, opts ...ClientOption) (*ManifestDeleteLibpodOK, error) {
 	// TODO: Validate the params before sending
@@ -169,6 +179,9 @@ func (a *Client) ManifestDeleteLibpod(params *ManifestDeleteLibpodParams, opts .
   ManifestExistsLibpod exists
 
   Check if manifest list exists
+
+Note: There is no contract that the manifest list will exist for a follow-on operation
+
 */
 func (a *Client) ManifestExistsLibpod(params *ManifestExistsLibpodParams, opts ...ClientOption) (*ManifestExistsLibpodNoContent, error) {
 	// TODO: Validate the params before sending
@@ -208,7 +221,7 @@ func (a *Client) ManifestExistsLibpod(params *ManifestExistsLibpodParams, opts .
 /*
   ManifestInspectLibpod inspects
 
-  Display a manifest list
+  Display attributes of given manifest list
 */
 func (a *Client) ManifestInspectLibpod(params *ManifestInspectLibpodParams, opts ...ClientOption) (*ManifestInspectLibpodOK, error) {
 	// TODO: Validate the params before sending
@@ -246,9 +259,57 @@ func (a *Client) ManifestInspectLibpod(params *ManifestInspectLibpodParams, opts
 }
 
 /*
-  ManifestPushLibpod pushes
+  ManifestModifyLibpod modifies manifest list
 
-  Push a manifest list or image index to a registry
+  Add/Remove an image(s) to a manifest list
+
+Note: operations are not atomic when multiple Images are provided.
+
+As of v4.0.0
+
+*/
+func (a *Client) ManifestModifyLibpod(params *ManifestModifyLibpodParams, opts ...ClientOption) (*ManifestModifyLibpodOK, error) {
+	// TODO: Validate the params before sending
+	if params == nil {
+		params = NewManifestModifyLibpodParams()
+	}
+	op := &runtime.ClientOperation{
+		ID:                 "ManifestModifyLibpod",
+		Method:             "PUT",
+		PathPattern:        "/libpod/manifests/{name}",
+		ProducesMediaTypes: []string{"application/json"},
+		ConsumesMediaTypes: []string{"application/json", "application/x-tar"},
+		Schemes:            []string{"http", "https"},
+		Params:             params,
+		Reader:             &ManifestModifyLibpodReader{formats: a.formats},
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	result, err := a.transport.Submit(op)
+	if err != nil {
+		return nil, err
+	}
+	success, ok := result.(*ManifestModifyLibpodOK)
+	if ok {
+		return success, nil
+	}
+	// unexpected success response
+	// safeguard: normally, absent a default response, unknown success responses return an error above: so this is a codegen issue
+	msg := fmt.Sprintf("unexpected success response for ManifestModifyLibpod: API contract not enforced by server. Client expected to get an error, but got: %T", result)
+	panic(msg)
+}
+
+/*
+  ManifestPushLibpod pushes manifest list to registry
+
+  Push a manifest list or image index to the named registry
+
+As of v4.0.0
+
 */
 func (a *Client) ManifestPushLibpod(params *ManifestPushLibpodParams, opts ...ClientOption) (*ManifestPushLibpodOK, error) {
 	// TODO: Validate the params before sending
@@ -258,7 +319,7 @@ func (a *Client) ManifestPushLibpod(params *ManifestPushLibpodParams, opts ...Cl
 	op := &runtime.ClientOperation{
 		ID:                 "ManifestPushLibpod",
 		Method:             "POST",
-		PathPattern:        "/libpod/manifests/{name}/push",
+		PathPattern:        "/libpod/manifests/{name}/registry/{destination}",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json", "application/x-tar"},
 		Schemes:            []string{"http", "https"},
@@ -282,6 +343,49 @@ func (a *Client) ManifestPushLibpod(params *ManifestPushLibpodParams, opts ...Cl
 	// unexpected success response
 	// safeguard: normally, absent a default response, unknown success responses return an error above: so this is a codegen issue
 	msg := fmt.Sprintf("unexpected success response for ManifestPushLibpod: API contract not enforced by server. Client expected to get an error, but got: %T", result)
+	panic(msg)
+}
+
+/*
+  ManifestPushV3Libpod pushes manifest to registry
+
+  Push a manifest list or image index to a registry
+
+Deprecated: As of 4.0.0 use ManifestPushLibpod instead
+
+*/
+func (a *Client) ManifestPushV3Libpod(params *ManifestPushV3LibpodParams, opts ...ClientOption) (*ManifestPushV3LibpodOK, error) {
+	// TODO: Validate the params before sending
+	if params == nil {
+		params = NewManifestPushV3LibpodParams()
+	}
+	op := &runtime.ClientOperation{
+		ID:                 "ManifestPushV3Libpod",
+		Method:             "POST",
+		PathPattern:        "/libpod/manifests/{name}/push",
+		ProducesMediaTypes: []string{"application/json"},
+		ConsumesMediaTypes: []string{"application/json", "application/x-tar"},
+		Schemes:            []string{"http", "https"},
+		Params:             params,
+		Reader:             &ManifestPushV3LibpodReader{formats: a.formats},
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	result, err := a.transport.Submit(op)
+	if err != nil {
+		return nil, err
+	}
+	success, ok := result.(*ManifestPushV3LibpodOK)
+	if ok {
+		return success, nil
+	}
+	// unexpected success response
+	// safeguard: normally, absent a default response, unknown success responses return an error above: so this is a codegen issue
+	msg := fmt.Sprintf("unexpected success response for ManifestPushV3Libpod: API contract not enforced by server. Client expected to get an error, but got: %T", result)
 	panic(msg)
 }
 

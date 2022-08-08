@@ -60,26 +60,33 @@ func NewPodTopLibpodParamsWithHTTPClient(client *http.Client) *PodTopLibpodParam
 */
 type PodTopLibpodParams struct {
 
+	/* Delay.
+
+	   if streaming, delay in seconds between updates. Must be >1. (As of version 4.0)
+
+	   Default: 5
+	*/
+	Delay *int64
+
 	/* Name.
 
 	   Name of pod to query for processes
-
 	*/
 	Name string
 
 	/* PsArgs.
 
-	   arguments to pass to ps such as aux. Requires ps(1) to be installed in the container if no ps(1) compatible AIX descriptors are used.
+	     arguments to pass to ps such as aux.
+	Requires ps(1) to be installed in the container if no ps(1) compatible AIX descriptors are used.
 
-	   Default: "-ef"
+
+	     Default: "-ef"
 	*/
 	PsArgs *string
 
 	/* Stream.
 
-	   Stream the output
-
-	   Default: true
+	   when true, repeatedly stream the latest output (As of version 4.0)
 	*/
 	Stream *bool
 
@@ -101,14 +108,14 @@ func (o *PodTopLibpodParams) WithDefaults() *PodTopLibpodParams {
 // All values with no default are reset to their zero value.
 func (o *PodTopLibpodParams) SetDefaults() {
 	var (
-		psArgsDefault = string("-ef")
+		delayDefault = int64(5)
 
-		streamDefault = bool(true)
+		psArgsDefault = string("-ef")
 	)
 
 	val := PodTopLibpodParams{
+		Delay:  &delayDefault,
 		PsArgs: &psArgsDefault,
-		Stream: &streamDefault,
 	}
 
 	val.timeout = o.timeout
@@ -148,6 +155,17 @@ func (o *PodTopLibpodParams) WithHTTPClient(client *http.Client) *PodTopLibpodPa
 // SetHTTPClient adds the HTTPClient to the pod top libpod params
 func (o *PodTopLibpodParams) SetHTTPClient(client *http.Client) {
 	o.HTTPClient = client
+}
+
+// WithDelay adds the delay to the pod top libpod params
+func (o *PodTopLibpodParams) WithDelay(delay *int64) *PodTopLibpodParams {
+	o.SetDelay(delay)
+	return o
+}
+
+// SetDelay adds the delay to the pod top libpod params
+func (o *PodTopLibpodParams) SetDelay(delay *int64) {
+	o.Delay = delay
 }
 
 // WithName adds the name to the pod top libpod params
@@ -190,6 +208,23 @@ func (o *PodTopLibpodParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.
 		return err
 	}
 	var res []error
+
+	if o.Delay != nil {
+
+		// query param delay
+		var qrDelay int64
+
+		if o.Delay != nil {
+			qrDelay = *o.Delay
+		}
+		qDelay := swag.FormatInt64(qrDelay)
+		if qDelay != "" {
+
+			if err := r.SetQueryParam("delay", qDelay); err != nil {
+				return err
+			}
+		}
+	}
 
 	// path param name
 	if err := r.SetPathParam("name", o.Name); err != nil {

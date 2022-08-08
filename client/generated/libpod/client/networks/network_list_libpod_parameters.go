@@ -66,7 +66,7 @@ type NetworkListLibpodParams struct {
 	- `id=[id]` Matches for full or partial ID.
 	- `driver=[driver]` Only bridge is supported.
 	- `label=[key]` or `label=[key=value]` Matches networks based on the presence of a label alone or a label and a value.
-	- `plugin=[plugin]` Matches CNI plugins included in a network (e.g `bridge`,`portmap`,`firewall`,`tuning`,`dnsname`,`macvlan`)
+	- `until=[timestamp]` Matches all networks that were create before the given timestamp.
 
 	*/
 	Filters *string

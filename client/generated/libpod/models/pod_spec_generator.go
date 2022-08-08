@@ -12,6 +12,7 @@ import (
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
+	"github.com/go-openapi/validate"
 )
 
 // PodSpecGenerator PodSpecGenerator describes options to create a pod
@@ -19,12 +20,13 @@ import (
 // swagger:model PodSpecGenerator
 type PodSpecGenerator struct {
 
-	// CNINetworks is a list of CNI networks that the infra container will
-	// join. As, by default, containers share their network with the infra
-	// container, these networks will effectively be joined by the
-	// entire pod.
-	// Only available when NetNS is set to Bridge, the default for root.
+	// CNINetworks is a list of CNI networks to join the container to.
+	// If this list is empty, the default CNI network will be joined
+	// instead. If at least one entry is present, we will not join the
+	// default network (unless it is part of this list).
+	// Only available if NetNS is set to bridge.
 	// Optional.
+	// Deprecated: as of podman 4.0 use "Networks" instead.
 	CNINetworks []string `json:"cni_networks"`
 
 	// CPU period of the cpuset, determined by --cpus
@@ -33,7 +35,7 @@ type PodSpecGenerator struct {
 	// CPU quota of the cpuset, determined by --cpus
 	CPUQuota int64 `json:"cpu_quota,omitempty"`
 
-	// CgroupParent is the parent for the CGroup that the pod will create.
+	// CgroupParent is the parent for the Cgroup that the pod will create.
 	// This pod cgroup will, in turn, be the default cgroup parent for all
 	// containers in the pod.
 	// Optional.
@@ -65,6 +67,9 @@ type PodSpecGenerator struct {
 	// Optional.
 	DNSServer []IP `json:"dns_server"`
 
+	// Devices contains user specified Devices to be added to the Pod
+	Devices []string `json:"pod_devices"`
+
 	// HostAdd is a set of hosts that will be added to the infra container's
 	// etc/hosts that will, by default, be shared with all containers in
 	// the pod.
@@ -78,6 +83,10 @@ type PodSpecGenerator struct {
 	// all containers in the pod as long as the UTS namespace is shared.
 	// Optional.
 	Hostname string `json:"hostname,omitempty"`
+
+	// Image volumes bind-mount a container-image mount into the pod's infra container.
+	// Optional.
+	ImageVolumes []*ImageVolume `json:"image_volumes"`
 
 	// InfraCommand sets the command that will be used to start the infra
 	// container.
@@ -109,6 +118,12 @@ type PodSpecGenerator struct {
 	// Optional.
 	Labels map[string]string `json:"labels,omitempty"`
 
+	// Mounts are mounts that will be added to the pod.
+	// These will supersede Image Volumes and VolumesFrom volumes where
+	// there are conflicts.
+	// Optional.
+	Mounts []*Mount `json:"mounts"`
+
 	// Name is the name of the pod.
 	// If not provided, a name will be generated when the pod is created.
 	// Optional.
@@ -117,6 +132,14 @@ type PodSpecGenerator struct {
 	// NetworkOptions are additional options for each network
 	// Optional.
 	NetworkOptions map[string][]string `json:"network_options,omitempty"`
+
+	// Map of networks names to ids the container should join to.
+	// You can request additional settings for each network, you can
+	// set network aliases, static ips, static mac address  and the
+	// network interface name for this container on the specific network.
+	// If the map is empty and the bridge network mode is set the container
+	// will be joined to the default network.
+	Networks map[string]PerNetworkOptions `json:"Networks,omitempty"`
 
 	// NoInfra tells the pod not to create an infra container. If this is
 	// done, many networking-related options will become unavailable.
@@ -138,11 +161,11 @@ type PodSpecGenerator struct {
 	// Optional.
 	NoManageResolvConf bool `json:"no_manage_resolv_conf,omitempty"`
 
-	// PodCreateCommand is the command used to create this pod.
-	// This will be shown in the output of Inspect() on the pod, and may
-	// also be used by some tools that wish to recreate the pod
-	// (e.g. `podman generate systemd --new`).
+	// Overlay volumes are named volumes that will be added to the pod.
 	// Optional.
+	OverlayVolumes []*OverlayVolume `json:"overlay_volumes"`
+
+	// pod create command
 	PodCreateCommand []string `json:"pod_create_command"`
 
 	// PortMappings is a set of ports to map into the infra container.
@@ -151,6 +174,17 @@ type PodSpecGenerator struct {
 	// Only available if NetNS is set to Bridge or Slirp.
 	// Optional.
 	PortMappings []*PortMapping `json:"portmappings"`
+
+	// security opt
+	SecurityOpt []string `json:"security_opt"`
+
+	// PodCreateCommand is the command used to create this pod.
+	// This will be shown in the output of Inspect() on the pod, and may
+	// also be used by some tools that wish to recreate the pod
+	// (e.g. `podman generate systemd --new`).
+	// Optional.
+	// ShareParent determines if all containers in the pod will share the pod's cgroup as the cgroup parent
+	ShareParent bool `json:"share_parent,omitempty"`
 
 	// SharedNamespaces instructs the pod to share a set of namespaces.
 	// Shared namespaces will be joined (by default) by every container
@@ -161,6 +195,25 @@ type PodSpecGenerator struct {
 	// Optional.
 	SharedNamespaces []string `json:"shared_namespaces"`
 
+	// Sysctl sets kernel parameters for the pod
+	Sysctl map[string]string `json:"sysctl,omitempty"`
+
+	// ThrottleReadBpsDevice contains the rate at which the devices in the pod can be read from/accessed
+	ThrottleReadBpsDevice map[string]LinuxThrottleDevice `json:"throttleReadBpsDevice,omitempty"`
+
+	// Volumes are named volumes that will be added to the pod.
+	// These will supersede Image Volumes and VolumesFrom  volumes where
+	// there are conflicts.
+	// Optional.
+	Volumes []*NamedVolume `json:"volumes"`
+
+	// VolumesFrom is a set of containers whose volumes will be added to
+	// this pod. The name or ID of the container must be provided, and
+	// may optionally be followed by a : and then one or more
+	// comma-separated options. Valid options are 'ro', 'rw', and 'z'.
+	// Options will be used for all volumes sourced from the container.
+	VolumesFrom []string `json:"volumes_from"`
+
 	// netns
 	Netns *Namespace `json:"netns,omitempty"`
 
@@ -169,12 +222,6 @@ type PodSpecGenerator struct {
 
 	// resource limits
 	ResourceLimits *LinuxResources `json:"resource_limits,omitempty"`
-
-	// static ip
-	StaticIP IP `json:"static_ip,omitempty"`
-
-	// static mac
-	StaticMac HardwareAddr `json:"static_mac,omitempty"`
 
 	// userns
 	Userns *Namespace `json:"userns,omitempty"`
@@ -188,7 +235,31 @@ func (m *PodSpecGenerator) Validate(formats strfmt.Registry) error {
 		res = append(res, err)
 	}
 
+	if err := m.validateImageVolumes(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateMounts(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateNetworks(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateOverlayVolumes(formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.validatePortMappings(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateThrottleReadBpsDevice(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateVolumes(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -201,14 +272,6 @@ func (m *PodSpecGenerator) Validate(formats strfmt.Registry) error {
 	}
 
 	if err := m.validateResourceLimits(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateStaticIP(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateStaticMac(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -243,6 +306,110 @@ func (m *PodSpecGenerator) validateDNSServer(formats strfmt.Registry) error {
 	return nil
 }
 
+func (m *PodSpecGenerator) validateImageVolumes(formats strfmt.Registry) error {
+	if swag.IsZero(m.ImageVolumes) { // not required
+		return nil
+	}
+
+	for i := 0; i < len(m.ImageVolumes); i++ {
+		if swag.IsZero(m.ImageVolumes[i]) { // not required
+			continue
+		}
+
+		if m.ImageVolumes[i] != nil {
+			if err := m.ImageVolumes[i].Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("image_volumes" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("image_volumes" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *PodSpecGenerator) validateMounts(formats strfmt.Registry) error {
+	if swag.IsZero(m.Mounts) { // not required
+		return nil
+	}
+
+	for i := 0; i < len(m.Mounts); i++ {
+		if swag.IsZero(m.Mounts[i]) { // not required
+			continue
+		}
+
+		if m.Mounts[i] != nil {
+			if err := m.Mounts[i].Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("mounts" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("mounts" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *PodSpecGenerator) validateNetworks(formats strfmt.Registry) error {
+	if swag.IsZero(m.Networks) { // not required
+		return nil
+	}
+
+	for k := range m.Networks {
+
+		if err := validate.Required("Networks"+"."+k, "body", m.Networks[k]); err != nil {
+			return err
+		}
+		if val, ok := m.Networks[k]; ok {
+			if err := val.Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("Networks" + "." + k)
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("Networks" + "." + k)
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *PodSpecGenerator) validateOverlayVolumes(formats strfmt.Registry) error {
+	if swag.IsZero(m.OverlayVolumes) { // not required
+		return nil
+	}
+
+	for i := 0; i < len(m.OverlayVolumes); i++ {
+		if swag.IsZero(m.OverlayVolumes[i]) { // not required
+			continue
+		}
+
+		if m.OverlayVolumes[i] != nil {
+			if err := m.OverlayVolumes[i].Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("overlay_volumes" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("overlay_volumes" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
 func (m *PodSpecGenerator) validatePortMappings(formats strfmt.Registry) error {
 	if swag.IsZero(m.PortMappings) { // not required
 		return nil
@@ -259,6 +426,58 @@ func (m *PodSpecGenerator) validatePortMappings(formats strfmt.Registry) error {
 					return ve.ValidateName("portmappings" + "." + strconv.Itoa(i))
 				} else if ce, ok := err.(*errors.CompositeError); ok {
 					return ce.ValidateName("portmappings" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *PodSpecGenerator) validateThrottleReadBpsDevice(formats strfmt.Registry) error {
+	if swag.IsZero(m.ThrottleReadBpsDevice) { // not required
+		return nil
+	}
+
+	for k := range m.ThrottleReadBpsDevice {
+
+		if err := validate.Required("throttleReadBpsDevice"+"."+k, "body", m.ThrottleReadBpsDevice[k]); err != nil {
+			return err
+		}
+		if val, ok := m.ThrottleReadBpsDevice[k]; ok {
+			if err := val.Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("throttleReadBpsDevice" + "." + k)
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("throttleReadBpsDevice" + "." + k)
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *PodSpecGenerator) validateVolumes(formats strfmt.Registry) error {
+	if swag.IsZero(m.Volumes) { // not required
+		return nil
+	}
+
+	for i := 0; i < len(m.Volumes); i++ {
+		if swag.IsZero(m.Volumes[i]) { // not required
+			continue
+		}
+
+		if m.Volumes[i] != nil {
+			if err := m.Volumes[i].Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("volumes" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("volumes" + "." + strconv.Itoa(i))
 				}
 				return err
 			}
@@ -326,40 +545,6 @@ func (m *PodSpecGenerator) validateResourceLimits(formats strfmt.Registry) error
 	return nil
 }
 
-func (m *PodSpecGenerator) validateStaticIP(formats strfmt.Registry) error {
-	if swag.IsZero(m.StaticIP) { // not required
-		return nil
-	}
-
-	if err := m.StaticIP.Validate(formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_ip")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_ip")
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (m *PodSpecGenerator) validateStaticMac(formats strfmt.Registry) error {
-	if swag.IsZero(m.StaticMac) { // not required
-		return nil
-	}
-
-	if err := m.StaticMac.Validate(formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_mac")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_mac")
-		}
-		return err
-	}
-
-	return nil
-}
-
 func (m *PodSpecGenerator) validateUserns(formats strfmt.Registry) error {
 	if swag.IsZero(m.Userns) { // not required
 		return nil
@@ -387,7 +572,31 @@ func (m *PodSpecGenerator) ContextValidate(ctx context.Context, formats strfmt.R
 		res = append(res, err)
 	}
 
+	if err := m.contextValidateImageVolumes(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.contextValidateMounts(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.contextValidateNetworks(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.contextValidateOverlayVolumes(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.contextValidatePortMappings(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.contextValidateThrottleReadBpsDevice(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.contextValidateVolumes(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -400,14 +609,6 @@ func (m *PodSpecGenerator) ContextValidate(ctx context.Context, formats strfmt.R
 	}
 
 	if err := m.contextValidateResourceLimits(ctx, formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.contextValidateStaticIP(ctx, formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.contextValidateStaticMac(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -439,6 +640,81 @@ func (m *PodSpecGenerator) contextValidateDNSServer(ctx context.Context, formats
 	return nil
 }
 
+func (m *PodSpecGenerator) contextValidateImageVolumes(ctx context.Context, formats strfmt.Registry) error {
+
+	for i := 0; i < len(m.ImageVolumes); i++ {
+
+		if m.ImageVolumes[i] != nil {
+			if err := m.ImageVolumes[i].ContextValidate(ctx, formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("image_volumes" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("image_volumes" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *PodSpecGenerator) contextValidateMounts(ctx context.Context, formats strfmt.Registry) error {
+
+	for i := 0; i < len(m.Mounts); i++ {
+
+		if m.Mounts[i] != nil {
+			if err := m.Mounts[i].ContextValidate(ctx, formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("mounts" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("mounts" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *PodSpecGenerator) contextValidateNetworks(ctx context.Context, formats strfmt.Registry) error {
+
+	for k := range m.Networks {
+
+		if val, ok := m.Networks[k]; ok {
+			if err := val.ContextValidate(ctx, formats); err != nil {
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *PodSpecGenerator) contextValidateOverlayVolumes(ctx context.Context, formats strfmt.Registry) error {
+
+	for i := 0; i < len(m.OverlayVolumes); i++ {
+
+		if m.OverlayVolumes[i] != nil {
+			if err := m.OverlayVolumes[i].ContextValidate(ctx, formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("overlay_volumes" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("overlay_volumes" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
 func (m *PodSpecGenerator) contextValidatePortMappings(ctx context.Context, formats strfmt.Registry) error {
 
 	for i := 0; i < len(m.PortMappings); i++ {
@@ -449,6 +725,41 @@ func (m *PodSpecGenerator) contextValidatePortMappings(ctx context.Context, form
 					return ve.ValidateName("portmappings" + "." + strconv.Itoa(i))
 				} else if ce, ok := err.(*errors.CompositeError); ok {
 					return ce.ValidateName("portmappings" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *PodSpecGenerator) contextValidateThrottleReadBpsDevice(ctx context.Context, formats strfmt.Registry) error {
+
+	for k := range m.ThrottleReadBpsDevice {
+
+		if val, ok := m.ThrottleReadBpsDevice[k]; ok {
+			if err := val.ContextValidate(ctx, formats); err != nil {
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *PodSpecGenerator) contextValidateVolumes(ctx context.Context, formats strfmt.Registry) error {
+
+	for i := 0; i < len(m.Volumes); i++ {
+
+		if m.Volumes[i] != nil {
+			if err := m.Volumes[i].ContextValidate(ctx, formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("volumes" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("volumes" + "." + strconv.Itoa(i))
 				}
 				return err
 			}
@@ -502,34 +813,6 @@ func (m *PodSpecGenerator) contextValidateResourceLimits(ctx context.Context, fo
 			}
 			return err
 		}
-	}
-
-	return nil
-}
-
-func (m *PodSpecGenerator) contextValidateStaticIP(ctx context.Context, formats strfmt.Registry) error {
-
-	if err := m.StaticIP.ContextValidate(ctx, formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_ip")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_ip")
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (m *PodSpecGenerator) contextValidateStaticMac(ctx context.Context, formats strfmt.Registry) error {
-
-	if err := m.StaticMac.ContextValidate(ctx, formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("static_mac")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("static_mac")
-		}
-		return err
 	}
 
 	return nil

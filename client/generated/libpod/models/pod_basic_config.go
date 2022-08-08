@@ -18,6 +18,9 @@ import (
 // swagger:model PodBasicConfig
 type PodBasicConfig struct {
 
+	// Devices contains user specified Devices to be added to the Pod
+	Devices []string `json:"pod_devices"`
+
 	// Hostname is the pod's hostname. If not set, the name of the pod will
 	// be used (if a name was not provided here, the name auto-generated for
 	// the pod will be used). This will be used by the infra container and
@@ -67,12 +70,16 @@ type PodBasicConfig struct {
 	// Optional.
 	NoInfra bool `json:"no_infra,omitempty"`
 
+	// pod create command
+	PodCreateCommand []string `json:"pod_create_command"`
+
 	// PodCreateCommand is the command used to create this pod.
 	// This will be shown in the output of Inspect() on the pod, and may
 	// also be used by some tools that wish to recreate the pod
 	// (e.g. `podman generate systemd --new`).
 	// Optional.
-	PodCreateCommand []string `json:"pod_create_command"`
+	// ShareParent determines if all containers in the pod will share the pod's cgroup as the cgroup parent
+	ShareParent bool `json:"share_parent,omitempty"`
 
 	// SharedNamespaces instructs the pod to share a set of namespaces.
 	// Shared namespaces will be joined (by default) by every container
@@ -82,6 +89,9 @@ type PodBasicConfig struct {
 	// Conflicts with NoInfra=true.
 	// Optional.
 	SharedNamespaces []string `json:"shared_namespaces"`
+
+	// Sysctl sets kernel parameters for the pod
+	Sysctl map[string]string `json:"sysctl,omitempty"`
 
 	// pidns
 	Pidns *Namespace `json:"pidns,omitempty"`

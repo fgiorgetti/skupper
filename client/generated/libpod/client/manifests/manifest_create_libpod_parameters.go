@@ -15,6 +15,8 @@ import (
 	cr "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
+
+	"github.com/skupperproject/skupper/client/generated/libpod/models"
 )
 
 // NewManifestCreateLibpodParams creates a new ManifestCreateLibpodParams object,
@@ -66,17 +68,28 @@ type ManifestCreateLibpodParams struct {
 	*/
 	All *bool
 
-	/* Image.
+	/* Images.
 
-	   name of the image
+	     One or more names of an image or a manifest list. Repeat parameter as needed.
+
+	Support for multiple images, as of version 4.0.0
+	Alias of `image` is support for compatibility with < 4.0.0
+	Response status code is 200 with < 4.0.0 for compatibility
+
 	*/
-	Image *string
+	Images string
 
 	/* Name.
 
-	   manifest list name
+	   manifest list or index name to create
 	*/
 	Name string
+
+	/* Options.
+
+	   options for new manifest
+	*/
+	Options *models.ManifestModifyOptions
 
 	timeout    time.Duration
 	Context    context.Context
@@ -142,15 +155,15 @@ func (o *ManifestCreateLibpodParams) SetAll(all *bool) {
 	o.All = all
 }
 
-// WithImage adds the image to the manifest create libpod params
-func (o *ManifestCreateLibpodParams) WithImage(image *string) *ManifestCreateLibpodParams {
-	o.SetImage(image)
+// WithImages adds the images to the manifest create libpod params
+func (o *ManifestCreateLibpodParams) WithImages(images string) *ManifestCreateLibpodParams {
+	o.SetImages(images)
 	return o
 }
 
-// SetImage adds the image to the manifest create libpod params
-func (o *ManifestCreateLibpodParams) SetImage(image *string) {
-	o.Image = image
+// SetImages adds the images to the manifest create libpod params
+func (o *ManifestCreateLibpodParams) SetImages(images string) {
+	o.Images = images
 }
 
 // WithName adds the name to the manifest create libpod params
@@ -162,6 +175,17 @@ func (o *ManifestCreateLibpodParams) WithName(name string) *ManifestCreateLibpod
 // SetName adds the name to the manifest create libpod params
 func (o *ManifestCreateLibpodParams) SetName(name string) {
 	o.Name = name
+}
+
+// WithOptions adds the options to the manifest create libpod params
+func (o *ManifestCreateLibpodParams) WithOptions(options *models.ManifestModifyOptions) *ManifestCreateLibpodParams {
+	o.SetOptions(options)
+	return o
+}
+
+// SetOptions adds the options to the manifest create libpod params
+func (o *ManifestCreateLibpodParams) SetOptions(options *models.ManifestModifyOptions) {
+	o.Options = options
 }
 
 // WriteToRequest writes these params to a swagger request
@@ -189,20 +213,13 @@ func (o *ManifestCreateLibpodParams) WriteToRequest(r runtime.ClientRequest, reg
 		}
 	}
 
-	if o.Image != nil {
+	// query param images
+	qrImages := o.Images
+	qImages := qrImages
+	if qImages != "" {
 
-		// query param image
-		var qrImage string
-
-		if o.Image != nil {
-			qrImage = *o.Image
-		}
-		qImage := qrImage
-		if qImage != "" {
-
-			if err := r.SetQueryParam("image", qImage); err != nil {
-				return err
-			}
+		if err := r.SetQueryParam("images", qImages); err != nil {
+			return err
 		}
 	}
 
@@ -212,6 +229,11 @@ func (o *ManifestCreateLibpodParams) WriteToRequest(r runtime.ClientRequest, reg
 	if qName != "" {
 
 		if err := r.SetQueryParam("name", qName); err != nil {
+			return err
+		}
+	}
+	if o.Options != nil {
+		if err := r.SetBodyParam(o.Options); err != nil {
 			return err
 		}
 	}

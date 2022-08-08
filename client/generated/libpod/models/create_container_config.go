@@ -93,6 +93,12 @@ type CreateContainerConfig struct {
 	// tty
 	Tty bool `json:"Tty,omitempty"`
 
+	// unset env
+	UnsetEnv []string `json:"UnsetEnv"`
+
+	// unset env all
+	UnsetEnvAll bool `json:"UnsetEnvAll,omitempty"`
+
 	// user
 	User string `json:"User,omitempty"`
 

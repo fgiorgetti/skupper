@@ -25,7 +25,7 @@ import (
 // To enforce default values in parameter, use SetDefaults or WithDefaults.
 func NewContainerDeleteLibpodParams() *ContainerDeleteLibpodParams {
 	return &ContainerDeleteLibpodParams{
-		timeout: cr.DefaultTimeout,
+		requestTimeout: cr.DefaultTimeout,
 	}
 }
 
@@ -33,7 +33,7 @@ func NewContainerDeleteLibpodParams() *ContainerDeleteLibpodParams {
 // with the ability to set a timeout on a request.
 func NewContainerDeleteLibpodParamsWithTimeout(timeout time.Duration) *ContainerDeleteLibpodParams {
 	return &ContainerDeleteLibpodParams{
-		timeout: timeout,
+		requestTimeout: timeout,
 	}
 }
 
@@ -60,11 +60,23 @@ func NewContainerDeleteLibpodParamsWithHTTPClient(client *http.Client) *Containe
 */
 type ContainerDeleteLibpodParams struct {
 
+	/* Depend.
+
+	   additionally remove containers that depend on the container to be removed
+	*/
+	Depend *bool
+
 	/* Force.
 
-	   need something
+	   force stop container if running
 	*/
 	Force *bool
+
+	/* Ignore.
+
+	   ignore errors when the container to be removed does not existxo
+	*/
+	Ignore *bool
 
 	/* Name.
 
@@ -72,15 +84,23 @@ type ContainerDeleteLibpodParams struct {
 	*/
 	Name string
 
+	/* Timeout.
+
+	   number of seconds to wait before killing container when force removing
+
+	   Default: 10
+	*/
+	Timeout *int64
+
 	/* V.
 
 	   delete volumes
 	*/
 	V *bool
 
-	timeout    time.Duration
-	Context    context.Context
-	HTTPClient *http.Client
+	requestTimeout time.Duration
+	Context        context.Context
+	HTTPClient     *http.Client
 }
 
 // WithDefaults hydrates default values in the container delete libpod params (not the query body).
@@ -95,18 +115,29 @@ func (o *ContainerDeleteLibpodParams) WithDefaults() *ContainerDeleteLibpodParam
 //
 // All values with no default are reset to their zero value.
 func (o *ContainerDeleteLibpodParams) SetDefaults() {
-	// no default values defined for this parameter
+	var (
+		timeoutDefault = int64(10)
+	)
+
+	val := ContainerDeleteLibpodParams{
+		Timeout: &timeoutDefault,
+	}
+
+	val.requestTimeout = o.requestTimeout
+	val.Context = o.Context
+	val.HTTPClient = o.HTTPClient
+	*o = val
 }
 
-// WithTimeout adds the timeout to the container delete libpod params
-func (o *ContainerDeleteLibpodParams) WithTimeout(timeout time.Duration) *ContainerDeleteLibpodParams {
-	o.SetTimeout(timeout)
+// WithRequestTimeout adds the timeout to the container delete libpod params
+func (o *ContainerDeleteLibpodParams) WithRequestTimeout(timeout time.Duration) *ContainerDeleteLibpodParams {
+	o.SetRequestTimeout(timeout)
 	return o
 }
 
-// SetTimeout adds the timeout to the container delete libpod params
-func (o *ContainerDeleteLibpodParams) SetTimeout(timeout time.Duration) {
-	o.timeout = timeout
+// SetRequestTimeout adds the timeout to the container delete libpod params
+func (o *ContainerDeleteLibpodParams) SetRequestTimeout(timeout time.Duration) {
+	o.requestTimeout = timeout
 }
 
 // WithContext adds the context to the container delete libpod params
@@ -131,6 +162,17 @@ func (o *ContainerDeleteLibpodParams) SetHTTPClient(client *http.Client) {
 	o.HTTPClient = client
 }
 
+// WithDepend adds the depend to the container delete libpod params
+func (o *ContainerDeleteLibpodParams) WithDepend(depend *bool) *ContainerDeleteLibpodParams {
+	o.SetDepend(depend)
+	return o
+}
+
+// SetDepend adds the depend to the container delete libpod params
+func (o *ContainerDeleteLibpodParams) SetDepend(depend *bool) {
+	o.Depend = depend
+}
+
 // WithForce adds the force to the container delete libpod params
 func (o *ContainerDeleteLibpodParams) WithForce(force *bool) *ContainerDeleteLibpodParams {
 	o.SetForce(force)
@@ -142,6 +184,17 @@ func (o *ContainerDeleteLibpodParams) SetForce(force *bool) {
 	o.Force = force
 }
 
+// WithIgnore adds the ignore to the container delete libpod params
+func (o *ContainerDeleteLibpodParams) WithIgnore(ignore *bool) *ContainerDeleteLibpodParams {
+	o.SetIgnore(ignore)
+	return o
+}
+
+// SetIgnore adds the ignore to the container delete libpod params
+func (o *ContainerDeleteLibpodParams) SetIgnore(ignore *bool) {
+	o.Ignore = ignore
+}
+
 // WithName adds the name to the container delete libpod params
 func (o *ContainerDeleteLibpodParams) WithName(name string) *ContainerDeleteLibpodParams {
 	o.SetName(name)
@@ -151,6 +204,17 @@ func (o *ContainerDeleteLibpodParams) WithName(name string) *ContainerDeleteLibp
 // SetName adds the name to the container delete libpod params
 func (o *ContainerDeleteLibpodParams) SetName(name string) {
 	o.Name = name
+}
+
+// WithTimeout adds the timeout to the container delete libpod params
+func (o *ContainerDeleteLibpodParams) WithTimeout(timeout *int64) *ContainerDeleteLibpodParams {
+	o.SetTimeout(timeout)
+	return o
+}
+
+// SetTimeout adds the timeout to the container delete libpod params
+func (o *ContainerDeleteLibpodParams) SetTimeout(timeout *int64) {
+	o.Timeout = timeout
 }
 
 // WithV adds the v to the container delete libpod params
@@ -167,10 +231,27 @@ func (o *ContainerDeleteLibpodParams) SetV(v *bool) {
 // WriteToRequest writes these params to a swagger request
 func (o *ContainerDeleteLibpodParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
 
-	if err := r.SetTimeout(o.timeout); err != nil {
+	if err := r.SetTimeout(o.requestTimeout); err != nil {
 		return err
 	}
 	var res []error
+
+	if o.Depend != nil {
+
+		// query param depend
+		var qrDepend bool
+
+		if o.Depend != nil {
+			qrDepend = *o.Depend
+		}
+		qDepend := swag.FormatBool(qrDepend)
+		if qDepend != "" {
+
+			if err := r.SetQueryParam("depend", qDepend); err != nil {
+				return err
+			}
+		}
+	}
 
 	if o.Force != nil {
 
@@ -189,9 +270,43 @@ func (o *ContainerDeleteLibpodParams) WriteToRequest(r runtime.ClientRequest, re
 		}
 	}
 
+	if o.Ignore != nil {
+
+		// query param ignore
+		var qrIgnore bool
+
+		if o.Ignore != nil {
+			qrIgnore = *o.Ignore
+		}
+		qIgnore := swag.FormatBool(qrIgnore)
+		if qIgnore != "" {
+
+			if err := r.SetQueryParam("ignore", qIgnore); err != nil {
+				return err
+			}
+		}
+	}
+
 	// path param name
 	if err := r.SetPathParam("name", o.Name); err != nil {
 		return err
+	}
+
+	if o.Timeout != nil {
+
+		// query param timeout
+		var qrTimeout int64
+
+		if o.Timeout != nil {
+			qrTimeout = *o.Timeout
+		}
+		qTimeout := swag.FormatInt64(qrTimeout)
+		if qTimeout != "" {
+
+			if err := r.SetQueryParam("timeout", qTimeout); err != nil {
+				return err
+			}
+		}
 	}
 
 	if o.V != nil {

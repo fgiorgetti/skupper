@@ -242,17 +242,29 @@ swagger:model PodInspectLibpodOKBody
 */
 type PodInspectLibpodOKBody struct {
 
-	// CgroupParent is the parent of the pod's CGroup.
+	// BlkioDeviceReadBps contains the Read/Access limit for the pod's devices
+	BlkioDeviceReadBps []*models.InspectBlkioThrottleDevice `json:"device_read_bps"`
+
+	// CPUPeriod contains the CPU period of the pod
+	CPUPeriod uint64 `json:"cpu_period,omitempty"`
+
+	// CPUQuota contains the CPU quota of the pod
+	CPUQuota int64 `json:"cpu_quota,omitempty"`
+
+	// CPUSetCPUs contains linux specific CPU data for the pod
+	CPUSetCPUs string `json:"cpuset_cpus,omitempty"`
+
+	// CgroupParent is the parent of the pod's Cgroup.
 	CgroupParent string `json:"CgroupParent,omitempty"`
 
-	// CgroupPath is the path to the pod's CGroup.
+	// CgroupPath is the path to the pod's Cgroup.
 	CgroupPath string `json:"CgroupPath,omitempty"`
 
 	// Containers gives a brief summary of all containers in the pod and
 	// their current status.
 	Containers []*models.InspectPodContainerInfo `json:"Containers"`
 
-	// CreateCgroup is whether this pod will create its own CGroup to group
+	// CreateCgroup is whether this pod will create its own Cgroup to group
 	// containers under.
 	CreateCgroup bool `json:"CreateCgroup,omitempty"`
 
@@ -267,6 +279,9 @@ type PodInspectLibpodOKBody struct {
 	// Created is the time when the pod was created.
 	// Format: date-time
 	Created strfmt.DateTime `json:"Created,omitempty"`
+
+	// Devices contains the specified host devices
+	Devices []*models.InspectDevice `json:"devices"`
 
 	// Hostname is the hostname that the pod will set.
 	Hostname string `json:"Hostname,omitempty"`
@@ -285,6 +300,9 @@ type PodInspectLibpodOKBody struct {
 	// pod.
 	Labels map[string]string `json:"Labels,omitempty"`
 
+	// Mounts contains volume related information for the pod
+	Mounts []*models.InspectMount `json:"mounts"`
+
 	// Name is the name of the pod.
 	Name string `json:"Name,omitempty"`
 
@@ -295,17 +313,27 @@ type PodInspectLibpodOKBody struct {
 	// infra container.
 	NumContainers uint64 `json:"NumContainers,omitempty"`
 
+	// SecurityOpt contains the specified security labels and related SELinux information
+	SecurityOpts []string `json:"security_opt"`
+
 	// SharedNamespaces contains a list of namespaces that will be shared by
 	// containers within the pod. Can only be set if CreateInfra is true.
 	SharedNamespaces []string `json:"SharedNamespaces"`
 
 	// State represents the current state of the pod.
 	State string `json:"State,omitempty"`
+
+	// VolumesFrom contains the containers that the pod inherits mounts from
+	VolumesFrom []string `json:"volumes_from"`
 }
 
 // Validate validates this pod inspect libpod o k body
 func (o *PodInspectLibpodOKBody) Validate(formats strfmt.Registry) error {
 	var res []error
+
+	if err := o.validateBlkioDeviceReadBps(formats); err != nil {
+		res = append(res, err)
+	}
 
 	if err := o.validateContainers(formats); err != nil {
 		res = append(res, err)
@@ -315,13 +343,47 @@ func (o *PodInspectLibpodOKBody) Validate(formats strfmt.Registry) error {
 		res = append(res, err)
 	}
 
+	if err := o.validateDevices(formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := o.validateInfraConfig(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := o.validateMounts(formats); err != nil {
 		res = append(res, err)
 	}
 
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
+	return nil
+}
+
+func (o *PodInspectLibpodOKBody) validateBlkioDeviceReadBps(formats strfmt.Registry) error {
+	if swag.IsZero(o.BlkioDeviceReadBps) { // not required
+		return nil
+	}
+
+	for i := 0; i < len(o.BlkioDeviceReadBps); i++ {
+		if swag.IsZero(o.BlkioDeviceReadBps[i]) { // not required
+			continue
+		}
+
+		if o.BlkioDeviceReadBps[i] != nil {
+			if err := o.BlkioDeviceReadBps[i].Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("podInspectLibpodOK" + "." + "device_read_bps" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("podInspectLibpodOK" + "." + "device_read_bps" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
 	return nil
 }
 
@@ -363,6 +425,32 @@ func (o *PodInspectLibpodOKBody) validateCreated(formats strfmt.Registry) error 
 	return nil
 }
 
+func (o *PodInspectLibpodOKBody) validateDevices(formats strfmt.Registry) error {
+	if swag.IsZero(o.Devices) { // not required
+		return nil
+	}
+
+	for i := 0; i < len(o.Devices); i++ {
+		if swag.IsZero(o.Devices[i]) { // not required
+			continue
+		}
+
+		if o.Devices[i] != nil {
+			if err := o.Devices[i].Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("podInspectLibpodOK" + "." + "devices" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("podInspectLibpodOK" + "." + "devices" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
 func (o *PodInspectLibpodOKBody) validateInfraConfig(formats strfmt.Registry) error {
 	if swag.IsZero(o.InfraConfig) { // not required
 		return nil
@@ -382,11 +470,45 @@ func (o *PodInspectLibpodOKBody) validateInfraConfig(formats strfmt.Registry) er
 	return nil
 }
 
+func (o *PodInspectLibpodOKBody) validateMounts(formats strfmt.Registry) error {
+	if swag.IsZero(o.Mounts) { // not required
+		return nil
+	}
+
+	for i := 0; i < len(o.Mounts); i++ {
+		if swag.IsZero(o.Mounts[i]) { // not required
+			continue
+		}
+
+		if o.Mounts[i] != nil {
+			if err := o.Mounts[i].Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("podInspectLibpodOK" + "." + "mounts" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("podInspectLibpodOK" + "." + "mounts" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
 // ContextValidate validate this pod inspect libpod o k body based on the context it is used
 func (o *PodInspectLibpodOKBody) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	var res []error
 
+	if err := o.contextValidateBlkioDeviceReadBps(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := o.contextValidateContainers(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := o.contextValidateDevices(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -394,9 +516,33 @@ func (o *PodInspectLibpodOKBody) ContextValidate(ctx context.Context, formats st
 		res = append(res, err)
 	}
 
+	if err := o.contextValidateMounts(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
+	return nil
+}
+
+func (o *PodInspectLibpodOKBody) contextValidateBlkioDeviceReadBps(ctx context.Context, formats strfmt.Registry) error {
+
+	for i := 0; i < len(o.BlkioDeviceReadBps); i++ {
+
+		if o.BlkioDeviceReadBps[i] != nil {
+			if err := o.BlkioDeviceReadBps[i].ContextValidate(ctx, formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("podInspectLibpodOK" + "." + "device_read_bps" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("podInspectLibpodOK" + "." + "device_read_bps" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
 	return nil
 }
 
@@ -420,6 +566,26 @@ func (o *PodInspectLibpodOKBody) contextValidateContainers(ctx context.Context, 
 	return nil
 }
 
+func (o *PodInspectLibpodOKBody) contextValidateDevices(ctx context.Context, formats strfmt.Registry) error {
+
+	for i := 0; i < len(o.Devices); i++ {
+
+		if o.Devices[i] != nil {
+			if err := o.Devices[i].ContextValidate(ctx, formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("podInspectLibpodOK" + "." + "devices" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("podInspectLibpodOK" + "." + "devices" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
 func (o *PodInspectLibpodOKBody) contextValidateInfraConfig(ctx context.Context, formats strfmt.Registry) error {
 
 	if o.InfraConfig != nil {
@@ -431,6 +597,26 @@ func (o *PodInspectLibpodOKBody) contextValidateInfraConfig(ctx context.Context,
 			}
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (o *PodInspectLibpodOKBody) contextValidateMounts(ctx context.Context, formats strfmt.Registry) error {
+
+	for i := 0; i < len(o.Mounts); i++ {
+
+		if o.Mounts[i] != nil {
+			if err := o.Mounts[i].ContextValidate(ctx, formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("podInspectLibpodOK" + "." + "mounts" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("podInspectLibpodOK" + "." + "mounts" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
 	}
 
 	return nil

@@ -15,7 +15,7 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-// ListContainer Listcontainer describes a container suitable for listing
+// ListContainer ListContainer describes a container suitable for listing
 //
 // swagger:model ListContainer
 type ListContainer struct {
@@ -30,7 +30,7 @@ type ListContainer struct {
 	// Format: date-time
 	Created strfmt.DateTime `json:"Created,omitempty"`
 
-	// Human readable container creation time.
+	// Human-readable container creation time.
 	CreatedAt string `json:"CreatedAt,omitempty"`
 
 	// If container has exited, the return code from the command

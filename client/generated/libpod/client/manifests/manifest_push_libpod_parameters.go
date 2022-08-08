@@ -68,15 +68,21 @@ type ManifestPushLibpodParams struct {
 
 	/* Destination.
 
-	   the destination for the manifest
+	   the registry for the manifest list
 	*/
 	Destination string
 
 	/* Name.
 
-	   the name or ID of the manifest
+	   the name or ID of the manifest list
 	*/
 	Name string
+
+	/* TLSVerify.
+
+	   skip TLS verification for registries
+	*/
+	TLSVerify *bool
 
 	timeout    time.Duration
 	Context    context.Context
@@ -95,7 +101,21 @@ func (o *ManifestPushLibpodParams) WithDefaults() *ManifestPushLibpodParams {
 //
 // All values with no default are reset to their zero value.
 func (o *ManifestPushLibpodParams) SetDefaults() {
-	// no default values defined for this parameter
+	var (
+		allDefault = bool(false)
+
+		tLSVerifyDefault = bool(false)
+	)
+
+	val := ManifestPushLibpodParams{
+		All:       &allDefault,
+		TLSVerify: &tLSVerifyDefault,
+	}
+
+	val.timeout = o.timeout
+	val.Context = o.Context
+	val.HTTPClient = o.HTTPClient
+	*o = val
 }
 
 // WithTimeout adds the timeout to the manifest push libpod params
@@ -164,6 +184,17 @@ func (o *ManifestPushLibpodParams) SetName(name string) {
 	o.Name = name
 }
 
+// WithTLSVerify adds the tLSVerify to the manifest push libpod params
+func (o *ManifestPushLibpodParams) WithTLSVerify(tLSVerify *bool) *ManifestPushLibpodParams {
+	o.SetTLSVerify(tLSVerify)
+	return o
+}
+
+// SetTLSVerify adds the tlsVerify to the manifest push libpod params
+func (o *ManifestPushLibpodParams) SetTLSVerify(tLSVerify *bool) {
+	o.TLSVerify = tLSVerify
+}
+
 // WriteToRequest writes these params to a swagger request
 func (o *ManifestPushLibpodParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
 
@@ -189,19 +220,31 @@ func (o *ManifestPushLibpodParams) WriteToRequest(r runtime.ClientRequest, reg s
 		}
 	}
 
-	// query param destination
-	qrDestination := o.Destination
-	qDestination := qrDestination
-	if qDestination != "" {
-
-		if err := r.SetQueryParam("destination", qDestination); err != nil {
-			return err
-		}
+	// path param destination
+	if err := r.SetPathParam("destination", o.Destination); err != nil {
+		return err
 	}
 
 	// path param name
 	if err := r.SetPathParam("name", o.Name); err != nil {
 		return err
+	}
+
+	if o.TLSVerify != nil {
+
+		// query param tlsVerify
+		var qrTLSVerify bool
+
+		if o.TLSVerify != nil {
+			qrTLSVerify = *o.TLSVerify
+		}
+		qTLSVerify := swag.FormatBool(qrTLSVerify)
+		if qTLSVerify != "" {
+
+			if err := r.SetQueryParam("tlsVerify", qTLSVerify); err != nil {
+				return err
+			}
+		}
 	}
 
 	if len(res) > 0 {

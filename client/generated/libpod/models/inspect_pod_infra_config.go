@@ -21,6 +21,15 @@ import (
 // swagger:model InspectPodInfraConfig
 type InspectPodInfraConfig struct {
 
+	// CPUPeriod contains the CPU period of the pod
+	CPUPeriod uint64 `json:"cpu_period,omitempty"`
+
+	// CPUQuota contains the CPU quota of the pod
+	CPUQuota int64 `json:"cpu_quota,omitempty"`
+
+	// CPUSetCPUs contains linux specific CPU data for the container
+	CPUSetCPUs string `json:"cpuset_cpus,omitempty"`
+
 	// DNSOption is a set of DNS options that will be used by the infra
 	// container's resolv.conf and shared with the remainder of the pod.
 	DNSOption []string `json:"DNSOption"`

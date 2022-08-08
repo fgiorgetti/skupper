@@ -34,6 +34,9 @@ type StoreInfo struct {
 	// graph status
 	GraphStatus map[string]string `json:"graphStatus,omitempty"`
 
+	// image copy tmp dir
+	ImageCopyTmpDir string `json:"imageCopyTmpDir,omitempty"`
+
 	// run root
 	RunRoot string `json:"runRoot,omitempty"`
 

@@ -73,6 +73,8 @@ type ImageSearchParams struct {
 	/* Limit.
 
 	   maximum number of results
+
+	   Default: 25
 	*/
 	Limit *int64
 
@@ -87,6 +89,12 @@ type ImageSearchParams struct {
 	   term to search
 	*/
 	Term *string
+
+	/* TLSVerify.
+
+	   skip TLS verification for registries
+	*/
+	TLSVerify *bool
 
 	timeout    time.Duration
 	Context    context.Context
@@ -105,7 +113,21 @@ func (o *ImageSearchParams) WithDefaults() *ImageSearchParams {
 //
 // All values with no default are reset to their zero value.
 func (o *ImageSearchParams) SetDefaults() {
-	// no default values defined for this parameter
+	var (
+		limitDefault = int64(25)
+
+		tLSVerifyDefault = bool(false)
+	)
+
+	val := ImageSearchParams{
+		Limit:     &limitDefault,
+		TLSVerify: &tLSVerifyDefault,
+	}
+
+	val.timeout = o.timeout
+	val.Context = o.Context
+	val.HTTPClient = o.HTTPClient
+	*o = val
 }
 
 // WithTimeout adds the timeout to the image search params
@@ -185,6 +207,17 @@ func (o *ImageSearchParams) SetTerm(term *string) {
 	o.Term = term
 }
 
+// WithTLSVerify adds the tLSVerify to the image search params
+func (o *ImageSearchParams) WithTLSVerify(tLSVerify *bool) *ImageSearchParams {
+	o.SetTLSVerify(tLSVerify)
+	return o
+}
+
+// SetTLSVerify adds the tlsVerify to the image search params
+func (o *ImageSearchParams) SetTLSVerify(tLSVerify *bool) {
+	o.TLSVerify = tLSVerify
+}
+
 // WriteToRequest writes these params to a swagger request
 func (o *ImageSearchParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
 
@@ -256,6 +289,23 @@ func (o *ImageSearchParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.R
 		if qTerm != "" {
 
 			if err := r.SetQueryParam("term", qTerm); err != nil {
+				return err
+			}
+		}
+	}
+
+	if o.TLSVerify != nil {
+
+		// query param tlsVerify
+		var qrTLSVerify bool
+
+		if o.TLSVerify != nil {
+			qrTLSVerify = *o.TLSVerify
+		}
+		qTLSVerify := swag.FormatBool(qrTLSVerify)
+		if qTLSVerify != "" {
+
+			if err := r.SetQueryParam("tlsVerify", qTLSVerify); err != nil {
 				return err
 			}
 		}

@@ -13,6 +13,8 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
+
+	"github.com/skupperproject/skupper/client/generated/libpod/models"
 )
 
 // ContainerDeleteLibpodReader is a Reader for the ContainerDeleteLibpod structure.
@@ -23,6 +25,12 @@ type ContainerDeleteLibpodReader struct {
 // ReadResponse reads a server response into the received o.
 func (o *ContainerDeleteLibpodReader) ReadResponse(response runtime.ClientResponse, consumer runtime.Consumer) (interface{}, error) {
 	switch response.Code() {
+	case 200:
+		result := NewContainerDeleteLibpodOK()
+		if err := result.readResponse(response, consumer, o.formats); err != nil {
+			return nil, err
+		}
+		return result, nil
 	case 204:
 		result := NewContainerDeleteLibpodNoContent()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
@@ -56,6 +64,36 @@ func (o *ContainerDeleteLibpodReader) ReadResponse(response runtime.ClientRespon
 	default:
 		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
 	}
+}
+
+// NewContainerDeleteLibpodOK creates a ContainerDeleteLibpodOK with default headers values
+func NewContainerDeleteLibpodOK() *ContainerDeleteLibpodOK {
+	return &ContainerDeleteLibpodOK{}
+}
+
+/* ContainerDeleteLibpodOK describes a response with status code 200, with default header values.
+
+Rm containers
+*/
+type ContainerDeleteLibpodOK struct {
+	Payload []*models.LibpodContainersRmReport
+}
+
+func (o *ContainerDeleteLibpodOK) Error() string {
+	return fmt.Sprintf("[DELETE /libpod/containers/{name}][%d] containerDeleteLibpodOK  %+v", 200, o.Payload)
+}
+func (o *ContainerDeleteLibpodOK) GetPayload() []*models.LibpodContainersRmReport {
+	return o.Payload
+}
+
+func (o *ContainerDeleteLibpodOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
+
+	// response payload
+	if err := consumer.Consume(response.Body(), &o.Payload); err != nil && err != io.EOF {
+		return err
+	}
+
+	return nil
 }
 
 // NewContainerDeleteLibpodNoContent creates a ContainerDeleteLibpodNoContent with default headers values

@@ -60,6 +60,12 @@ func NewGenerateSystemdLibpodParamsWithHTTPClient(client *http.Client) *Generate
 */
 type GenerateSystemdLibpodParams struct {
 
+	/* After.
+
+	   Systemd After list for the container or pods.
+	*/
+	After []string
+
 	/* ContainerPrefix.
 
 	   Systemd unit name prefix for containers.
@@ -94,6 +100,12 @@ type GenerateSystemdLibpodParams struct {
 	*/
 	PodPrefix *string
 
+	/* Requires.
+
+	   Systemd Requires list for the container or pods.
+	*/
+	Requires []string
+
 	/* RestartPolicy.
 
 	   Systemd restart-policy.
@@ -101,6 +113,12 @@ type GenerateSystemdLibpodParams struct {
 	   Default: "on-failure"
 	*/
 	RestartPolicy *string
+
+	/* RestartSec.
+
+	   Configures the time to sleep before restarting a service.
+	*/
+	RestartSec *int64
 
 	/* Separator.
 
@@ -110,19 +128,31 @@ type GenerateSystemdLibpodParams struct {
 	*/
 	Separator *string
 
-	/* Time.
+	/* StartTimeout.
 
-	   Stop timeout override.
+	   Start timeout in seconds.
+	*/
+	StartTimeout *int64
+
+	/* StopTimeout.
+
+	   Stop timeout in seconds.
 
 	   Default: 10
 	*/
-	Time *int64
+	StopTimeout *int64
 
 	/* UseName.
 
 	   Use container/pod names instead of IDs.
 	*/
 	UseName *bool
+
+	/* Wants.
+
+	   Systemd Wants list for the container or pods.
+	*/
+	Wants []string
 
 	timeout    time.Duration
 	Context    context.Context
@@ -142,6 +172,8 @@ func (o *GenerateSystemdLibpodParams) WithDefaults() *GenerateSystemdLibpodParam
 // All values with no default are reset to their zero value.
 func (o *GenerateSystemdLibpodParams) SetDefaults() {
 	var (
+		afterDefault = []string{}
+
 		containerPrefixDefault = string("container")
 
 		newDefault = bool(false)
@@ -150,24 +182,37 @@ func (o *GenerateSystemdLibpodParams) SetDefaults() {
 
 		podPrefixDefault = string("pod")
 
+		requiresDefault = []string{}
+
 		restartPolicyDefault = string("on-failure")
+
+		restartSecDefault = int64(0)
 
 		separatorDefault = string("-")
 
-		timeDefault = int64(10)
+		startTimeoutDefault = int64(0)
+
+		stopTimeoutDefault = int64(10)
 
 		useNameDefault = bool(false)
+
+		wantsDefault = []string{}
 	)
 
 	val := GenerateSystemdLibpodParams{
+		After:           afterDefault,
 		ContainerPrefix: &containerPrefixDefault,
 		New:             &newDefault,
 		NoHeader:        &noHeaderDefault,
 		PodPrefix:       &podPrefixDefault,
+		Requires:        requiresDefault,
 		RestartPolicy:   &restartPolicyDefault,
+		RestartSec:      &restartSecDefault,
 		Separator:       &separatorDefault,
-		Time:            &timeDefault,
+		StartTimeout:    &startTimeoutDefault,
+		StopTimeout:     &stopTimeoutDefault,
 		UseName:         &useNameDefault,
+		Wants:           wantsDefault,
 	}
 
 	val.timeout = o.timeout
@@ -207,6 +252,17 @@ func (o *GenerateSystemdLibpodParams) WithHTTPClient(client *http.Client) *Gener
 // SetHTTPClient adds the HTTPClient to the generate systemd libpod params
 func (o *GenerateSystemdLibpodParams) SetHTTPClient(client *http.Client) {
 	o.HTTPClient = client
+}
+
+// WithAfter adds the after to the generate systemd libpod params
+func (o *GenerateSystemdLibpodParams) WithAfter(after []string) *GenerateSystemdLibpodParams {
+	o.SetAfter(after)
+	return o
+}
+
+// SetAfter adds the after to the generate systemd libpod params
+func (o *GenerateSystemdLibpodParams) SetAfter(after []string) {
+	o.After = after
 }
 
 // WithContainerPrefix adds the containerPrefix to the generate systemd libpod params
@@ -264,6 +320,17 @@ func (o *GenerateSystemdLibpodParams) SetPodPrefix(podPrefix *string) {
 	o.PodPrefix = podPrefix
 }
 
+// WithRequires adds the requires to the generate systemd libpod params
+func (o *GenerateSystemdLibpodParams) WithRequires(requires []string) *GenerateSystemdLibpodParams {
+	o.SetRequires(requires)
+	return o
+}
+
+// SetRequires adds the requires to the generate systemd libpod params
+func (o *GenerateSystemdLibpodParams) SetRequires(requires []string) {
+	o.Requires = requires
+}
+
 // WithRestartPolicy adds the restartPolicy to the generate systemd libpod params
 func (o *GenerateSystemdLibpodParams) WithRestartPolicy(restartPolicy *string) *GenerateSystemdLibpodParams {
 	o.SetRestartPolicy(restartPolicy)
@@ -273,6 +340,17 @@ func (o *GenerateSystemdLibpodParams) WithRestartPolicy(restartPolicy *string) *
 // SetRestartPolicy adds the restartPolicy to the generate systemd libpod params
 func (o *GenerateSystemdLibpodParams) SetRestartPolicy(restartPolicy *string) {
 	o.RestartPolicy = restartPolicy
+}
+
+// WithRestartSec adds the restartSec to the generate systemd libpod params
+func (o *GenerateSystemdLibpodParams) WithRestartSec(restartSec *int64) *GenerateSystemdLibpodParams {
+	o.SetRestartSec(restartSec)
+	return o
+}
+
+// SetRestartSec adds the restartSec to the generate systemd libpod params
+func (o *GenerateSystemdLibpodParams) SetRestartSec(restartSec *int64) {
+	o.RestartSec = restartSec
 }
 
 // WithSeparator adds the separator to the generate systemd libpod params
@@ -286,15 +364,26 @@ func (o *GenerateSystemdLibpodParams) SetSeparator(separator *string) {
 	o.Separator = separator
 }
 
-// WithTime adds the time to the generate systemd libpod params
-func (o *GenerateSystemdLibpodParams) WithTime(time *int64) *GenerateSystemdLibpodParams {
-	o.SetTime(time)
+// WithStartTimeout adds the startTimeout to the generate systemd libpod params
+func (o *GenerateSystemdLibpodParams) WithStartTimeout(startTimeout *int64) *GenerateSystemdLibpodParams {
+	o.SetStartTimeout(startTimeout)
 	return o
 }
 
-// SetTime adds the time to the generate systemd libpod params
-func (o *GenerateSystemdLibpodParams) SetTime(time *int64) {
-	o.Time = time
+// SetStartTimeout adds the startTimeout to the generate systemd libpod params
+func (o *GenerateSystemdLibpodParams) SetStartTimeout(startTimeout *int64) {
+	o.StartTimeout = startTimeout
+}
+
+// WithStopTimeout adds the stopTimeout to the generate systemd libpod params
+func (o *GenerateSystemdLibpodParams) WithStopTimeout(stopTimeout *int64) *GenerateSystemdLibpodParams {
+	o.SetStopTimeout(stopTimeout)
+	return o
+}
+
+// SetStopTimeout adds the stopTimeout to the generate systemd libpod params
+func (o *GenerateSystemdLibpodParams) SetStopTimeout(stopTimeout *int64) {
+	o.StopTimeout = stopTimeout
 }
 
 // WithUseName adds the useName to the generate systemd libpod params
@@ -308,6 +397,17 @@ func (o *GenerateSystemdLibpodParams) SetUseName(useName *bool) {
 	o.UseName = useName
 }
 
+// WithWants adds the wants to the generate systemd libpod params
+func (o *GenerateSystemdLibpodParams) WithWants(wants []string) *GenerateSystemdLibpodParams {
+	o.SetWants(wants)
+	return o
+}
+
+// SetWants adds the wants to the generate systemd libpod params
+func (o *GenerateSystemdLibpodParams) SetWants(wants []string) {
+	o.Wants = wants
+}
+
 // WriteToRequest writes these params to a swagger request
 func (o *GenerateSystemdLibpodParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
 
@@ -315,6 +415,17 @@ func (o *GenerateSystemdLibpodParams) WriteToRequest(r runtime.ClientRequest, re
 		return err
 	}
 	var res []error
+
+	if o.After != nil {
+
+		// binding items for after
+		joinedAfter := o.bindParamAfter(reg)
+
+		// query array param after
+		if err := r.SetQueryParam("after", joinedAfter...); err != nil {
+			return err
+		}
+	}
 
 	if o.ContainerPrefix != nil {
 
@@ -389,6 +500,17 @@ func (o *GenerateSystemdLibpodParams) WriteToRequest(r runtime.ClientRequest, re
 		}
 	}
 
+	if o.Requires != nil {
+
+		// binding items for requires
+		joinedRequires := o.bindParamRequires(reg)
+
+		// query array param requires
+		if err := r.SetQueryParam("requires", joinedRequires...); err != nil {
+			return err
+		}
+	}
+
 	if o.RestartPolicy != nil {
 
 		// query param restartPolicy
@@ -401,6 +523,23 @@ func (o *GenerateSystemdLibpodParams) WriteToRequest(r runtime.ClientRequest, re
 		if qRestartPolicy != "" {
 
 			if err := r.SetQueryParam("restartPolicy", qRestartPolicy); err != nil {
+				return err
+			}
+		}
+	}
+
+	if o.RestartSec != nil {
+
+		// query param restartSec
+		var qrRestartSec int64
+
+		if o.RestartSec != nil {
+			qrRestartSec = *o.RestartSec
+		}
+		qRestartSec := swag.FormatInt64(qrRestartSec)
+		if qRestartSec != "" {
+
+			if err := r.SetQueryParam("restartSec", qRestartSec); err != nil {
 				return err
 			}
 		}
@@ -423,18 +562,35 @@ func (o *GenerateSystemdLibpodParams) WriteToRequest(r runtime.ClientRequest, re
 		}
 	}
 
-	if o.Time != nil {
+	if o.StartTimeout != nil {
 
-		// query param time
-		var qrTime int64
+		// query param startTimeout
+		var qrStartTimeout int64
 
-		if o.Time != nil {
-			qrTime = *o.Time
+		if o.StartTimeout != nil {
+			qrStartTimeout = *o.StartTimeout
 		}
-		qTime := swag.FormatInt64(qrTime)
-		if qTime != "" {
+		qStartTimeout := swag.FormatInt64(qrStartTimeout)
+		if qStartTimeout != "" {
 
-			if err := r.SetQueryParam("time", qTime); err != nil {
+			if err := r.SetQueryParam("startTimeout", qStartTimeout); err != nil {
+				return err
+			}
+		}
+	}
+
+	if o.StopTimeout != nil {
+
+		// query param stopTimeout
+		var qrStopTimeout int64
+
+		if o.StopTimeout != nil {
+			qrStopTimeout = *o.StopTimeout
+		}
+		qStopTimeout := swag.FormatInt64(qrStopTimeout)
+		if qStopTimeout != "" {
+
+			if err := r.SetQueryParam("stopTimeout", qStopTimeout); err != nil {
 				return err
 			}
 		}
@@ -457,8 +613,70 @@ func (o *GenerateSystemdLibpodParams) WriteToRequest(r runtime.ClientRequest, re
 		}
 	}
 
+	if o.Wants != nil {
+
+		// binding items for wants
+		joinedWants := o.bindParamWants(reg)
+
+		// query array param wants
+		if err := r.SetQueryParam("wants", joinedWants...); err != nil {
+			return err
+		}
+	}
+
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
 	return nil
+}
+
+// bindParamGenerateSystemdLibpod binds the parameter after
+func (o *GenerateSystemdLibpodParams) bindParamAfter(formats strfmt.Registry) []string {
+	afterIR := o.After
+
+	var afterIC []string
+	for _, afterIIR := range afterIR { // explode []string
+
+		afterIIV := afterIIR // string as string
+		afterIC = append(afterIC, afterIIV)
+	}
+
+	// items.CollectionFormat: ""
+	afterIS := swag.JoinByFormat(afterIC, "")
+
+	return afterIS
+}
+
+// bindParamGenerateSystemdLibpod binds the parameter requires
+func (o *GenerateSystemdLibpodParams) bindParamRequires(formats strfmt.Registry) []string {
+	requiresIR := o.Requires
+
+	var requiresIC []string
+	for _, requiresIIR := range requiresIR { // explode []string
+
+		requiresIIV := requiresIIR // string as string
+		requiresIC = append(requiresIC, requiresIIV)
+	}
+
+	// items.CollectionFormat: ""
+	requiresIS := swag.JoinByFormat(requiresIC, "")
+
+	return requiresIS
+}
+
+// bindParamGenerateSystemdLibpod binds the parameter wants
+func (o *GenerateSystemdLibpodParams) bindParamWants(formats strfmt.Registry) []string {
+	wantsIR := o.Wants
+
+	var wantsIC []string
+	for _, wantsIIR := range wantsIR { // explode []string
+
+		wantsIIV := wantsIIR // string as string
+		wantsIC = append(wantsIC, wantsIIV)
+	}
+
+	// items.CollectionFormat: ""
+	wantsIS := swag.JoinByFormat(wantsIC, "")
+
+	return wantsIS
 }

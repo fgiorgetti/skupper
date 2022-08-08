@@ -68,7 +68,7 @@ type ManifestPushLibpodOK struct {
 }
 
 func (o *ManifestPushLibpodOK) Error() string {
-	return fmt.Sprintf("[POST /libpod/manifests/{name}/push][%d] manifestPushLibpodOK  %+v", 200, o.Payload)
+	return fmt.Sprintf("[POST /libpod/manifests/{name}/registry/{destination}][%d] manifestPushLibpodOK  %+v", 200, o.Payload)
 }
 func (o *ManifestPushLibpodOK) GetPayload() *models.IDResponse {
 	return o.Payload
@@ -100,7 +100,7 @@ type ManifestPushLibpodBadRequest struct {
 }
 
 func (o *ManifestPushLibpodBadRequest) Error() string {
-	return fmt.Sprintf("[POST /libpod/manifests/{name}/push][%d] manifestPushLibpodBadRequest  %+v", 400, o.Payload)
+	return fmt.Sprintf("[POST /libpod/manifests/{name}/registry/{destination}][%d] manifestPushLibpodBadRequest  %+v", 400, o.Payload)
 }
 func (o *ManifestPushLibpodBadRequest) GetPayload() *ManifestPushLibpodBadRequestBody {
 	return o.Payload
@@ -132,7 +132,7 @@ type ManifestPushLibpodNotFound struct {
 }
 
 func (o *ManifestPushLibpodNotFound) Error() string {
-	return fmt.Sprintf("[POST /libpod/manifests/{name}/push][%d] manifestPushLibpodNotFound  %+v", 404, o.Payload)
+	return fmt.Sprintf("[POST /libpod/manifests/{name}/registry/{destination}][%d] manifestPushLibpodNotFound  %+v", 404, o.Payload)
 }
 func (o *ManifestPushLibpodNotFound) GetPayload() *ManifestPushLibpodNotFoundBody {
 	return o.Payload
@@ -164,7 +164,7 @@ type ManifestPushLibpodInternalServerError struct {
 }
 
 func (o *ManifestPushLibpodInternalServerError) Error() string {
-	return fmt.Sprintf("[POST /libpod/manifests/{name}/push][%d] manifestPushLibpodInternalServerError  %+v", 500, o.Payload)
+	return fmt.Sprintf("[POST /libpod/manifests/{name}/registry/{destination}][%d] manifestPushLibpodInternalServerError  %+v", 500, o.Payload)
 }
 func (o *ManifestPushLibpodInternalServerError) GetPayload() *ManifestPushLibpodInternalServerErrorBody {
 	return o.Payload

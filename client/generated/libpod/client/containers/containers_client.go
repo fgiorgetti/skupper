@@ -39,7 +39,7 @@ type ClientService interface {
 
 	ContainerCreateLibpod(params *ContainerCreateLibpodParams, opts ...ClientOption) (*ContainerCreateLibpodCreated, error)
 
-	ContainerDeleteLibpod(params *ContainerDeleteLibpodParams, opts ...ClientOption) (*ContainerDeleteLibpodNoContent, error)
+	ContainerDeleteLibpod(params *ContainerDeleteLibpodParams, opts ...ClientOption) (*ContainerDeleteLibpodOK, *ContainerDeleteLibpodNoContent, error)
 
 	ContainerExistsLibpod(params *ContainerExistsLibpodParams, opts ...ClientOption) (*ContainerExistsLibpodNoContent, error)
 
@@ -263,7 +263,7 @@ func (a *Client) ContainerCreateLibpod(params *ContainerCreateLibpodParams, opts
 
   Delete container
 */
-func (a *Client) ContainerDeleteLibpod(params *ContainerDeleteLibpodParams, opts ...ClientOption) (*ContainerDeleteLibpodNoContent, error) {
+func (a *Client) ContainerDeleteLibpod(params *ContainerDeleteLibpodParams, opts ...ClientOption) (*ContainerDeleteLibpodOK, *ContainerDeleteLibpodNoContent, error) {
 	// TODO: Validate the params before sending
 	if params == nil {
 		params = NewContainerDeleteLibpodParams()
@@ -286,15 +286,16 @@ func (a *Client) ContainerDeleteLibpod(params *ContainerDeleteLibpodParams, opts
 
 	result, err := a.transport.Submit(op)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	success, ok := result.(*ContainerDeleteLibpodNoContent)
-	if ok {
-		return success, nil
+	switch value := result.(type) {
+	case *ContainerDeleteLibpodOK:
+		return value, nil, nil
+	case *ContainerDeleteLibpodNoContent:
+		return nil, value, nil
 	}
-	// unexpected success response
 	// safeguard: normally, absent a default response, unknown success responses return an error above: so this is a codegen issue
-	msg := fmt.Sprintf("unexpected success response for ContainerDeleteLibpod: API contract not enforced by server. Client expected to get an error, but got: %T", result)
+	msg := fmt.Sprintf("unexpected success response for containers: API contract not enforced by server. Client expected to get an error, but got: %T", result)
 	panic(msg)
 }
 

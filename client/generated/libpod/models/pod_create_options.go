@@ -13,58 +13,78 @@ import (
 	"github.com/go-openapi/swag"
 )
 
-// PodCreateOptions PodCreateOptions provides all possible options for creating a pod and its infra container
+// PodCreateOptions PodCreateOptions provides all possible options for creating a pod and its infra container.
+//
+// The JSON tags below are made to match the respective field in ContainerCreateOptions for the purpose of mapping.
 //
 // swagger:model PodCreateOptions
 type PodCreateOptions struct {
 
-	// c group parent
-	CGroupParent string `json:"CGroupParent,omitempty"`
+	// cgroup parent
+	CgroupParent string `json:"cgroup_parent,omitempty"`
 
 	// cpus
-	Cpus float64 `json:"Cpus,omitempty"`
+	Cpus float64 `json:"cpus,omitempty"`
 
 	// cpuset cpus
-	CpusetCpus string `json:"CpusetCpus,omitempty"`
+	CpusetCpus string `json:"cpuset_cpus,omitempty"`
 
 	// create command
-	CreateCommand []string `json:"CreateCommand"`
+	CreateCommand []string `json:"create_command"`
+
+	// device read b ps
+	DeviceReadBPs []string `json:"device_read_bps"`
+
+	// devices
+	Devices []string `json:"devices"`
 
 	// hostname
-	Hostname string `json:"Hostname,omitempty"`
+	Hostname string `json:"hostname,omitempty"`
 
 	// infra
-	Infra bool `json:"Infra,omitempty"`
+	Infra bool `json:"infra,omitempty"`
 
 	// infra command
-	InfraCommand string `json:"InfraCommand,omitempty"`
+	InfraCommand string `json:"container_command,omitempty"`
 
 	// infra conmon pid file
-	InfraConmonPidFile string `json:"InfraConmonPidFile,omitempty"`
+	InfraConmonPidFile string `json:"container_conmon_pidfile,omitempty"`
 
 	// infra image
-	InfraImage string `json:"InfraImage,omitempty"`
+	InfraImage string `json:"infra_image,omitempty"`
 
 	// infra name
-	InfraName string `json:"InfraName,omitempty"`
+	InfraName string `json:"container_name,omitempty"`
 
 	// labels
-	Labels map[string]string `json:"Labels,omitempty"`
+	Labels map[string]string `json:"labels,omitempty"`
 
 	// name
-	Name string `json:"Name,omitempty"`
-
-	// net
-	Net *NetOptions `json:"Net,omitempty"`
+	Name string `json:"name,omitempty"`
 
 	// pid
-	Pid string `json:"Pid,omitempty"`
+	Pid string `json:"pid,omitempty"`
+
+	// security opt
+	SecurityOpt []string `json:"security_opt"`
 
 	// share
-	Share []string `json:"Share"`
+	Share []string `json:"share"`
 
-	// userns
-	Userns *Namespace `json:"Userns,omitempty"`
+	// share parent
+	ShareParent bool `json:"share_parent,omitempty"`
+
+	// sysctl
+	Sysctl []string `json:"sysctl"`
+
+	// volume
+	Volume []string `json:"volume"`
+
+	// volumes from
+	VolumesFrom []string `json:"volumes_from"`
+
+	// net
+	Net *NetOptions `json:"net,omitempty"`
 }
 
 // Validate validates this pod create options
@@ -72,10 +92,6 @@ func (m *PodCreateOptions) Validate(formats strfmt.Registry) error {
 	var res []error
 
 	if err := m.validateNet(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateUserns(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -93,28 +109,9 @@ func (m *PodCreateOptions) validateNet(formats strfmt.Registry) error {
 	if m.Net != nil {
 		if err := m.Net.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
-				return ve.ValidateName("Net")
+				return ve.ValidateName("net")
 			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("Net")
-			}
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (m *PodCreateOptions) validateUserns(formats strfmt.Registry) error {
-	if swag.IsZero(m.Userns) { // not required
-		return nil
-	}
-
-	if m.Userns != nil {
-		if err := m.Userns.Validate(formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
-				return ve.ValidateName("Userns")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("Userns")
+				return ce.ValidateName("net")
 			}
 			return err
 		}
@@ -131,10 +128,6 @@ func (m *PodCreateOptions) ContextValidate(ctx context.Context, formats strfmt.R
 		res = append(res, err)
 	}
 
-	if err := m.contextValidateUserns(ctx, formats); err != nil {
-		res = append(res, err)
-	}
-
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
@@ -146,25 +139,9 @@ func (m *PodCreateOptions) contextValidateNet(ctx context.Context, formats strfm
 	if m.Net != nil {
 		if err := m.Net.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
-				return ve.ValidateName("Net")
+				return ve.ValidateName("net")
 			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("Net")
-			}
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (m *PodCreateOptions) contextValidateUserns(ctx context.Context, formats strfmt.Registry) error {
-
-	if m.Userns != nil {
-		if err := m.Userns.ContextValidate(ctx, formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
-				return ve.ValidateName("Userns")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("Userns")
+				return ce.ValidateName("net")
 			}
 			return err
 		}

@@ -59,15 +59,9 @@ func NewManifestDeleteLibpodParamsWithHTTPClient(client *http.Client) *ManifestD
 */
 type ManifestDeleteLibpodParams struct {
 
-	/* Digest.
-
-	   image digest to be removed
-	*/
-	Digest *string
-
 	/* Name.
 
-	   the image associated with the manifest
+	   The name or ID of the  list to be deleted
 	*/
 	Name string
 
@@ -124,17 +118,6 @@ func (o *ManifestDeleteLibpodParams) SetHTTPClient(client *http.Client) {
 	o.HTTPClient = client
 }
 
-// WithDigest adds the digest to the manifest delete libpod params
-func (o *ManifestDeleteLibpodParams) WithDigest(digest *string) *ManifestDeleteLibpodParams {
-	o.SetDigest(digest)
-	return o
-}
-
-// SetDigest adds the digest to the manifest delete libpod params
-func (o *ManifestDeleteLibpodParams) SetDigest(digest *string) {
-	o.Digest = digest
-}
-
 // WithName adds the name to the manifest delete libpod params
 func (o *ManifestDeleteLibpodParams) WithName(name string) *ManifestDeleteLibpodParams {
 	o.SetName(name)
@@ -153,23 +136,6 @@ func (o *ManifestDeleteLibpodParams) WriteToRequest(r runtime.ClientRequest, reg
 		return err
 	}
 	var res []error
-
-	if o.Digest != nil {
-
-		// query param digest
-		var qrDigest string
-
-		if o.Digest != nil {
-			qrDigest = *o.Digest
-		}
-		qDigest := qrDigest
-		if qDigest != "" {
-
-			if err := r.SetQueryParam("digest", qDigest); err != nil {
-				return err
-			}
-		}
-	}
 
 	// path param name
 	if err := r.SetPathParam("name", o.Name); err != nil {

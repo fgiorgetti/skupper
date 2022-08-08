@@ -13,6 +13,8 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
+
+	"github.com/skupperproject/skupper/client/generated/libpod/models"
 )
 
 // ImagePruneLibpodReader is a Reader for the ImagePruneLibpod structure.
@@ -47,16 +49,16 @@ func NewImagePruneLibpodOK() *ImagePruneLibpodOK {
 
 /* ImagePruneLibpodOK describes a response with status code 200, with default header values.
 
-Delete response
+Prune containers
 */
 type ImagePruneLibpodOK struct {
-	Payload []*ImagePruneLibpodOKBodyItems0
+	Payload []*models.LibpodContainersPruneReport
 }
 
 func (o *ImagePruneLibpodOK) Error() string {
 	return fmt.Sprintf("[POST /libpod/images/prune][%d] imagePruneLibpodOK  %+v", 200, o.Payload)
 }
-func (o *ImagePruneLibpodOK) GetPayload() []*ImagePruneLibpodOKBodyItems0 {
+func (o *ImagePruneLibpodOK) GetPayload() []*models.LibpodContainersPruneReport {
 	return o.Payload
 }
 
@@ -140,46 +142,6 @@ func (o *ImagePruneLibpodInternalServerErrorBody) MarshalBinary() ([]byte, error
 // UnmarshalBinary interface implementation
 func (o *ImagePruneLibpodInternalServerErrorBody) UnmarshalBinary(b []byte) error {
 	var res ImagePruneLibpodInternalServerErrorBody
-	if err := swag.ReadJSON(b, &res); err != nil {
-		return err
-	}
-	*o = res
-	return nil
-}
-
-/*ImagePruneLibpodOKBodyItems0 image prune libpod o k body items0
-swagger:model ImagePruneLibpodOKBodyItems0
-*/
-type ImagePruneLibpodOKBodyItems0 struct {
-
-	// deleted
-	Deleted string `json:"deleted,omitempty"`
-
-	// untagged
-	Untagged []string `json:"untagged"`
-}
-
-// Validate validates this image prune libpod o k body items0
-func (o *ImagePruneLibpodOKBodyItems0) Validate(formats strfmt.Registry) error {
-	return nil
-}
-
-// ContextValidate validates this image prune libpod o k body items0 based on context it is used
-func (o *ImagePruneLibpodOKBodyItems0) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
-	return nil
-}
-
-// MarshalBinary interface implementation
-func (o *ImagePruneLibpodOKBodyItems0) MarshalBinary() ([]byte, error) {
-	if o == nil {
-		return nil, nil
-	}
-	return swag.WriteJSON(o)
-}
-
-// UnmarshalBinary interface implementation
-func (o *ImagePruneLibpodOKBodyItems0) UnmarshalBinary(b []byte) error {
-	var res ImagePruneLibpodOKBodyItems0
 	if err := swag.ReadJSON(b, &res); err != nil {
 		return err
 	}
