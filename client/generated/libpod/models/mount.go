@@ -34,6 +34,7 @@ type Mount struct {
 
 	// target
 	Target string `json:"Target,omitempty"`
+	Destination string `json:"Destination,omitempty"`
 
 	// tmpfs options
 	TmpfsOptions *TmpfsOptions `json:"TmpfsOptions,omitempty"`
