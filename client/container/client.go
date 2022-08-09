@@ -48,7 +48,7 @@ type Container struct {
 	Env           map[string]string
 	Labels        map[string]string
 	Annotations   map[string]string
-	Networks      map[string]NetworkInfo
+	Networks      map[string]ContainerNetworkInfo
 	Mounts        []Volume
 	Ports         []Port
 	EntryPoint    []string
@@ -163,7 +163,7 @@ type Port struct {
 	Protocol string
 }
 
-type NetworkInfo struct {
+type ContainerNetworkInfo struct {
 	ID          string
 	IPAddress   string
 	IPPrefixLen int
@@ -176,4 +176,21 @@ type Image struct {
 	Id         string
 	Repository string
 	Created    string
+}
+
+type Network struct {
+	ID        string
+	Name      string
+	Subnets   []*Subnet
+	Driver    string
+	DNS       bool
+	Internal  bool
+	Labels    map[string]string
+	Options   map[string]string
+	CreatedAt string
+}
+
+type Subnet struct {
+	Subnet  string
+	Gateway string
 }

@@ -175,12 +175,12 @@ func FromListContainer(c models.ListContainer) *container.Container {
 		ExitedAt:  fmt.Sprint(c.ExitedAt),
 		ExitCode:  int(c.ExitCode),
 	}
-	ct.Networks = map[string]container.NetworkInfo{}
+	ct.Networks = map[string]container.ContainerNetworkInfo{}
 	ct.Env = map[string]string{}
 
 	// base network info
 	for _, n := range c.Networks {
-		network := container.NetworkInfo{ID: n}
+		network := container.ContainerNetworkInfo{ID: n}
 		ct.Networks[n] = network
 	}
 	// base mount info
@@ -208,7 +208,7 @@ func FromInspectContainer(c containers.ContainerInspectLibpodOKBody) *container.
 		CreatedAt:    c.Created.String(),
 		Pod:          c.Pod,
 	}
-	ct.Networks = map[string]container.NetworkInfo{}
+	ct.Networks = map[string]container.ContainerNetworkInfo{}
 	ct.Labels = map[string]string{}
 	ct.Annotations = map[string]string{}
 	ct.Env = map[string]string{}
@@ -249,7 +249,7 @@ func FromInspectContainer(c containers.ContainerInspectLibpodOKBody) *container.
 	if c.NetworkSettings != nil {
 		// Addressing info
 		for k, v := range c.NetworkSettings.Networks {
-			netInfo := container.NetworkInfo{
+			netInfo := container.ContainerNetworkInfo{
 				ID:          v.NetworkID,
 				IPAddress:   v.IPAddress,
 				IPPrefixLen: int(v.IPPrefixLen),
