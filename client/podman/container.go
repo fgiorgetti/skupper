@@ -171,7 +171,7 @@ func FromListContainer(c models.ListContainer) *container.Container {
 		Command:   c.Command,
 		Running:   !c.Exited,
 		CreatedAt: fmt.Sprint(c.CreatedAt),
-		StartedAt: fmt.Sprint(c.CreatedAt),
+		StartedAt: fmt.Sprint(c.StartedAt),
 		ExitedAt:  fmt.Sprint(c.ExitedAt),
 		ExitCode:  int(c.ExitCode),
 	}

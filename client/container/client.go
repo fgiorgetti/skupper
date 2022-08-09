@@ -19,9 +19,9 @@ type Client interface {
 	ContainerStart(id string) error
 	ContainerStop(id string) error
 	ContainerRestart(id string) error
-	ImageList()
-	ImageInspect()
-	ImagePull()
+	ImageList() ([]*Image, error)
+	ImageInspect(id string) (*Image, error)
+	ImagePull(id string) error
 	NetworkList()
 	NetworkInspect()
 	NetworkCreate()
@@ -170,4 +170,10 @@ type NetworkInfo struct {
 	MacAddress  string
 	Gateway     string
 	Aliases     []string
+}
+
+type Image struct {
+	Id         string
+	Repository string
+	Created    string
 }

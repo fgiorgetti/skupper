@@ -96,6 +96,10 @@ func boolTrue() *bool {
 	return &b
 }
 
+func stringP(val string) *string {
+	return &val
+}
+
 type responseReaderID struct {
 }
 
