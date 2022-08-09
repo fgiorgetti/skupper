@@ -2,18 +2,15 @@ package podman
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
+	"github.com/go-openapi/runtime"
 	"github.com/skupperproject/skupper/client/container"
 	"github.com/skupperproject/skupper/client/generated/libpod/client/containers"
+	"github.com/skupperproject/skupper/client/generated/libpod/client/exec"
 	"github.com/skupperproject/skupper/client/generated/libpod/models"
 )
-
-/*
-	TODO
-	ContainerExec(id string, command []string) (string, string, error)
-	ContainerLogs(id string) (string, error)
-*/
 
 func (p *PodmanRestClient) ContainerList() ([]*container.Container, error) {
 	cli := containers.New(p.RestClient, formats)
@@ -99,6 +96,70 @@ func (p *PodmanRestClient) ContainerRestart(name string) error {
 	}
 	return nil
 }
+
+func (p *PodmanRestClient) ContainerExec(id string, command []string) (string, error) {
+	params := exec.NewContainerExecLibpodParams()
+	params.Name = id
+	params.Control = exec.ContainerExecLibpodBody{
+		AttachStderr: true,
+		AttachStdout: true,
+		Cmd:          command,
+	}
+	// Creating the exec
+	execOp := &runtime.ClientOperation{
+		ID:                 "ContainerExecLibpod",
+		Method:             "POST",
+		PathPattern:        "/libpod/containers/{name}/exec",
+		ProducesMediaTypes: []string{"application/json"},
+		ConsumesMediaTypes: []string{"application/json", "application/x-tar"},
+		Schemes:            []string{"http", "https"},
+		Params:             params,
+		Reader:             &responseReaderID{},
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+	result, err := p.RestClient.Submit(execOp)
+	if err != nil {
+		return "", fmt.Errorf("error executing command: %v", err)
+	}
+	resp, ok := result.(*models.IDResponse)
+	if !ok {
+		return "", fmt.Errorf("error parsing execution id")
+	}
+
+	// Starting the exec
+	startParams := exec.NewExecStartLibpodParams()
+	startParams.ID = resp.ID
+
+	startOp := &runtime.ClientOperation{
+		ID:                 "ExecStartLibpod",
+		Method:             "POST",
+		PathPattern:        "/libpod/exec/{id}/start",
+		ProducesMediaTypes: []string{"application/json"},
+		ConsumesMediaTypes: []string{"application/json", "application/x-tar"},
+		Schemes:            []string{"http", "https"},
+		Params:             startParams,
+		Reader:             &responseReaderBody{},
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+
+	p.RestClient.Consumers["*/*"] = &responseReaderBody{}
+	result, err = p.RestClient.Submit(startOp)
+	if err != nil {
+		return "", fmt.Errorf("error starting execution: %v", err)
+	}
+	out, ok := result.(string)
+	if !ok {
+		return "", fmt.Errorf("error parsing response")
+	}
+	return out, nil
+}
+
+/*
+	ContainerExec(id string, command []string) (string, string, error)
+	ContainerLogs(id string) (string, error)
+*/
 
 func FromListContainer(c models.ListContainer) *container.Container {
 	ct := &container.Container{
@@ -228,4 +289,29 @@ func FromInspectContainer(c containers.ContainerInspectLibpodOKBody) *container.
 	}
 
 	return ct
+}
+
+func (p *PodmanRestClient) ContainerLogs(id string) (string, error) {
+	params := containers.NewContainerLogsLibpodParams()
+	params.Name = id
+	params.Stdout = boolTrue()
+	params.Stderr = boolTrue()
+	op := &runtime.ClientOperation{
+		ID:                 "ContainerLogsLibpod",
+		Method:             "GET",
+		PathPattern:        "/libpod/containers/{name}/logs",
+		ProducesMediaTypes: []string{"application/json"},
+		ConsumesMediaTypes: []string{"application/json", "application/x-tar"},
+		Schemes:            []string{"http", "https"},
+		Params:             params,
+		Reader:             &responseReaderBody{},
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+	result, err := p.RestClient.Submit(op)
+	if err != nil {
+		return "", fmt.Errorf("error retrieving logs from container %s: %v", id, err)
+	}
+	log.Println(result)
+	return "", nil
 }
