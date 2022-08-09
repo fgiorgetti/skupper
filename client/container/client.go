@@ -14,7 +14,7 @@ type Client interface {
 	ContainerInspect(id string) (*Container, error)
 	ContainerCreate(container *Container) error
 	ContainerRemove(id string) error
-	ContainerExec(id string, command []string) (string, string, error)
+	ContainerExec(id string, command []string) (string, error)
 	ContainerLogs(id string) (string, error)
 	ContainerStart(id string) error
 	ContainerStop(id string) error
