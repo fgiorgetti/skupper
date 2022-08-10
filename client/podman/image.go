@@ -2,7 +2,6 @@ package podman
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/go-openapi/runtime"
@@ -80,10 +79,9 @@ func (p *PodmanRestClient) ImagePull(id string) error {
 		Context:            params.Context,
 		Client:             params.HTTPClient,
 	}
-	result, err := p.RestClient.Submit(op)
+	_, err := p.RestClient.Submit(op)
 	if err != nil {
 		return fmt.Errorf("error pulling image %s: %v", id, err)
 	}
-	log.Println(result)
 	return nil
 }
