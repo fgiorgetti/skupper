@@ -9,6 +9,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+const (
+	DefaultNetworkDriver = "bridge"
+)
+
 func NewClient(ctx context.Context) (*VanClient, error) {
 	return nil, nil
 }
