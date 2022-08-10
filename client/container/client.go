@@ -22,12 +22,12 @@ type Client interface {
 	ImageList() ([]*Image, error)
 	ImageInspect(id string) (*Image, error)
 	ImagePull(id string) error
-	NetworkList()
-	NetworkInspect()
-	NetworkCreate()
-	NetworkRemove()
-	NetworkConnect()
-	NetworkDisconnect()
+	NetworkList() ([]*Network, error)
+	NetworkInspect(id string) (*Network, error)
+	NetworkCreate(network *Network) (*Network, error)
+	NetworkRemove(id string) error
+	NetworkConnect(id, container string, aliases ...string) error
+	NetworkDisconnect(id, container string) error
 }
 
 type VersionInfo struct {
