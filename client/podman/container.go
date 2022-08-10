@@ -2,7 +2,6 @@ package podman
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/go-openapi/runtime"
@@ -312,6 +311,6 @@ func (p *PodmanRestClient) ContainerLogs(id string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error retrieving logs from container %s: %v", id, err)
 	}
-	log.Println(result)
-	return "", nil
+	logs := result.(string)
+	return logs, nil
 }
