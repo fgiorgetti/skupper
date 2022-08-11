@@ -215,6 +215,7 @@ func FromInspectContainer(c containers.ContainerInspectLibpodOKBody) *container.
 	// Volume mounts
 	for _, m := range c.Mounts {
 		volume := container.Volume{
+			Name:        m.Name,
 			Source:      m.Source,
 			Destination: m.Destination,
 			Mode:        m.Mode,
