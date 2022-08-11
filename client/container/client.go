@@ -150,6 +150,7 @@ func (c *Container) ToSpecGenerator() *models.SpecGenerator {
 }
 
 type Volume struct {
+	Name        string
 	Source      string
 	Destination string
 	Mode        string
