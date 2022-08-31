@@ -23,6 +23,16 @@ import (
 	"github.com/skupperproject/skupper/pkg/utils"
 )
 
+type SkupperClient interface {
+	NewClient(cmd *cobra.Command, args []string)
+	Platform() types.Platform
+	SupportedCommands() []string
+	Options(cmd *cobra.Command)
+	Init(cmd *cobra.Command, args []string) error
+	InitFlags(cmd *cobra.Command)
+	DebugDump(cmd *cobra.Command, args []string) error
+}
+
 type ExposeOptions struct {
 	Protocol                 string
 	Address                  string
@@ -325,184 +335,44 @@ func asMap(entries []string) map[string]string {
 	return result
 }
 
-var ClusterLocal bool
+type InitFlags struct {
+	routerMode string
+	labels     []string
+}
 
-func NewCmdInit(newClient cobraFunc) *cobra.Command {
-	var routerMode string
-	annotations := []string{}
-	ingressAnnotations := []string{}
-	routerServiceAnnotations := []string{}
-	controllerServiceAnnotations := []string{}
-	labels := []string{}
-	var isEdge bool
+var initFlags InitFlags
+
+func NewCmdInit(skupperCli SkupperClient) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialise skupper installation",
 		Long: `Setup a router and other supporting objects to provide a functional skupper
 installation that can then be connected to other skupper installations`,
 		Args:   cobra.NoArgs,
-		PreRun: newClient,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: should cli allow init to diff ns?
-			silenceCobra(cmd)
-			ns := cli.GetNamespace()
-
-			routerModeFlag := cmd.Flag("router-mode")
-			edgeFlag := cmd.Flag("edge")
-			if routerModeFlag.Changed && edgeFlag.Changed {
-				return fmt.Errorf("You can not use the deprecated --edge, and --router-mode together, use --router-mode")
-			}
-
-			if routerModeFlag.Changed {
-				options := []string{string(types.TransportModeInterior), string(types.TransportModeEdge)}
-				if !utils.StringSliceContains(options, routerMode) {
-					return fmt.Errorf(`invalid "--router-mode=%v", it must be one of "%v"`, routerMode, strings.Join(options, ", "))
-				}
-				routerCreateOpts.RouterMode = routerMode
-			} else {
-				if isEdge {
-					routerCreateOpts.RouterMode = string(types.TransportModeEdge)
-				} else {
-					routerCreateOpts.RouterMode = string(types.TransportModeInterior)
-				}
-			}
-
-			routerIngressFlag := cmd.Flag("ingress")
-			routerClusterLocalFlag := cmd.Flag("cluster-local")
-
-			if routerIngressFlag.Changed && routerClusterLocalFlag.Changed {
-				return fmt.Errorf(`You can not use the deprecated --cluster-local, and --ingress together, use "--ingress none" as equivalent of --cluster-local`)
-			} else if routerClusterLocalFlag.Changed {
-				if ClusterLocal { // this is redundant, because "if changed" it must be true, but it is also correct
-					routerCreateOpts.Ingress = types.IngressNoneString
-				}
-			} else if !routerIngressFlag.Changed {
-				routerCreateOpts.Ingress = cli.GetIngressDefault()
-			}
-			if routerCreateOpts.Ingress == types.IngressNodePortString && routerCreateOpts.IngressHost == "" && routerCreateOpts.Router.IngressHost == "" {
-				return fmt.Errorf(`One of --ingress-host or --router-ingress-host option is required when using "--ingress nodeport"`)
-			}
-			if routerCreateOpts.Ingress == types.IngressContourHttpProxyString && routerCreateOpts.IngressHost == "" {
-				return fmt.Errorf(`--ingress-host option is required when using "--ingress contour-http-proxy"`)
-			}
-			routerCreateOpts.Annotations = asMap(annotations)
-			routerCreateOpts.Labels = asMap(labels)
-			routerCreateOpts.IngressAnnotations = asMap(ingressAnnotations)
-			routerCreateOpts.Router.ServiceAnnotations = asMap(routerServiceAnnotations)
-			routerCreateOpts.Controller.ServiceAnnotations = asMap(controllerServiceAnnotations)
-			if err := routerCreateOpts.CheckIngress(); err != nil {
-				return err
-			}
-			if err := routerCreateOpts.CheckConsoleIngress(); err != nil {
-				return err
-			}
-
-			routerCreateOpts.SkupperNamespace = ns
-			siteConfig, err := cli.SiteConfigInspect(context.Background(), nil)
-			if err != nil {
-				return err
-			}
-			if routerLogging != "" {
-				logConfig, err := client.ParseRouterLogConfig(routerLogging)
-				if err != nil {
-					return fmt.Errorf("Bad value for --router-logging: %s", err)
-				}
-				routerCreateOpts.Router.Logging = logConfig
-			}
-			if routerCreateOpts.Router.DebugMode != "" {
-				if routerCreateOpts.Router.DebugMode != "asan" && routerCreateOpts.Router.DebugMode != "gdb" {
-					return fmt.Errorf("Bad value for --router-debug-mode: %s (use 'asan' or 'gdb')", routerCreateOpts.Router.DebugMode)
-				}
-			}
-
-			if siteConfig == nil {
-				siteConfig, err = cli.SiteConfigCreate(context.Background(), routerCreateOpts)
-				if err != nil {
-					return err
-				}
-			} else {
-				updated, err := cli.SiteConfigUpdate(context.Background(), routerCreateOpts)
-				if err != nil {
-					return fmt.Errorf("Error while trying to update router configuration: %s", err)
-				}
-				if len(updated) > 0 {
-					for _, i := range updated {
-						fmt.Println("Updated", i)
-					}
-				}
-			}
-
-			err = cli.RouterCreate(context.Background(), *siteConfig)
-			if err != nil {
-				return err
-			}
-			fmt.Println("Skupper is now installed in namespace '" + ns + "'.  Use 'skupper status' to get more information.")
-
-			return nil
-		},
+		PreRun: skupperCli.NewClient,
+		RunE:   skupperCli.Init,
 	}
+	platform := skupperCli.Platform()
 	routerCreateOpts.EnableController = true
 	cmd.Flags().StringVarP(&routerCreateOpts.SkupperName, "site-name", "", "", "Provide a specific name for this skupper installation")
-	cmd.Flags().BoolVarP(&routerCreateOpts.EnableConsole, "enable-console", "", true, "Enable skupper console")
-	cmd.Flags().BoolVarP(&routerCreateOpts.CreateNetworkPolicy, "create-network-policy", "", false, "Create network policy to restrict access to skupper services exposed through this site to current pods in namespace")
-	cmd.Flags().StringVarP(&routerCreateOpts.AuthMode, "console-auth", "", "", "Authentication mode for console(s). One of: 'openshift', 'internal', 'unsecured'")
-	cmd.Flags().StringVarP(&routerCreateOpts.User, "console-user", "", "", "Skupper console user. Valid only when --console-auth=internal")
-	cmd.Flags().StringVarP(&routerCreateOpts.Password, "console-password", "", "", "Skupper console user. Valid only when --console-auth=internal")
-	cmd.Flags().StringVarP(&routerCreateOpts.Ingress, "ingress", "", "", "Setup Skupper ingress to one of: ["+strings.Join(types.ValidIngressOptions(), "|")+"]. If not specified route is used when available, otherwise loadbalancer is used.")
-	cmd.Flags().StringSliceVar(&ingressAnnotations, "ingress-annotations", []string{}, "Annotations to add to skupper ingress")
-	cmd.Flags().StringVarP(&routerCreateOpts.ConsoleIngress, "console-ingress", "", "", "Determines if/how console is exposed outside cluster. If not specified uses value of --ingress. One of: ["+strings.Join(types.ValidIngressOptions(), "|")+"].")
+	cmd.Flags().StringVarP(&routerCreateOpts.Ingress, "ingress", "", "", "Setup Skupper ingress to one of: ["+strings.Join(types.ValidIngressOptions(platform), "|")+"]. If not specified route is used when available, otherwise loadbalancer is used.")
 	cmd.Flags().StringVarP(&routerCreateOpts.IngressHost, "ingress-host", "", "", "Hostname or alias by which the ingress route or proxy can be reached")
-	cmd.Flags().StringVarP(&routerMode, "router-mode", "", string(types.TransportModeInterior), "Skupper router-mode")
+	cmd.Flags().StringVarP(&initFlags.routerMode, "router-mode", "", string(types.TransportModeInterior), "Skupper router-mode")
 
-	cmd.Flags().StringSliceVar(&annotations, "annotations", []string{}, "Annotations to add to skupper pods")
-	cmd.Flags().StringSliceVar(&labels, "labels", []string{}, "Labels to add to skupper pods")
-	cmd.Flags().BoolVarP(&routerCreateOpts.EnableServiceSync, "enable-service-sync", "", true, "Participate in cross-site service synchronization")
+	cmd.Flags().StringSliceVar(&initFlags.labels, "labels", []string{}, "Labels to add to skupper pods")
 	cmd.Flags().StringVarP(&routerLogging, "router-logging", "", "", "Logging settings for router. 'trace', 'debug', 'info' (default), 'notice', 'warning', and 'error' are valid values.")
 	cmd.Flags().StringVarP(&routerCreateOpts.Router.DebugMode, "router-debug-mode", "", "", "Enable debug mode for router ('asan' or 'gdb' are valid values)")
 
 	cmd.Flags().IntVar(&routerCreateOpts.Routers, "routers", 0, "Number of router replicas to start")
-	cmd.Flags().StringVar(&routerCreateOpts.Router.Cpu, "router-cpu", "", "CPU request for router pods")
-	cmd.Flags().StringVar(&routerCreateOpts.Router.Memory, "router-memory", "", "Memory request for router pods")
-	cmd.Flags().StringVar(&routerCreateOpts.Router.CpuLimit, "router-cpu-limit", "", "CPU limit for router pods")
-	cmd.Flags().StringVar(&routerCreateOpts.Router.MemoryLimit, "router-memory-limit", "", "Memory limit for router pods")
-	cmd.Flags().StringVar(&routerCreateOpts.Router.NodeSelector, "router-node-selector", "", "Node selector to control placement of router pods")
-	cmd.Flags().StringVar(&routerCreateOpts.Router.Affinity, "router-pod-affinity", "", "Pod affinity label matches to control placement of router pods")
-	cmd.Flags().StringVar(&routerCreateOpts.Router.AntiAffinity, "router-pod-antiaffinity", "", "Pod antiaffinity label matches to control placement of router pods")
-	cmd.Flags().StringVar(&routerCreateOpts.Router.IngressHost, "router-ingress-host", "", "Host through which node is accessible when using nodeport as ingress.")
-	cmd.Flags().StringSliceVar(&routerServiceAnnotations, "router-service-annotations", []string{}, "Annotations to add to skupper router service")
-	cmd.Flags().StringVar(&routerCreateOpts.Router.LoadBalancerIp, "router-load-balancer-ip", "", "Load balancer ip that will be used for router service, if supported by cloud provider")
-
-	cmd.Flags().StringVar(&routerCreateOpts.Controller.Cpu, "controller-cpu", "", "CPU request for controller pods")
-	cmd.Flags().StringVar(&routerCreateOpts.Controller.Memory, "controller-memory", "", "Memory request for controller pods")
-	cmd.Flags().StringVar(&routerCreateOpts.Controller.CpuLimit, "controller-cpu-limit", "", "CPU limit for controller pods")
-	cmd.Flags().StringVar(&routerCreateOpts.Controller.MemoryLimit, "controller-memory-limit", "", "Memory limit for controller pods")
-	cmd.Flags().StringVar(&routerCreateOpts.Controller.NodeSelector, "controller-node-selector", "", "Node selector to control placement of controller pods")
-	cmd.Flags().StringVar(&routerCreateOpts.Controller.Affinity, "controller-pod-affinity", "", "Pod affinity label matches to control placement of controller pods")
-	cmd.Flags().StringVar(&routerCreateOpts.Controller.AntiAffinity, "controller-pod-antiaffinity", "", "Pod antiaffinity label matches to control placement of controller pods")
-	cmd.Flags().StringVar(&routerCreateOpts.Controller.IngressHost, "controller-ingress-host", "", "Host through which node is accessible when using nodeport as ingress.")
-	cmd.Flags().StringSliceVar(&controllerServiceAnnotations, "controller-service-annotation", []string{}, "Annotations to add to skupper controller service")
-	cmd.Flags().StringVar(&routerCreateOpts.Controller.LoadBalancerIp, "controller-load-balancer-ip", "", "Load balancer ip that will be used for controller service, if supported by cloud provider")
-
-	cmd.Flags().StringVar(&routerCreateOpts.ConfigSync.Cpu, "config-sync-cpu", "", "CPU request for config-sync pods")
-	cmd.Flags().StringVar(&routerCreateOpts.ConfigSync.Memory, "config-sync-memory", "", "Memory request for config-sync pods")
-	cmd.Flags().StringVar(&routerCreateOpts.ConfigSync.CpuLimit, "config-sync-cpu-limit", "", "CPU limit for config-sync pods")
-	cmd.Flags().StringVar(&routerCreateOpts.ConfigSync.MemoryLimit, "config-sync-memory-limit", "", "Memory limit for config-sync pods")
-
-	cmd.Flags().BoolVarP(&ClusterLocal, "cluster-local", "", false, "Set up Skupper to only accept links from within the local cluster.")
-	f := cmd.Flag("cluster-local")
-	f.Deprecated = "This flag is deprecated, use --ingress [loadbalancer|route|none]"
-	f.Hidden = true
-
-	cmd.Flags().BoolVarP(&isEdge, "edge", "", false, "Configure as an edge")
-	f = cmd.Flag("edge")
-	f.Deprecated = "This flag is deprecated, use --router-mode [interior|edge]"
-	f.Hidden = true
 
 	cmd.Flags().IntVar(&routerCreateOpts.Router.MaxFrameSize, "xp-router-max-frame-size", types.RouterMaxFrameSizeDefault, "Set  max frame size on inter-router listeners/connectors")
 	cmd.Flags().IntVar(&routerCreateOpts.Router.MaxSessionFrames, "xp-router-max-session-frames", types.RouterMaxSessionFramesDefault, "Set  max session frames on inter-router listeners/connectors")
 	hideFlag(cmd, "xp-router-max-frame-size")
 	hideFlag(cmd, "xp-router-max-session-frames")
 	cmd.Flags().SortFlags = false
+
+	// platform specific flags
+	skupperCli.InitFlags(cmd)
 
 	return cmd
 }
@@ -1678,22 +1548,13 @@ func NewCmdDebug() *cobra.Command {
 	return cmd
 }
 
-func NewCmdDebugDump(newClient cobraFunc) *cobra.Command {
+func NewCmdDebugDump(skupperCli SkupperClient) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:    "dump <filename>.tar.gz",
 		Short:  "Collect and store skupper logs, config, etc. to compressed archive file",
 		Args:   cobra.ExactArgs(1),
-		PreRun: newClient,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			silenceCobra(cmd)
-			file, err := cli.SkupperDump(context.Background(), args[0], client.Version, kubeConfigPath, kubeContext)
-			if err != nil {
-				return fmt.Errorf("Unable to save skupper dump details: %w", err)
-			} else {
-				fmt.Println("Skupper dump details written to compressed archive: ", file)
-			}
-			return nil
-		},
+		PreRun: skupperCli.NewClient,
+		RunE:   skupperCli.DebugDump,
 	}
 	return cmd
 }
@@ -1783,53 +1644,63 @@ the .bash_profile. i.e.: $ source <(skupper completion)
 
 type cobraFunc func(cmd *cobra.Command, args []string)
 
-func newClient(cmd *cobra.Command, args []string) {
-	cli = NewClient(namespace, kubeContext, kubeConfigPath)
-}
-
-func newClientSansExit(cmd *cobra.Command, args []string) {
-	cli = NewClientHandleError(namespace, kubeContext, kubeConfigPath, false)
-}
-
-var kubeContext string
-var namespace string
-var kubeConfigPath string
 var rootCmd *cobra.Command
 var cli types.VanClientInterface
+
+func isSupported(skupperCli SkupperClient, cmd string) bool {
+	return utils.StringSliceContains(skupperCli.SupportedCommands(), cmd)
+}
+
+func addCommands(skupperCli SkupperClient, rootCmd *cobra.Command, cmds ...*cobra.Command) {
+	for _, cmd := range cmds {
+		if isSupported(skupperCli, cmd.Name()) {
+			rootCmd.AddCommand(cmd)
+		}
+	}
+}
 
 func init() {
 	routev1.AddToScheme(scheme.Scheme)
 
-	cmdInit := NewCmdInit(newClient)
-	cmdDelete := NewCmdDelete(newClient)
-	cmdUpdate := NewCmdUpdate(newClient)
-	cmdStatus := NewCmdStatus(newClient)
-	cmdExpose := NewCmdExpose(newClient)
-	cmdUnexpose := NewCmdUnexpose(newClient)
-	cmdListExposed := NewCmdListExposed(newClient)
-	cmdCreateService := NewCmdCreateService(newClient)
-	cmdDeleteService := NewCmdDeleteService(newClient)
-	cmdStatusService := NewCmdServiceStatus(newClient)
-	cmdLabelsService := NewCmdServiceLabel(newClient)
-	cmdBind := NewCmdBind(newClient)
-	cmdUnbind := NewCmdUnbind(newClient)
-	cmdVersion := NewCmdVersion(newClientSansExit)
-	cmdDebugDump := NewCmdDebugDump(newClient)
-	cmdDebugEvents := NewCmdDebugEvents(newClient)
-	cmdDebugService := NewCmdDebugService(newClient)
+	var skupperCli SkupperClient
+	switch config.GetPlatform() {
+	case types.PlatformKubernetes:
+		skupperCli = &SkupperKube{}
+	case types.PlatformPodman:
+		skupperCli = &SkupperPodman{}
+	}
 
-	cmdInitGateway := NewCmdInitGateway(newClient)
-	cmdDownloadGateway := NewCmdDownloadGateway(newClient)
-	cmdExportConfigGateway := NewCmdExportConfigGateway(newClient)
-	cmdGenerateBundleGateway := NewCmdGenerateBundleGateway(newClient)
-	cmdDeleteGateway := NewCmdDeleteGateway(newClient)
-	cmdExposeGateway := NewCmdExposeGateway(newClient)
-	cmdUnexposeGateway := NewCmdUnexposeGateway(newClient)
-	cmdStatusGateway := NewCmdStatusGateway(newClient)
-	cmdBindGateway := NewCmdBindGateway(newClient)
-	cmdUnbindGateway := NewCmdUnbindGateway(newClient)
-	cmdForwardGateway := NewCmdForwardGateway(newClient)
-	cmdUnforwardGateway := NewCmdUnforwardGateway(newClient)
+	cmdInit := NewCmdInit(skupperCli)
+	// TODO
+	cmdDelete := NewCmdDelete(skupperCli.NewClient)
+	cmdUpdate := NewCmdUpdate(skupperCli.NewClient)
+	cmdStatus := NewCmdStatus(skupperCli.NewClient)
+	cmdExpose := NewCmdExpose(skupperCli.NewClient)
+	cmdUnexpose := NewCmdUnexpose(skupperCli.NewClient)
+	cmdListExposed := NewCmdListExposed(skupperCli.NewClient)
+	cmdCreateService := NewCmdCreateService(skupperCli.NewClient)
+	cmdDeleteService := NewCmdDeleteService(skupperCli.NewClient)
+	cmdStatusService := NewCmdServiceStatus(skupperCli.NewClient)
+	cmdLabelsService := NewCmdServiceLabel(skupperCli.NewClient)
+	cmdBind := NewCmdBind(skupperCli.NewClient)
+	cmdUnbind := NewCmdUnbind(skupperCli.NewClient)
+	cmdVersion := NewCmdVersion(skupperCli.NewClient)
+	cmdDebugDump := NewCmdDebugDump(skupperCli)
+	cmdDebugEvents := NewCmdDebugEvents(skupperCli.NewClient)
+	cmdDebugService := NewCmdDebugService(skupperCli.NewClient)
+
+	cmdInitGateway := NewCmdInitGateway(skupperCli.NewClient)
+	cmdDownloadGateway := NewCmdDownloadGateway(skupperCli.NewClient)
+	cmdExportConfigGateway := NewCmdExportConfigGateway(skupperCli.NewClient)
+	cmdGenerateBundleGateway := NewCmdGenerateBundleGateway(skupperCli.NewClient)
+	cmdDeleteGateway := NewCmdDeleteGateway(skupperCli.NewClient)
+	cmdExposeGateway := NewCmdExposeGateway(skupperCli.NewClient)
+	cmdUnexposeGateway := NewCmdUnexposeGateway(skupperCli.NewClient)
+	cmdStatusGateway := NewCmdStatusGateway(skupperCli.NewClient)
+	cmdBindGateway := NewCmdBindGateway(skupperCli.NewClient)
+	cmdUnbindGateway := NewCmdUnbindGateway(skupperCli.NewClient)
+	cmdForwardGateway := NewCmdForwardGateway(skupperCli.NewClient)
+	cmdUnforwardGateway := NewCmdUnforwardGateway(skupperCli.NewClient)
 
 	// backwards compatibility commands hidden
 	deprecatedMessage := "please use 'skupper service [bind|unbind]' instead"
@@ -1838,25 +1709,25 @@ func init() {
 	cmdUnbind.Deprecated = deprecatedMessage
 	cmdUnbind.Hidden = true
 
-	cmdListConnectors := NewCmdListConnectors(newClient) // listconnectors just keeped
+	cmdListConnectors := NewCmdListConnectors(skupperCli.NewClient) // listconnectors just keeped
 	cmdListConnectors.Hidden = true
 	cmdListConnectors.Deprecated = "please use 'skupper link status'"
 
 	linkDeprecationMessage := "please use 'skupper link [create|delete|status]' instead."
 
-	cmdConnect := NewCmdConnect(newClient)
+	cmdConnect := NewCmdConnect(skupperCli.NewClient)
 	cmdConnect.Hidden = true
 	cmdConnect.Deprecated = linkDeprecationMessage
 
-	cmdDisconnect := NewCmdDisconnect(newClient)
+	cmdDisconnect := NewCmdDisconnect(skupperCli.NewClient)
 	cmdDisconnect.Hidden = true
 	cmdDisconnect.Deprecated = linkDeprecationMessage
 
-	cmdCheckConnection := NewCmdCheckConnection(newClient)
+	cmdCheckConnection := NewCmdCheckConnection(skupperCli.NewClient)
 	cmdCheckConnection.Hidden = true
 	cmdCheckConnection.Deprecated = linkDeprecationMessage
 
-	cmdConnectionToken := NewCmdConnectionToken(newClient)
+	cmdConnectionToken := NewCmdConnectionToken(skupperCli.NewClient)
 	cmdConnectionToken.Hidden = true
 	cmdConnectionToken.Deprecated = "please use 'skupper token create' instead."
 
@@ -1870,8 +1741,8 @@ func init() {
 	cmdService := NewCmdService()
 	cmdService.AddCommand(cmdCreateService)
 	cmdService.AddCommand(cmdDeleteService)
-	cmdService.AddCommand(NewCmdBind(newClient))
-	cmdService.AddCommand(NewCmdUnbind(newClient))
+	cmdService.AddCommand(NewCmdBind(skupperCli.NewClient))
+	cmdService.AddCommand(NewCmdUnbind(skupperCli.NewClient))
 	cmdService.AddCommand(cmdStatusService)
 	cmdService.AddCommand(cmdLabelsService)
 
@@ -1895,24 +1766,25 @@ func init() {
 	cmdDebug.AddCommand(cmdDebugService)
 
 	cmdLink := NewCmdLink()
-	cmdLink.AddCommand(NewCmdLinkCreate(newClient, ""))
-	cmdLink.AddCommand(NewCmdLinkDelete(newClient))
-	cmdLink.AddCommand(NewCmdLinkStatus(newClient))
+	cmdLink.AddCommand(NewCmdLinkCreate(skupperCli.NewClient, ""))
+	cmdLink.AddCommand(NewCmdLinkDelete(skupperCli.NewClient))
+	cmdLink.AddCommand(NewCmdLinkStatus(skupperCli.NewClient))
 
 	cmdToken := NewCmdToken()
-	cmdToken.AddCommand(NewCmdTokenCreate(newClient, ""))
+	cmdToken.AddCommand(NewCmdTokenCreate(skupperCli.NewClient, ""))
 
 	cmdCompletion := NewCmdCompletion()
 
-	cmdRevokeAll := NewCmdRevokeaccess(newClient)
+	cmdRevokeAll := NewCmdRevokeaccess(skupperCli.NewClient)
 
 	cmdNetwork := NewCmdNetwork()
-	cmdNetwork.AddCommand(NewCmdNetworkStatus(newClient))
+	cmdNetwork.AddCommand(NewCmdNetworkStatus(skupperCli.NewClient))
 
 	cmdSwitch := NewCmdSwitch()
 
 	rootCmd = &cobra.Command{Use: "skupper"}
-	rootCmd.AddCommand(cmdInit,
+	addCommands(skupperCli, rootCmd,
+		cmdInit,
 		cmdDelete,
 		cmdUpdate,
 		cmdConnectionToken,
@@ -1937,9 +1809,7 @@ func init() {
 		cmdNetwork,
 		cmdSwitch)
 
-	rootCmd.PersistentFlags().StringVarP(&kubeConfigPath, "kubeconfig", "", "", "Path to the kubeconfig file to use")
-	rootCmd.PersistentFlags().StringVarP(&kubeContext, "context", "c", "", "The kubeconfig context to use")
-	rootCmd.PersistentFlags().StringVarP(&namespace, "namespace", "n", "", "The Kubernetes namespace to use")
+	skupperCli.Options(rootCmd)
 	rootCmd.PersistentFlags().StringVarP(&config.Platform, "platform", "", "", "The platform type to use")
 }
 
