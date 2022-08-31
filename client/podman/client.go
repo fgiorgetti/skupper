@@ -21,6 +21,11 @@ type VanClient struct {
 	PodmanClient *PodmanRestClient
 }
 
+func (c *VanClient) GetHeadlessServiceConfiguration(targetName string, protocol string, address string, ports []int, publishNotReadyAddresses bool) (*types.ServiceInterface, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
 func (c *VanClient) RouterCreate(ctx context.Context, options types.SiteConfig) error {
 	// TODO implement me
 	panic("implement me")
@@ -127,11 +132,6 @@ func (c *VanClient) ServiceInterfaceUpdate(ctx context.Context, service *types.S
 }
 
 func (c *VanClient) ServiceInterfaceBind(ctx context.Context, service *types.ServiceInterface, targetType string, targetName string, protocol string, targetPorts map[int]int) error {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (c *VanClient) GetHeadlessServiceConfiguration(targetName string, protocol string, address string, ports []int) (*types.ServiceInterface, error) {
 	// TODO implement me
 	panic("implement me")
 }
