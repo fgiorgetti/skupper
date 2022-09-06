@@ -480,7 +480,7 @@ func configureDeployment(spec *types.DeploymentSpec, options *types.Tuning) erro
 	}
 }
 
-func (cli *VanClient) GetRouterSpecFromOpts(options types.SiteConfigSpec, siteId string) *types.RouterSpec {
+func GetRouterSpecFromOpts(options types.SiteConfigSpec, siteId string, namespace string) *types.RouterSpec {
 	// skupper-router container index
 	// TODO: update after dataplance changes
 	const (
@@ -492,7 +492,7 @@ func (cli *VanClient) GetRouterSpecFromOpts(options types.SiteConfigSpec, siteId
 	van := &types.RouterSpec{}
 	// todo: think through van name, router name, secret names, etc.
 	if options.SkupperNamespace == "" {
-		van.Namespace = cli.Namespace
+		van.Namespace = namespace
 	} else {
 		van.Namespace = options.SkupperNamespace
 	}
@@ -954,6 +954,10 @@ func (cli *VanClient) GetRouterSpecFromOpts(options types.SiteConfigSpec, siteId
 	return van
 }
 
+func (cli *VanClient) GetRouterSpecFromOpts(options types.SiteConfigSpec, siteId string) *types.RouterSpec {
+	return GetRouterSpecFromOpts(options, siteId, cli.Namespace)
+}
+
 // RouterCreate instantiates a VAN (router and controller) deployment
 func (cli *VanClient) RouterCreate(ctx context.Context, options types.SiteConfig) error {
 	// todo return error
@@ -980,10 +984,7 @@ func (cli *VanClient) RouterCreate(ctx context.Context, options types.SiteConfig
 		}
 	}
 
-	siteId := options.Reference.UID
-	if siteId == "" {
-		siteId = utils.RandomId(10)
-	}
+	siteId := GetSiteId(options)
 	van := cli.GetRouterSpecFromOpts(options.Spec, siteId)
 	siteOwnerRef := asOwnerReference(options.Reference)
 	var ownerRefs []metav1.OwnerReference
@@ -1217,6 +1218,14 @@ sasldb_path: /tmp/skrouterd.sasldb
 	}
 
 	return nil
+}
+
+func GetSiteId(options types.SiteConfig) string {
+	siteId := options.Reference.UID
+	if siteId == "" {
+		siteId = utils.RandomId(10)
+	}
+	return siteId
 }
 
 func (cli *VanClient) appendIngressHost(prefixes []string, namespace string, cred *types.Credential) error {
