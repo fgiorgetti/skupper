@@ -3,7 +3,7 @@ package types
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -35,14 +35,21 @@ type LinkStatus struct {
 	Created     string
 }
 
-type SiteConfig struct {
-	Spec      SiteConfigSpec
-	Reference SiteConfigReference
-}
-
 type RouterLogConfig struct {
 	Module string
 	Level  string
+}
+
+func RouterLogConfigToString(config []RouterLogConfig) string {
+	items := []string{}
+	for _, l := range config {
+		if l.Module != "" && l.Level != "" {
+			items = append(items, l.Module+":"+l.Level)
+		} else if l.Level != "" {
+			items = append(items, l.Level)
+		}
+	}
+	return strings.Join(items, ",")
 }
 
 type Tuning struct {
@@ -77,32 +84,6 @@ type ConfigSyncOptions struct {
 	Tuning
 }
 
-type SiteConfigSpec struct {
-	SkupperName         string
-	SkupperNamespace    string
-	RouterMode          string
-	Routers             int
-	EnableController    bool
-	EnableServiceSync   bool
-	EnableConsole       bool
-	AuthMode            string
-	User                string
-	Password            string
-	Ingress             string
-	IngressAnnotations  map[string]string
-	ConsoleIngress      string
-	IngressHost         string
-	Replicas            int32
-	SiteControlled      bool
-	CreateNetworkPolicy bool
-	Annotations         map[string]string
-	Labels              map[string]string
-	Router              RouterOptions
-	Controller          ControllerOptions
-	ConfigSync          ConfigSyncOptions
-	Platform            Platform
-}
-
 const (
 	IngressRouteString            string = "route"
 	IngressLoadBalancerString     string = "loadbalancer"
@@ -112,56 +93,6 @@ const (
 	IngressKubernetes             string = "ingress"
 	IngressNoneString             string = "none"
 )
-
-func (s *SiteConfigSpec) IsIngressRoute() bool {
-	return s.Ingress == IngressRouteString
-}
-func (s *SiteConfigSpec) IsIngressLoadBalancer() bool {
-	return s.Ingress == IngressLoadBalancerString
-}
-func (s *SiteConfigSpec) IsIngressNodePort() bool {
-	return s.Ingress == IngressNodePortString
-}
-func (s *SiteConfigSpec) IsIngressNginxIngress() bool {
-	return s.Ingress == IngressNginxIngressString
-}
-func (s *SiteConfigSpec) IsIngressContourHttpProxy() bool {
-	return s.Ingress == IngressContourHttpProxyString
-}
-func (s *SiteConfigSpec) IsIngressKubernetes() bool {
-	return s.Ingress == IngressKubernetes
-}
-func (s *SiteConfigSpec) IsIngressNone() bool {
-	return s.Ingress == IngressNoneString
-}
-
-func (s *SiteConfigSpec) IsConsoleIngressRoute() bool {
-	return s.getConsoleIngress() == IngressRouteString
-}
-func (s *SiteConfigSpec) IsConsoleIngressLoadBalancer() bool {
-	return s.getConsoleIngress() == IngressLoadBalancerString
-}
-func (s *SiteConfigSpec) IsConsoleIngressNodePort() bool {
-	return s.getConsoleIngress() == IngressNodePortString
-}
-func (s *SiteConfigSpec) IsConsoleIngressNginxIngress() bool {
-	return s.getConsoleIngress() == IngressNginxIngressString
-}
-func (s *SiteConfigSpec) IsConsoleIngressContourHttpProxy() bool {
-	return s.getConsoleIngress() == IngressContourHttpProxyString
-}
-func (s *SiteConfigSpec) IsConsoleIngressKubernetes() bool {
-	return s.getConsoleIngress() == IngressKubernetes
-}
-func (s *SiteConfigSpec) IsConsoleIngressNone() bool {
-	return s.getConsoleIngress() == IngressNoneString
-}
-func (s *SiteConfigSpec) getConsoleIngress() string {
-	if s.ConsoleIngress == "" {
-		return s.Ingress
-	}
-	return s.ConsoleIngress
-}
 
 func ValidIngressOptions(platform Platform) []string {
 	switch platform {
@@ -182,41 +113,6 @@ func isValidIngress(platform Platform, ingress string) bool {
 		}
 	}
 	return false
-}
-
-func (s *SiteConfigSpec) CheckIngress() error {
-	if !isValidIngress(s.Platform, s.Ingress) {
-		return fmt.Errorf("Invalid value for ingress: %s", s.Ingress)
-	}
-	return nil
-}
-
-func (s *SiteConfigSpec) CheckConsoleIngress() error {
-	if !isValidIngress(s.Platform, s.ConsoleIngress) {
-		return fmt.Errorf("Invalid value for console-ingress: %s", s.ConsoleIngress)
-	}
-	return nil
-}
-
-func (s *SiteConfigSpec) GetRouterIngressHost() string {
-	if s.Router.IngressHost != "" {
-		return s.Router.IngressHost
-	}
-	return s.IngressHost
-}
-
-func (s *SiteConfigSpec) GetControllerIngressHost() string {
-	if s.Controller.IngressHost != "" {
-		return s.Controller.IngressHost
-	}
-	return s.IngressHost
-}
-
-type SiteConfigReference struct {
-	UID        string
-	Name       string
-	APIVersion string
-	Kind       string
 }
 
 type ServiceInterfaceCreateOptions struct {

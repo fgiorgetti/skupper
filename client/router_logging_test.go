@@ -109,7 +109,7 @@ func TestRouterLogConfigToString(t *testing.T) {
 		}, "PROTOCOL:debug,HTTP_ADAPTOR:trace,POLICY:error"},
 	}
 	for _, test := range tests {
-		actual := RouterLogConfigToString(test.input)
+		actual := types.RouterLogConfigToString(test.input)
 		if test.expected != actual {
 			t.Errorf("Expected %s got %s", test.expected, actual)
 		}
@@ -128,7 +128,7 @@ func TestPreserveLogString(t *testing.T) {
 		if err != nil {
 			t.Errorf("Got error for %s:  %s", input, err)
 		}
-		actual := RouterLogConfigToString(config)
+		actual := types.RouterLogConfigToString(config)
 		if input != actual {
 			t.Errorf("Expected %s got %s", input, actual)
 		}

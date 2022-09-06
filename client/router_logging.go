@@ -8,18 +8,6 @@ import (
 	"github.com/skupperproject/skupper/pkg/qdr"
 )
 
-func RouterLogConfigToString(config []types.RouterLogConfig) string {
-	items := []string{}
-	for _, l := range config {
-		if l.Module != "" && l.Level != "" {
-			items = append(items, l.Module+":"+l.Level)
-		} else if l.Level != "" {
-			items = append(items, l.Level)
-		}
-	}
-	return strings.Join(items, ",")
-}
-
 func configureRouterLogging(routerConfig *qdr.RouterConfig, logConfig []types.RouterLogConfig) bool {
 	levels := map[string]string{}
 	for _, l := range logConfig {

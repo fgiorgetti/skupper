@@ -14,8 +14,8 @@ func (cli *VanClient) SiteConfigUpdate(ctx context.Context, config types.SiteCon
 	if err != nil {
 		return nil, err
 	}
-	//For now, only update router-logging and/or router-debug-mode (TODO: update of other options)
-	latestLogging := RouterLogConfigToString(config.Router.Logging)
+	// For now, only update router-logging and/or router-debug-mode (TODO: update of other options)
+	latestLogging := types.RouterLogConfigToString(config.Router.Logging)
 	updateLogging := false
 	if configmap.Data[SiteConfigRouterLoggingKey] != latestLogging {
 		configmap.Data[SiteConfigRouterLoggingKey] = latestLogging
