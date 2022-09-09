@@ -21,7 +21,8 @@ import (
 )
 
 const (
-	DEFAULT_BASE_PATH = "/v4.0.0"
+	DEFAULT_BASE_PATH    = "/v4.0.0"
+	DefaultNetworkDriver = "bridge"
 )
 
 var (

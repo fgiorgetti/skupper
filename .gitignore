@@ -9,6 +9,7 @@
 /skupper
 /get
 /config-sync
+/client/generated/libpod/
 
 # Test binary, built with `go test -c`
 *.test

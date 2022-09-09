@@ -92,7 +92,7 @@ func generateSecret(name string, subject string, hosts string, ca *CertificateAu
 	}
 
 	notBefore := time.Now()
-	notAfter := notBefore.Add(5 * 365 * 24 * time.Hour) //TODO: make configurable?
+	notAfter := notBefore.Add(5 * 365 * 24 * time.Hour) // TODO: make configurable?
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
@@ -123,7 +123,7 @@ func generateSecret(name string, subject string, hosts string, ca *CertificateAu
 	var parent *x509.Certificate
 	var cakey interface{}
 	if ca == nil {
-		//self signed
+		// self signed
 		template.IsCA = true
 		template.KeyUsage |= x509.KeyUsageCertSign
 		parent = &template
@@ -232,7 +232,7 @@ func GenerateCACertificateData(name string, subject string) CertificateData {
 func PutCertificateData(name string, secretFile string, certData CertificateData, annotations map[string]string) {
 	secret := CertDataToSecret(name, certData, annotations)
 
-	//generate a yaml and save it to the specified path
+	// generate a yaml and save it to the specified path
 	s := json.NewYAMLSerializer(json.DefaultMetaFactory, scheme.Scheme, scheme.Scheme)
 	out, err := os.Create(secretFile)
 	if err != nil {

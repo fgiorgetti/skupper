@@ -24,6 +24,11 @@ type RouterConfig struct {
 	Bridges     BridgeConfig
 }
 
+type RouterConfigHandler interface {
+	GetRouterConfig() (*RouterConfig, error)
+	SaveRouterConfig(*RouterConfig) error
+}
+
 type TcpEndpointMap map[string]TcpEndpoint
 type HttpEndpointMap map[string]HttpEndpoint
 

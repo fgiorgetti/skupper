@@ -2,6 +2,7 @@ package podman
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/go-openapi/runtime"
@@ -40,10 +41,55 @@ func (p *PodmanRestClient) ContainerInspect(id string) (*container.Container, er
 	return FromInspectContainer(*res.Payload), nil
 }
 
+func ToSpecGenerator(c *container.Container) *models.SpecGenerator {
+	spec := &models.SpecGenerator{
+		Annotations:   c.Annotations,
+		CNINetworks:   c.NetworkNames(),
+		Command:       c.Command,
+		Entrypoint:    c.EntryPoint,
+		Env:           c.Env,
+		Image:         c.Image,
+		Labels:        c.Labels,
+		Mounts:        VolumesToMounts(c),
+		Name:          c.Name,
+		Pod:           c.Pod,
+		PortMappings:  ToPortmappings(c),
+		RestartPolicy: c.RestartPolicy,
+	}
+
+	// Network info
+	spec.Networks = map[string]models.PerNetworkOptions{}
+	spec.Netns = &models.Namespace{
+		Nsmode: "bridge",
+	}
+	for networkName, network := range c.Networks {
+		spec.Networks[networkName] = models.PerNetworkOptions{
+			Aliases: network.Aliases,
+		}
+	}
+	return spec
+}
+
+func ToPortmappings(c *container.Container) []*models.PortMapping {
+	var mapping []*models.PortMapping
+	for _, port := range c.Ports {
+		target, _ := strconv.Atoi(port.Target)
+		host, _ := strconv.Atoi(port.Host)
+
+		mapping = append(mapping, &models.PortMapping{
+			ContainerPort: uint16(target),
+			HostIP:        port.HostIP,
+			HostPort:      uint16(host),
+			Protocol:      port.Protocol,
+		})
+	}
+	return mapping
+}
+
 func (p *PodmanRestClient) ContainerCreate(container *container.Container) error {
 	cli := containers.New(p.RestClient, formats)
 	params := containers.NewContainerCreateLibpodParams()
-	params.Create = container.ToSpecGenerator()
+	params.Create = ToSpecGenerator(container)
 	_, err := cli.ContainerCreateLibpod(params)
 	if err != nil {
 		return fmt.Errorf("error creating container %s: %v", container.Name, err)
