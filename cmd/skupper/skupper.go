@@ -287,12 +287,7 @@ func NewClientHandleError(namespace string, context string, kubeConfigPath strin
 	var cli types.VanClientInterface
 	var err error
 
-	switch config.GetPlatform() {
-	case types.PlatformKubernetes:
-		cli, err = client.NewClient(namespace, context, kubeConfigPath)
-	case types.PlatformPodman:
-		cli, err = podman.NewClient(context)
-	}
+	cli, err = client.NewClient(namespace, context, kubeConfigPath)
 	if err != nil {
 		if exitOnError {
 			if strings.Contains(err.Error(), "invalid configuration: no configuration has been provided") {
