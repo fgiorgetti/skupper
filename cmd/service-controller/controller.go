@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/skupperproject/skupper/api/types/v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -553,7 +554,7 @@ func (c *Controller) ensureHeadlessProxyFor(bindings *service.ServiceBindings, s
 		return err
 	}
 
-	_, err = kube.CheckProxyStatefulSet(client.GetRouterImageDetails(), serviceInterface, statefulset, config, c.vanClient.Namespace, c.vanClient.KubeClient)
+	_, err = kube.CheckProxyStatefulSet(v2.GetRouterImageDetails(), serviceInterface, statefulset, config, c.vanClient.Namespace, c.vanClient.KubeClient)
 	return err
 }
 
@@ -564,7 +565,7 @@ func (c *Controller) createHeadlessProxyFor(bindings *service.ServiceBindings) e
 		return err
 	}
 
-	_, err = kube.NewProxyStatefulSet(client.GetRouterImageDetails(), serviceInterface, config, c.vanClient.Namespace, c.vanClient.KubeClient)
+	_, err = kube.NewProxyStatefulSet(v2.GetRouterImageDetails(), serviceInterface, config, c.vanClient.Namespace, c.vanClient.KubeClient)
 	return err
 }
 

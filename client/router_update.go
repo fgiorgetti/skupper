@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/skupperproject/skupper/api/types/v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -400,7 +401,7 @@ func (cli *VanClient) RouterUpdateVersionInNamespace(ctx context.Context, hup bo
 
 		updateRouter = true
 	}
-	desiredRouterImage := GetRouterImageName()
+	desiredRouterImage := v2.GetRouterImageName()
 	if router.Spec.Template.Spec.Containers[0].Image != desiredRouterImage {
 		router.Spec.Template.Spec.Containers[0].Image = desiredRouterImage
 		updateRouter = true
@@ -543,7 +544,7 @@ func (cli *VanClient) RouterUpdateVersionInNamespace(ctx context.Context, hup bo
 		}
 	}
 
-	desiredControllerImage := GetServiceControllerImageName()
+	desiredControllerImage := v2.GetServiceControllerImageName()
 	if controller.Spec.Template.Spec.Containers[0].Image != desiredControllerImage {
 		controller.Spec.Template.Spec.Containers[0].Image = desiredControllerImage
 		updateController = true

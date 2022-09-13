@@ -3,6 +3,7 @@ package container
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -126,6 +127,18 @@ func (v *Volume) ListFiles() ([]os.DirEntry, error) {
 		return nil, err
 	}
 	return files, nil
+}
+
+func (v *Volume) ReadFile(name string) (string, error) {
+	vDir, err := v.getVolumeDir()
+	if err != nil {
+		return "", err
+	}
+	data, err := ioutil.ReadFile(path.Join(vDir.Name(), name))
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 func (v *Volume) CreateFiles(fileData map[string]string, overwrite bool) ([]*os.File, error) {
