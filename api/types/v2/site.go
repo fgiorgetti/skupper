@@ -13,9 +13,12 @@ type Site interface {
 	GetMode() string
 	GetPlatform() string
 	GetCertAuthorities() []types.CertAuthority
+	SetCertAuthorities(cas []types.CertAuthority)
 	GetCredentials() []types.Credential
+	SetCredentials(credentials []types.Credential)
 	GetIngressClasses() []string
 	GetDeployments() []SkupperDeployment
+	SetDeployments(deployments []SkupperDeployment)
 }
 
 type SiteHandler interface {
@@ -41,6 +44,10 @@ func (s *SiteCommon) GetCertAuthorities() []types.CertAuthority {
 	return s.CertAuthorities
 }
 
+func (s *SiteCommon) SetCertAuthorities(cas []types.CertAuthority) {
+	s.CertAuthorities = cas
+}
+
 func (s *SiteCommon) GetCredentials() []types.Credential {
 	if s.Credentials == nil {
 		s.Credentials = []types.Credential{}
@@ -48,8 +55,16 @@ func (s *SiteCommon) GetCredentials() []types.Credential {
 	return s.Credentials
 }
 
+func (s *SiteCommon) SetCredentials(credentials []types.Credential) {
+	s.Credentials = credentials
+}
+
 func (s *SiteCommon) GetDeployments() []SkupperDeployment {
 	return s.Deployments
+}
+
+func (s *SiteCommon) SetDeployments(deployments []SkupperDeployment) {
+	s.Deployments = deployments
 }
 
 func (s *SiteCommon) GetName() string {

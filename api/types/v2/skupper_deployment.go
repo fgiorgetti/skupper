@@ -1,20 +1,19 @@
 package v2
 
-import "github.com/skupperproject/skupper/api/types"
-
 type SkupperDeployment interface {
-	Name() string
+	GetName() string
 	GetComponents() []SkupperComponent
 }
 
-type SkupperDeploymentRouter struct {
+type SkupperDeploymentHandler interface {
+	Deploy(deployment SkupperDeployment) error
+	Undeploy(name string) error
+}
+
+type SkupperDeploymentCommon struct {
 	Components []SkupperComponent
 }
 
-func (s *SkupperDeploymentRouter) Name() string {
-	return types.TransportDeploymentName
-}
-
-func (s *SkupperDeploymentRouter) GetComponents() []SkupperComponent {
+func (s *SkupperDeploymentCommon) GetComponents() []SkupperComponent {
 	return s.Components
 }

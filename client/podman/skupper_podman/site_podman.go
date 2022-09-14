@@ -5,6 +5,8 @@ import (
 
 	"github.com/skupperproject/skupper/api/types"
 	v2 "github.com/skupperproject/skupper/api/types/v2"
+	"github.com/skupperproject/skupper/client"
+	"github.com/skupperproject/skupper/client/common"
 	"github.com/skupperproject/skupper/client/container"
 	"github.com/skupperproject/skupper/client/podman"
 	"github.com/skupperproject/skupper/pkg/utils"
@@ -15,8 +17,9 @@ type SitePodman struct {
 	IngressBindHost            string
 	IngressBindInterRouterPort int
 	IngressBindEdgePort        int
-	ContainerNetworks          []string
+	ContainerNetwork           string
 	PodmanEndpoint             string
+	prepared                   bool
 }
 
 func (s *SitePodman) GetPlatform() string {
@@ -49,63 +52,18 @@ func (s *SitePodmanHandler) Prepare(site v2.Site) (v2.Site, error) {
 	}
 
 	// Preparing site
+	common.ConfigureSiteCredentials(podmanSite, podmanSite.IngressBindHost)
 	s.ConfigurePodmanDeployments(podmanSite)
 
 	if err := s.canCreate(podmanSite); err != nil {
 		return nil, err
 	}
+
+	podmanSite.prepared = true
 	return podmanSite, nil
 }
 
 func (s *SitePodmanHandler) ConfigurePodmanDeployments(site *SitePodman) {
-	// CAs
-	cas := []types.CertAuthority{}
-	cas = append(cas, types.CertAuthority{Name: types.LocalCaSecret})
-	if !site.IsEdge() {
-		cas = append(cas, types.CertAuthority{Name: types.SiteCaSecret})
-	}
-	cas = append(cas, types.CertAuthority{Name: types.ServiceCaSecret})
-	site.CertAuthorities = cas
-
-	// Certificates
-	credentials := []types.Credential{}
-	credentials = append(credentials, types.Credential{
-		CA:          types.LocalCaSecret,
-		Name:        types.LocalServerSecret,
-		Subject:     types.LocalTransportServiceName,
-		Hosts:       []string{types.LocalTransportServiceName},
-		ConnectJson: false,
-		Post:        false,
-	})
-	credentials = append(credentials, types.Credential{
-		CA:          types.LocalCaSecret,
-		Name:        types.LocalClientSecret,
-		Subject:     types.LocalTransportServiceName,
-		Hosts:       []string{},
-		ConnectJson: true,
-		Post:        false,
-	})
-
-	credentials = append(credentials, types.Credential{
-		CA:          types.ServiceCaSecret,
-		Name:        types.ServiceClientSecret,
-		Hosts:       []string{},
-		ConnectJson: false,
-		Post:        false,
-		Simple:      true,
-	})
-
-	if !site.IsEdge() {
-		credentials = append(credentials, types.Credential{
-			CA:          types.SiteCaSecret,
-			Name:        types.SiteServerSecret,
-			Subject:     types.TransportServiceName,
-			Hosts:       []string{types.TransportServiceName, site.IngressBindHost},
-			ConnectJson: false,
-		})
-	}
-	site.Credentials = credentials
-
 	// Router Deployment
 	volumeMounts := map[string]string{
 		types.LocalServerSecret:      "/etc/skupper-router-certs/skupper-amqps/",
@@ -115,10 +73,13 @@ func (s *SitePodmanHandler) ConfigurePodmanDeployments(site *SitePodman) {
 	if !site.IsEdge() {
 		volumeMounts[types.SiteServerSecret] = "/etc/skupper-router-certs/skupper-internal/"
 	}
-	routerDepl := &SkupperDeploymentRouterPodman{
-		SkupperDeploymentRouter: &v2.SkupperDeploymentRouter{
+	routerDepl := &SkupperDeploymentPodman{
+		Name: types.TransportDeploymentName,
+		SkupperDeploymentCommon: &v2.SkupperDeploymentCommon{
 			Components: []v2.SkupperComponent{
 				&v2.Router{
+					// TODO ADD Labels
+					Labels: map[string]string{},
 					Env: map[string]string{
 						"APPLICATION_NAME":    "skupper-router",
 						"QDROUTERD_CONF":      "/etc/skupper-router/config/" + types.TransportConfigFile,
@@ -152,16 +113,111 @@ func (s *SitePodmanHandler) ConfigurePodmanDeployments(site *SitePodman) {
 				},
 			},
 		},
-		SkupperDeploymentPodman: &SkupperDeploymentPodman{
-			Aliases:      []string{types.TransportServiceName, types.LocalTransportServiceName},
-			VolumeMounts: volumeMounts,
-		},
+		Aliases:      []string{types.TransportServiceName, types.LocalTransportServiceName},
+		VolumeMounts: volumeMounts,
+		Networks:     []string{site.ContainerNetwork},
 	}
 	site.Deployments = append(site.Deployments, routerDepl)
 }
 
 func (s *SitePodmanHandler) Create(site v2.Site) error {
-	return fmt.Errorf("not implemented")
+	var err error
+	var cleanupFns []func()
+
+	podmanSite := site.(*SitePodman)
+	if !podmanSite.prepared {
+		var preparedSite v2.Site
+		preparedSite, err = s.Prepare(podmanSite)
+		if err != nil {
+			return err
+		}
+		podmanSite = preparedSite.(*SitePodman)
+	}
+
+	// cleanup on error
+	defer func() {
+		if err != nil {
+			for _, fn := range cleanupFns {
+				fn()
+			}
+		}
+	}()
+
+	// Create network
+	err = s.createNetwork(podmanSite)
+	if err != nil {
+		return err
+	}
+	cleanupFns = append(cleanupFns, func() {
+		_ = s.cli.NetworkRemove(podmanSite.ContainerNetwork)
+	})
+
+	// Create cert authorities and credentials
+	var credHandler types.CredentialHandler
+	credHandler = NewPodmanCredentialHandler(s.cli)
+
+	// - creating cert authorities
+	cleanupFns = append(cleanupFns, func() {
+		for _, ca := range podmanSite.GetCertAuthorities() {
+			_ = credHandler.DeleteCertAuthority(ca.Name)
+		}
+	})
+	for _, ca := range podmanSite.GetCertAuthorities() {
+		if _, err = credHandler.NewCertAuthority(ca); err != nil {
+			return err
+		}
+	}
+
+	// - create credentials
+	cleanupFns = append(cleanupFns, func() {
+		for _, cred := range podmanSite.GetCredentials() {
+			_ = credHandler.DeleteCredential(cred.Name)
+		}
+	})
+	for _, cred := range podmanSite.GetCredentials() {
+		if _, err = credHandler.NewCredential(cred); err != nil {
+			return err
+		}
+	}
+
+	// Create initial transport config file
+	// TODO add log and debug options
+	initialRouterConfig := v2.InitialConfigSkupperRouter(podmanSite.GetName(), podmanSite.GetId(), client.Version, podmanSite.IsEdge(), 3, types.RouterOptions{})
+	var routerConfigHandler v2.RouterConfigHandler
+	routerConfigHandler = NewRouterConfigHandlerPodman(s.cli)
+	err = routerConfigHandler.SaveRouterConfig(&initialRouterConfig)
+	cleanupFns = append(cleanupFns, func() {
+		_ = routerConfigHandler.RemoveRouterConfig()
+	})
+	if err != nil {
+		return err
+	}
+
+	// Verify volumes not yet created and create them
+	for _, volumeName := range SkupperContainerVolumes {
+		var vol *container.Volume
+		vol, err = s.cli.VolumeInspect(volumeName)
+		if vol == nil && err != nil {
+			_, err = s.cli.VolumeCreate(&container.Volume{Name: volumeName})
+			if err != nil {
+				return err
+			}
+			cleanupFns = append(cleanupFns, func() {
+				_ = s.cli.VolumeRemove(volumeName)
+			})
+		}
+	}
+
+	// Deploy container(s)
+	deployHandler := NewSkupperDeploymentHandlerPodman(s.cli)
+	for _, depl := range podmanSite.GetDeployments() {
+		err = deployHandler.Deploy(depl)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *SitePodmanHandler) Get() (v2.Site, error) {
@@ -202,18 +258,16 @@ func (s *SitePodmanHandler) canCreate(site *SitePodman) error {
 	// TODO improve on container and network already exists
 	// Validating any of the required deployment exists
 	for _, skupperDepl := range site.Deployments {
-		container, err := cli.ContainerInspect(skupperDepl.Name())
+		container, err := cli.ContainerInspect(skupperDepl.GetName())
 		if err == nil && container != nil {
-			return fmt.Errorf("%s container already defined", skupperDepl.Name())
+			return fmt.Errorf("%s container already defined", skupperDepl.GetName())
 		}
 	}
 
 	// Validating skupper networks available
-	for _, networkName := range site.ContainerNetworks {
-		net, err := cli.NetworkInspect(networkName)
-		if err == nil && net != nil {
-			return fmt.Errorf("network %s already exists", networkName)
-		}
+	net, err := cli.NetworkInspect(site.ContainerNetwork)
+	if err == nil && net != nil {
+		return fmt.Errorf("network %s already exists", site.ContainerNetwork)
 	}
 
 	// Validating bind ports
@@ -229,9 +283,8 @@ func (s *SitePodmanHandler) canCreate(site *SitePodman) error {
 	}
 
 	// Validate network ability to resolve names
-	testNetwork := site.ContainerNetworks[0]
 	createdNetwork, err := cli.NetworkCreate(&container.Network{
-		Name:     testNetwork,
+		Name:     site.ContainerNetwork,
 		DNS:      true,
 		Internal: false,
 	})
@@ -243,9 +296,9 @@ func (s *SitePodmanHandler) canCreate(site *SitePodman) error {
 		if err != nil {
 			fmt.Printf("ERROR removing network %s - %v\n", id, err)
 		}
-	}(cli, testNetwork)
+	}(cli, site.ContainerNetwork)
 	if !createdNetwork.DNS {
-		return fmt.Errorf("network %s cannot resolve names - podman plugins must be installed", testNetwork)
+		return fmt.Errorf("network %s cannot resolve names - podman plugins must be installed", site.ContainerNetwork)
 	}
 
 	// Validating existing volumes
@@ -256,5 +309,17 @@ func (s *SitePodmanHandler) canCreate(site *SitePodman) error {
 		}
 	}
 
+	return nil
+}
+
+func (s *SitePodmanHandler) createNetwork(site *SitePodman) error {
+	_, err := s.cli.NetworkCreate(&container.Network{
+		Name:     site.ContainerNetwork,
+		DNS:      true,
+		Internal: false,
+	})
+	if err != nil {
+		return fmt.Errorf("error creating network %s - %v", site.ContainerNetwork, err)
+	}
 	return nil
 }

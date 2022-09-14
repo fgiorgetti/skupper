@@ -439,7 +439,9 @@ type CertAuthority struct {
 
 type CredentialHandler interface {
 	NewCertAuthority(ca CertAuthority) (*corev1.Secret, error)
+	DeleteCertAuthority(id string) error
 	NewCredential(cred Credential) (*corev1.Secret, error)
+	DeleteCredential(id string) error
 	GetSecret(name string) (*corev1.Secret, error)
 }
 

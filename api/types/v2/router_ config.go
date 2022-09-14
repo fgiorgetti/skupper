@@ -25,6 +25,7 @@ type RouterConfig struct {
 type RouterConfigHandler interface {
 	GetRouterConfig() (*RouterConfig, error)
 	SaveRouterConfig(*RouterConfig) error
+	RemoveRouterConfig() error
 }
 
 type TcpEndpointMap map[string]TcpEndpoint
@@ -67,6 +68,93 @@ func InitialConfig(id string, siteId string, version string, edge bool, helloAge
 		config.Metadata.Mode = ModeInterior
 	}
 	return config
+}
+
+func ConfigureRouterLogging(routerConfig *RouterConfig, logConfig []types.RouterLogConfig) bool {
+	levels := map[string]string{}
+	for _, l := range logConfig {
+		levels[l.Module] = l.Level
+	}
+	return routerConfig.SetLogLevels(levels)
+}
+
+func InteriorListener(options types.RouterOptions) Listener {
+	return Listener{
+		Name:             "interior-listener",
+		Role:             RoleInterRouter,
+		Port:             types.InterRouterListenerPort,
+		SslProfile:       types.InterRouterProfile, // The skupper-internal profile needs to be filtered by the config-sync sidecar, in order to avoid deleting automesh connectors
+		SaslMechanisms:   "EXTERNAL",
+		AuthenticatePeer: true,
+		MaxFrameSize:     options.MaxFrameSize,
+		MaxSessionFrames: options.MaxSessionFrames,
+	}
+}
+
+func EdgeListener(options types.RouterOptions) Listener {
+	return Listener{
+		Name:             "edge-listener",
+		Role:             RoleEdge,
+		Port:             types.EdgeListenerPort,
+		SslProfile:       types.InterRouterProfile,
+		SaslMechanisms:   "EXTERNAL",
+		AuthenticatePeer: true,
+		MaxFrameSize:     options.MaxFrameSize,
+		MaxSessionFrames: options.MaxSessionFrames,
+	}
+}
+
+func InitialConfigSkupperRouter(id string, siteId string, version string, edge bool, helloAge int, options types.RouterOptions) RouterConfig {
+	routerConfig := InitialConfig(id, siteId, version, edge, helloAge)
+
+	if options.Logging != nil {
+		ConfigureRouterLogging(&routerConfig, options.Logging)
+	}
+	routerConfig.AddAddress(Address{
+		Prefix:       "mc",
+		Distribution: "multicast",
+	})
+	routerConfig.AddListener(Listener{
+		Port:        9090,
+		Role:        "normal",
+		Http:        true,
+		HttpRootDir: "disabled",
+		Websockets:  false,
+		Healthz:     true,
+		Metrics:     true,
+	})
+	routerConfig.AddListener(Listener{
+		Name: "amqp",
+		Host: "localhost",
+		Port: types.AmqpDefaultPort,
+	})
+	routerConfig.AddSslProfile(SslProfile{
+		Name: "skupper-amqps",
+	})
+	routerConfig.AddListener(Listener{
+		Name:             "amqps",
+		Port:             types.AmqpsDefaultPort,
+		SslProfile:       "skupper-amqps",
+		SaslMechanisms:   "EXTERNAL",
+		AuthenticatePeer: true,
+	})
+
+	routerConfig.AddSimpleSslProfileWithPath("/etc/skupper-router-certs",
+		SslProfile{
+			Name: types.ServiceClientSecret,
+		})
+
+	if !edge {
+		routerConfig.AddSslProfile(SslProfile{
+			Name: types.InterRouterProfile,
+		})
+		listeners := []Listener{InteriorListener(options), EdgeListener(options)}
+		for _, listener := range listeners {
+			routerConfig.AddListener(listener)
+		}
+	}
+
+	return routerConfig
 }
 
 func getSiteMetadata(metadata string) SiteMetadata {

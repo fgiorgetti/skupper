@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"path"
 
 	"github.com/skupperproject/skupper/api/types"
 	"github.com/skupperproject/skupper/client/container"
@@ -51,7 +52,7 @@ func (p *PodmanCredentialHandler) LoadVolumeAsSecret(vol *container.Volume) (*co
 		if file.IsDir() {
 			continue
 		}
-		data, err := ioutil.ReadFile(file.Name())
+		data, err := ioutil.ReadFile(path.Join(vol.Source, file.Name()))
 		if err != nil {
 			return nil, fmt.Errorf("error reading file %s for secret %s - %v", file.Name(), vol.Name, err)
 		}
@@ -101,6 +102,24 @@ func (p *PodmanCredentialHandler) NewCertAuthority(ca types.CertAuthority) (*cor
 	return &newCA, err
 }
 
+func (p *PodmanCredentialHandler) DeleteCertAuthority(id string) error {
+	return p.removeVolume(id)
+}
+
+func (p *PodmanCredentialHandler) removeVolume(id string) error {
+	_, err := p.cli.VolumeInspect(id)
+	if err != nil {
+		if _, notFound := err.(*volumes.VolumeInspectLibpodNotFound); !notFound {
+			return fmt.Errorf("Failed to check volume %s : %w", id, err)
+		}
+	}
+	err = p.cli.VolumeRemove(id)
+	if err != nil {
+		return fmt.Errorf("error deleting volume %s - %v", id, err)
+	}
+	return nil
+}
+
 func (p *PodmanCredentialHandler) NewCredential(cred types.Credential) (*corev1.Secret, error) {
 	var caSecret *corev1.Secret
 	var err error
@@ -121,4 +140,8 @@ func (p *PodmanCredentialHandler) GetSecret(name string) (*corev1.Secret, error)
 		return nil, err
 	}
 	return p.LoadVolumeAsSecret(vol)
+}
+
+func (p *PodmanCredentialHandler) DeleteCredential(id string) error {
+	return p.removeVolume(id)
 }

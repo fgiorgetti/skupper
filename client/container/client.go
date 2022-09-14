@@ -9,6 +9,10 @@ import (
 	"strings"
 )
 
+const (
+	ContainerNetworkName = "skupper"
+)
+
 type Client interface {
 	Version() (*Version, error)
 	ContainerList() ([]*Container, error)

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	routev1 "github.com/openshift/api/route/v1"
-	"github.com/skupperproject/skupper/api/types/v2"
+	v2 "github.com/skupperproject/skupper/api/types/v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -131,7 +131,7 @@ func (cli *VanClient) GetVanControllerSpec(options types.SiteConfigSpec, van *ty
 	envVars = append(envVars, corev1.EnvVar{Name: "SKUPPER_ROUTER_MODE", Value: options.RouterMode})
 	envVars = append(envVars, corev1.EnvVar{Name: "OWNER_NAME", Value: transport.ObjectMeta.Name})
 	envVars = append(envVars, corev1.EnvVar{Name: "OWNER_UID", Value: string(transport.ObjectMeta.UID)})
-	envVars = v2.addRouterImageOverrideToEnv(envVars)
+	envVars = v2.AddRouterImageOverrideToEnv(envVars)
 	if !options.EnableServiceSync {
 		envVars = append(envVars, corev1.EnvVar{Name: "SKUPPER_DISABLE_SERVICE_SYNC", Value: "true"})
 	}

@@ -61,3 +61,14 @@ func (r *RouterConfigHandlerPodman) SaveRouterConfig(config *v2.RouterConfig) er
 	}
 	return nil
 }
+
+func (r *RouterConfigHandlerPodman) RemoveRouterConfig() error {
+	err := r.cli.VolumeRemove(types.TransportConfigMapName)
+	if err == nil {
+		return nil
+	}
+	if _, notFound := err.(*volumes.VolumeDeleteLibpodNotFound); notFound {
+		return nil
+	}
+	return fmt.Errorf("error removing router config - %v", err)
+}
