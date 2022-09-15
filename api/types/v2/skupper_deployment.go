@@ -7,6 +7,7 @@ type SkupperDeployment interface {
 
 type SkupperDeploymentHandler interface {
 	Deploy(deployment SkupperDeployment) error
+	List() ([]SkupperDeployment, error)
 	Undeploy(name string) error
 }
 

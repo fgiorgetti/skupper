@@ -14,7 +14,6 @@ import (
 )
 
 func main() {
-	:
 	cli, err := podman.NewPodmanClient("", "")
 	if err != nil {
 		log.Fatal(err)

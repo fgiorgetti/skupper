@@ -67,6 +67,10 @@ func (p *PodmanRestClient) NetworkInspect(id string) (*container.Network, error)
 }
 
 func (p *PodmanRestClient) NetworkCreate(network *container.Network) (*container.Network, error) {
+	if network.Labels == nil {
+		network.Labels = map[string]string{}
+	}
+	network.Labels["application"] = types.AppName
 	cli := networks.New(p.RestClient, formats)
 	params := networks.NewNetworkCreateLibpodParams()
 	params.Create = fromNetwork(network)

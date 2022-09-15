@@ -22,11 +22,10 @@ type Site interface {
 }
 
 type SiteHandler interface {
-	Prepare(s Site) (Site, error)
 	Create(s Site) error
 	Get() (Site, error)
-	Delete(s Site) error
-	Update(s Site) error
+	Delete() error
+	Update() error
 }
 
 // SiteCommon base implementation of the Site interface

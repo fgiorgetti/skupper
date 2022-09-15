@@ -32,6 +32,7 @@ func NewSkupperDeploymentHandlerPodman(cli *podman.PodmanRestClient) *SkupperDep
 	}
 }
 
+// Deploy deploys each component as a container
 func (s *SkupperDeploymentHandlerPodman) Deploy(deployment v2.SkupperDeployment) error {
 	var err error
 	var cleanupContainers []string
@@ -44,6 +45,10 @@ func (s *SkupperDeploymentHandlerPodman) Deploy(deployment v2.SkupperDeployment)
 			}
 		}
 	}()
+
+	if len(deployment.GetComponents()) > 1 {
+		return fmt.Errorf("podman implementation currently allows only one component per deployment")
+	}
 
 	podmanDeployment := deployment.(*SkupperDeploymentPodman)
 	for _, component := range deployment.GetComponents() {
@@ -88,7 +93,7 @@ func (s *SkupperDeploymentHandlerPodman) Deploy(deployment v2.SkupperDeployment)
 
 		// Defining the container
 		labels := component.GetLabels()
-		labels["application"] = types.TransportDeploymentName
+		labels[types.ComponentAnnotation] = deployment.GetName()
 		c := &container.Container{
 			Name:          component.Name(),
 			Image:         component.Image(),
@@ -123,7 +128,7 @@ func (s *SkupperDeploymentHandlerPodman) Undeploy(name string) error {
 
 	stopContainers := []string{}
 	for _, c := range containers {
-		if appName, ok := c.Labels["application"]; ok && appName == name {
+		if component, ok := c.Labels[types.ComponentAnnotation]; ok && component == name {
 			stopContainers = append(stopContainers, c.Name)
 		}
 	}
@@ -141,4 +146,62 @@ func (s *SkupperDeploymentHandlerPodman) Undeploy(name string) error {
 		}
 	}
 	return nil
+}
+
+func (s *SkupperDeploymentHandlerPodman) List() ([]v2.SkupperDeployment, error) {
+	depMap := map[string]v2.SkupperDeployment{}
+
+	list, err := s.cli.ContainerList()
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving container list - %w", err)
+	}
+
+	var depList []v2.SkupperDeployment
+
+	componentHandler := NewSkupperComponentHandlerPodman(s.cli)
+	components, err := componentHandler.List()
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving existing skupper components - %w", err)
+	}
+
+	for _, c := range list {
+		ci, err := s.cli.ContainerInspect(c.Name)
+		if err != nil {
+			return nil, fmt.Errorf("error retrieving container information for %s - %w", c.Name, err)
+		}
+		if ci.Labels == nil {
+			continue
+		}
+		deployName, ok := ci.Labels[types.ComponentAnnotation]
+		if !ok {
+			continue
+		}
+		var aliases []string
+		for _, aliases = range ci.NetworkAliases() {
+			break
+		}
+		mounts := map[string]string{}
+		for _, mount := range ci.Mounts {
+			mounts[mount.Name] = mount.Destination
+		}
+		deployment := &SkupperDeploymentPodman{
+			SkupperDeploymentCommon: &v2.SkupperDeploymentCommon{},
+			Name:                    deployName,
+			Aliases:                 aliases,
+			VolumeMounts:            mounts,
+			Networks:                ci.NetworkNames(),
+		}
+		depMap[deployName] = deployment
+
+		depComponents := []v2.SkupperComponent{}
+		for _, component := range components {
+			if compOwner, ok := component.GetLabels()[types.ComponentAnnotation]; ok && compOwner == deployName {
+				depComponents = append(depComponents, component)
+			}
+		}
+		deployment.Components = depComponents
+		depList = append(depList, deployment)
+	}
+
+	return depList, nil
 }

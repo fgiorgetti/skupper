@@ -36,6 +36,7 @@ type Client interface {
 	VolumeCreate(volume *Volume) (*Volume, error)
 	VolumeInspect(id string) (*Volume, error)
 	VolumeRemove(id string) error
+	VolumeList() ([]*Volume, error)
 }
 
 type VersionInfo struct {
@@ -96,6 +97,14 @@ func (c *Container) NetworkNames() []string {
 	return networks
 }
 
+func (c *Container) NetworkAliases() map[string][]string {
+	netNames := map[string][]string{}
+	for name, net := range c.Networks {
+		netNames[name] = net.Aliases
+	}
+	return netNames
+}
+
 type Volume struct {
 	Name        string
 	Source      string
@@ -103,6 +112,13 @@ type Volume struct {
 	Mode        string
 	RW          bool
 	Labels      map[string]string
+}
+
+func (v *Volume) GetLabels() map[string]string {
+	if v.Labels == nil {
+		v.Labels = map[string]string{}
+	}
+	return v.Labels
 }
 
 func (v *Volume) getVolumeDir() (*os.File, error) {

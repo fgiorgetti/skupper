@@ -8,6 +8,7 @@ import (
 	"github.com/skupperproject/skupper/client"
 	"github.com/skupperproject/skupper/client/common"
 	"github.com/skupperproject/skupper/client/container"
+	"github.com/skupperproject/skupper/client/generated/libpod/client/volumes"
 	"github.com/skupperproject/skupper/client/podman"
 	"github.com/skupperproject/skupper/pkg/utils"
 )
@@ -19,7 +20,6 @@ type SitePodman struct {
 	IngressBindEdgePort        int
 	ContainerNetwork           string
 	PodmanEndpoint             string
-	prepared                   bool
 }
 
 func (s *SitePodman) GetPlatform() string {
@@ -40,7 +40,7 @@ func NewSitePodmanHandler(cli *podman.PodmanRestClient) *SitePodmanHandler {
 	}
 }
 
-func (s *SitePodmanHandler) Prepare(site v2.Site) (v2.Site, error) {
+func (s *SitePodmanHandler) prepare(site v2.Site) (v2.Site, error) {
 	podmanSite, ok := site.(*SitePodman)
 	if !ok {
 		return nil, fmt.Errorf("not a valid podman site definition")
@@ -59,7 +59,6 @@ func (s *SitePodmanHandler) Prepare(site v2.Site) (v2.Site, error) {
 		return nil, err
 	}
 
-	podmanSite.prepared = true
 	return podmanSite, nil
 }
 
@@ -124,15 +123,13 @@ func (s *SitePodmanHandler) Create(site v2.Site) error {
 	var err error
 	var cleanupFns []func()
 
+	var preparedSite v2.Site
 	podmanSite := site.(*SitePodman)
-	if !podmanSite.prepared {
-		var preparedSite v2.Site
-		preparedSite, err = s.Prepare(podmanSite)
-		if err != nil {
-			return err
-		}
-		podmanSite = preparedSite.(*SitePodman)
+	preparedSite, err = s.prepare(podmanSite)
+	if err != nil {
+		return err
 	}
+	podmanSite = preparedSite.(*SitePodman)
 
 	// cleanup on error
 	defer func() {
@@ -218,18 +215,6 @@ func (s *SitePodmanHandler) Create(site v2.Site) error {
 	}
 
 	return nil
-}
-
-func (s *SitePodmanHandler) Get() (v2.Site, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (s *SitePodmanHandler) Delete(site v2.Site) error {
-	return fmt.Errorf("not implemented")
-}
-
-func (s *SitePodmanHandler) Update(site v2.Site) error {
-	return fmt.Errorf("not implemented")
 }
 
 func (s *SitePodmanHandler) canCreate(site *SitePodman) error {
@@ -322,4 +307,111 @@ func (s *SitePodmanHandler) createNetwork(site *SitePodman) error {
 		return fmt.Errorf("error creating network %s - %v", site.ContainerNetwork, err)
 	}
 	return nil
+}
+
+func (s *SitePodmanHandler) Get() (v2.Site, error) {
+	site := &SitePodman{
+		SiteCommon:     &v2.SiteCommon{},
+		PodmanEndpoint: s.cli.RestClient.Host,
+	}
+
+	// getting router config
+	configHandler := NewRouterConfigHandlerPodman(s.cli)
+	config, err := configHandler.GetRouterConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	// Setting basic site info
+	site.Name = config.Metadata.Id
+	site.Mode = string(config.Metadata.Mode)
+	site.Id = config.GetSiteMetadata().Id
+	site.Platform = types.PlatformPodman
+
+	// Reading cert authorities
+	credHandler := NewPodmanCredentialHandler(s.cli)
+	cas, err := credHandler.ListCertAuthorities()
+	if err != nil {
+		return nil, fmt.Errorf("error reading certificate authorities - %w", err)
+	}
+	site.CertAuthorities = cas
+
+	// Reading credentials
+	creds, err := credHandler.ListCredentials()
+	if err != nil {
+		return nil, fmt.Errorf("error reading credentials - %w", err)
+	}
+	site.Credentials = creds
+
+	// Reading deployments
+	deployHandler := NewSkupperDeploymentHandlerPodman(s.cli)
+	deps, err := deployHandler.List()
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving deployments - %w", err)
+	}
+	site.Deployments = deps
+
+	for _, dep := range site.GetDeployments() {
+		for _, comp := range dep.GetComponents() {
+			depPodman := dep.(*SkupperDeploymentPodman)
+			site.ContainerNetwork = depPodman.Networks[0]
+			for _, siteIng := range comp.GetSiteIngresses() {
+				if siteIng.GetTarget().GetPort() == int(types.InterRouterListenerPort) {
+					site.IngressBindHost = siteIng.GetHost()
+					site.IngressBindInterRouterPort = siteIng.GetPort()
+				} else if siteIng.GetTarget().GetPort() == int(types.EdgeListenerPort) {
+					site.IngressBindEdgePort = siteIng.GetPort()
+				}
+			}
+		}
+	}
+
+	return site, nil
+}
+
+func (s *SitePodmanHandler) Delete() error {
+	site, err := s.Get()
+	if err != nil {
+		return err
+	}
+	podmanSite := site.(*SitePodman)
+
+	// Stopping and removing containers
+	deployHandler := NewSkupperDeploymentHandlerPodman(s.cli)
+	deploys, err := deployHandler.List()
+	if err != nil {
+		return fmt.Errorf("error retrieving deployments - %w", err)
+	}
+	for _, dep := range deploys {
+		err = deployHandler.Undeploy(dep.GetName())
+		if err != nil {
+			return fmt.Errorf("error removing deployment %s - %w", dep.GetName(), err)
+		}
+	}
+
+	// Removing networks
+	if err = s.cli.NetworkRemove(podmanSite.ContainerNetwork); err != nil {
+		return fmt.Errorf("error removing container network %s - %w", podmanSite.ContainerNetwork, err)
+	}
+
+	// Removing volumes
+	volumeList, err := s.cli.VolumeList()
+	if err != nil {
+		return fmt.Errorf("error retrieving volume list - %w", err)
+	}
+	for _, v := range volumeList {
+		if app, ok := v.GetLabels()["application"]; ok && app == types.AppName {
+			if err = s.cli.VolumeRemove(v.Name); err != nil {
+				if _, ok := err.(*volumes.VolumeDeleteLibpodNotFound); !ok {
+					return fmt.Errorf("error removing volume %s - %w", v.Name, err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *SitePodmanHandler) Update() error {
+	return fmt.Errorf("not implemented")
 }

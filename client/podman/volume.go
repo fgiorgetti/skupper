@@ -1,12 +1,17 @@
 package podman
 
 import (
+	"github.com/skupperproject/skupper/api/types"
 	"github.com/skupperproject/skupper/client/container"
 	"github.com/skupperproject/skupper/client/generated/libpod/client/volumes"
 	"github.com/skupperproject/skupper/client/generated/libpod/models"
 )
 
 func (p *PodmanRestClient) VolumeCreate(volume *container.Volume) (*container.Volume, error) {
+	if volume.Labels == nil {
+		volume.Labels = map[string]string{}
+	}
+	volume.Labels["application"] = types.AppName
 	cli := volumes.New(p.RestClient, formats)
 	params := volumes.NewVolumeCreateLibpodParams()
 	params.Create = ToVolumeCreateOptions(volume)
@@ -19,7 +24,8 @@ func (p *PodmanRestClient) VolumeCreate(volume *container.Volume) (*container.Vo
 
 func ToVolumeCreateOptions(v *container.Volume) *models.VolumeCreateOptions {
 	nv := &models.VolumeCreateOptions{
-		Name: v.Name,
+		Name:   v.Name,
+		Labels: v.Labels,
 	}
 	return nv
 }
@@ -52,12 +58,25 @@ func VolumesToMounts(c *container.Container) []*models.Mount {
 			Source:      v.Source,
 			Target:      v.Destination,
 			Destination: v.Destination,
-			Type:        "bind",
+			Type:        "volume",
 			Options:     []string{"Z"},
 		}
 		mounts = append(mounts, m)
 	}
 	return mounts
+}
+
+func VolumesToNamedVolumes(c *container.Container) []*models.NamedVolume {
+	var namedVolumes []*models.NamedVolume
+	for _, v := range c.Mounts {
+		m := &models.NamedVolume{
+			Dest:    v.Destination,
+			Name:    v.Name,
+			Options: []string{"Z"},
+		}
+		namedVolumes = append(namedVolumes, m)
+	}
+	return namedVolumes
 }
 
 func (p *PodmanRestClient) VolumeInspect(id string) (*container.Volume, error) {
@@ -78,4 +97,26 @@ func FromInspectToVolume(vi *volumes.VolumeInspectLibpodOK) *container.Volume {
 		Source: vi.Payload.Mountpoint,
 		Labels: vi.Payload.Labels,
 	}
+}
+
+func (p *PodmanRestClient) VolumeList() ([]*container.Volume, error) {
+	cli := volumes.New(p.RestClient, formats)
+	params := volumes.NewVolumeListLibpodParams()
+	pvList, err := cli.VolumeListLibpod(params)
+	if err != nil {
+		return nil, err
+	}
+	return FromListToVolume(pvList), nil
+}
+
+func FromListToVolume(vi *volumes.VolumeListLibpodOK) []*container.Volume {
+	list := []*container.Volume{}
+	for _, pv := range vi.Payload {
+		list = append(list, &container.Volume{
+			Name:   pv.Name,
+			Source: pv.Mountpoint,
+			Labels: pv.Labels,
+		})
+	}
+	return list
 }

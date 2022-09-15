@@ -1,7 +1,9 @@
 package skupper_podman
 
 import (
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"path"
@@ -18,6 +20,90 @@ import (
 
 type PodmanCredentialHandler struct {
 	cli *podman.PodmanRestClient
+}
+
+func (p *PodmanCredentialHandler) ListCertAuthorities() ([]types.CertAuthority, error) {
+	list, err := p.cli.VolumeList()
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving certificate authorities - %w", err)
+	}
+	cas := []types.CertAuthority{}
+	for _, v := range list {
+		if v.Labels == nil {
+			continue
+		}
+		if kind, ok := v.Labels[types.SkupperTypeQualifier]; ok && kind == "CertAuthority" {
+			cas = append(cas, types.CertAuthority{Name: v.Name})
+		}
+	}
+	return cas, nil
+}
+
+func (p *PodmanCredentialHandler) ListCredentials() ([]types.Credential, error) {
+	list, err := p.cli.VolumeList()
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving certificate authorities - %w", err)
+	}
+	creds := []types.Credential{}
+	for _, v := range list {
+		if v.Labels == nil {
+			continue
+		}
+		// ignoring volumes that are not credentials
+		if kind, ok := v.Labels[types.SkupperTypeQualifier]; !ok || kind != "Credential" {
+			continue
+		}
+		files, err := v.ListFiles()
+		if err != nil {
+			return nil, fmt.Errorf("error listing credential content - %w", err)
+		}
+		cred := types.Credential{
+			Name: v.Name,
+		}
+
+		// Validating if CA is provided
+		empty := false
+		for _, file := range files {
+			// CA defined
+			if file.Name() == types.ClaimCaCertDataKey {
+				var ca *types.CertAuthority
+				content, err := v.ReadFile(file.Name())
+				if err != nil {
+					return nil, fmt.Errorf("error validating cert authority - %w", err)
+				}
+				ca = p.getCertAuthorityForCaCrt(content)
+				if ca != nil {
+					cred.CA = ca.Name
+				}
+			} else if file.Name() == "connect.json" {
+				cred.ConnectJson = true
+			} else if file.Name() == "tls.crt" {
+				dataStr, err := v.ReadFile(file.Name())
+				if dataStr == "" {
+					empty = true
+					continue
+				}
+				if err != nil {
+					return nil, fmt.Errorf("error reading tls.crt file from volume %s - %w", v.Name, err)
+				}
+				cn, hostnames, err := getTlsCrtHostnames([]byte(dataStr))
+				if err != nil {
+					return nil, fmt.Errorf("unable to retrieve subject and hostnames from tls.crt under %s - %w", v.Name, err)
+				}
+				cred.Subject = cn
+				if len(hostnames) > 0 {
+					cred.Hosts = hostnames
+				} else {
+					cred.Simple = true
+				}
+			}
+		}
+
+		if !empty {
+			creds = append(creds, cred)
+		}
+	}
+	return creds, nil
 }
 
 func NewPodmanCredentialHandler(cli *podman.PodmanRestClient) *PodmanCredentialHandler {
@@ -62,7 +148,7 @@ func (p *PodmanCredentialHandler) LoadVolumeAsSecret(vol *container.Volume) (*co
 	return secret, nil
 }
 
-func (p *PodmanCredentialHandler) SaveSecretAsVolume(secret *corev1.Secret) (*container.Volume, error) {
+func (p *PodmanCredentialHandler) SaveSecretAsVolume(secret *corev1.Secret, kind string) (*container.Volume, error) {
 	vol, err := p.cli.VolumeInspect(secret.Name)
 
 	if err != nil {
@@ -78,6 +164,7 @@ func (p *PodmanCredentialHandler) SaveSecretAsVolume(secret *corev1.Secret) (*co
 			Name: secret.Name,
 			Labels: map[string]string{
 				types.InternalMetadataQualifier: string(metadataStr),
+				types.SkupperTypeQualifier:      kind,
 			},
 		}
 		vol, err = p.cli.VolumeCreate(vol)
@@ -98,7 +185,7 @@ func (p *PodmanCredentialHandler) NewCertAuthority(ca types.CertAuthority) (*cor
 		return nil, fmt.Errorf("Failed to check CA %s : %w", ca.Name, err)
 	}
 	newCA := certs.GenerateCASecret(ca.Name, ca.Name)
-	_, err = p.SaveSecretAsVolume(&newCA)
+	_, err = p.SaveSecretAsVolume(&newCA, "CertAuthority")
 	return &newCA, err
 }
 
@@ -130,7 +217,7 @@ func (p *PodmanCredentialHandler) NewCredential(cred types.Credential) (*corev1.
 		}
 	}
 	secret := kube.PrepareNewSecret(cred, caSecret, types.TransportDeploymentName)
-	_, err = p.SaveSecretAsVolume(&secret)
+	_, err = p.SaveSecretAsVolume(&secret, "Credential")
 	return &secret, err
 }
 
@@ -144,4 +231,38 @@ func (p *PodmanCredentialHandler) GetSecret(name string) (*corev1.Secret, error)
 
 func (p *PodmanCredentialHandler) DeleteCredential(id string) error {
 	return p.removeVolume(id)
+}
+
+func (p *PodmanCredentialHandler) getCertAuthorityForCaCrt(caCrtContent string) *types.CertAuthority {
+	cas, err := p.ListCertAuthorities()
+	if err != nil {
+		return nil
+	}
+	for _, ca := range cas {
+		v, err := p.cli.VolumeInspect(ca.Name)
+		if err != nil {
+			return nil
+		}
+		content, _ := v.ReadFile("tls.crt")
+		if caCrtContent == content {
+			return &ca
+		}
+	}
+	return nil
+}
+
+func getTlsCrtHostnames(tlscrtData []byte) (subject string, hostnames []string, err error) {
+	b, _ := pem.Decode(tlscrtData)
+	if b == nil {
+		return "", nil, fmt.Errorf("error decoding certificate data")
+	}
+	cert, err := x509.ParseCertificate(b.Bytes)
+	if err != nil {
+		return "", nil, err
+	}
+	subject = cert.Subject.CommonName
+	for _, name := range cert.DNSNames {
+		hostnames = append(hostnames, name)
+	}
+	return subject, hostnames, nil
 }

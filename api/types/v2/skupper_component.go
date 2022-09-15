@@ -10,6 +10,11 @@ type SkupperComponent interface {
 	GetSiteIngresses() []SiteIngress
 }
 
+type SkupperComponentHandler interface {
+	Get(name string) (SkupperComponent, error)
+	List() ([]SkupperComponent, error)
+}
+
 type Router struct {
 	Env           map[string]string
 	Labels        map[string]string

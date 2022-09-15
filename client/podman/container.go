@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-openapi/runtime"
+	"github.com/skupperproject/skupper/api/types"
 	"github.com/skupperproject/skupper/client/container"
 	"github.com/skupperproject/skupper/client/generated/libpod/client/containers"
 	"github.com/skupperproject/skupper/client/generated/libpod/client/exec"
@@ -43,14 +44,15 @@ func (p *PodmanRestClient) ContainerInspect(id string) (*container.Container, er
 
 func ToSpecGenerator(c *container.Container) *models.SpecGenerator {
 	spec := &models.SpecGenerator{
-		Annotations:   c.Annotations,
-		CNINetworks:   c.NetworkNames(),
-		Command:       c.Command,
-		Entrypoint:    c.EntryPoint,
-		Env:           c.Env,
-		Image:         c.Image,
-		Labels:        c.Labels,
-		Mounts:        VolumesToMounts(c),
+		Annotations: c.Annotations,
+		CNINetworks: c.NetworkNames(),
+		Command:     c.Command,
+		Entrypoint:  c.EntryPoint,
+		Env:         c.Env,
+		Image:       c.Image,
+		Labels:      c.Labels,
+		// Mounts:      VolumesToMounts(c),
+		Volumes:       VolumesToNamedVolumes(c),
 		Name:          c.Name,
 		Pod:           c.Pod,
 		PortMappings:  ToPortmappings(c),
@@ -89,6 +91,10 @@ func ToPortmappings(c *container.Container) []*models.PortMapping {
 func (p *PodmanRestClient) ContainerCreate(container *container.Container) error {
 	cli := containers.New(p.RestClient, formats)
 	params := containers.NewContainerCreateLibpodParams()
+	if container.Labels == nil {
+		container.Labels = map[string]string{}
+	}
+	container.Labels["application"] = types.AppName
 	params.Create = ToSpecGenerator(container)
 	_, err := cli.ContainerCreateLibpod(params)
 	if err != nil {
