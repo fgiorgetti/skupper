@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/skupperproject/skupper/pkg/qdr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -136,7 +137,7 @@ func (cli *VanClient) SiteConfigInspectInNamespace(ctx context.Context, input *c
 		result.Spec.Router.DebugMode = routerDebugMode
 	}
 	if routerLogging, ok := siteConfig.Data[SiteConfigRouterLoggingKey]; ok && routerLogging != "" {
-		logConf, err := ParseRouterLogConfig(routerLogging)
+		logConf, err := qdr.ParseRouterLogConfig(routerLogging)
 		if err != nil {
 			return &result, err
 		}
