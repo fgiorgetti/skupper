@@ -117,6 +117,7 @@ const (
 	IngressNginxIngressString     string = "nginx-ingress-v1"
 	IngressContourHttpProxyString string = "contour-http-proxy"
 	IngressKubernetes             string = "ingress"
+	IngressPodmanHost             string = "host"
 	IngressNoneString             string = "none"
 )
 
@@ -137,6 +138,9 @@ func (s *SiteConfigSpec) IsIngressContourHttpProxy() bool {
 }
 func (s *SiteConfigSpec) IsIngressKubernetes() bool {
 	return s.Ingress == IngressKubernetes
+}
+func (s *SiteConfigSpec) IsIngressPodmanHost() bool {
+	return s.Ingress == IngressPodmanHost
 }
 func (s *SiteConfigSpec) IsIngressNone() bool {
 	return s.Ingress == IngressNoneString
@@ -173,7 +177,7 @@ func (s *SiteConfigSpec) getConsoleIngress() string {
 func ValidIngressOptions(platform Platform) []string {
 	switch platform {
 	case PlatformPodman:
-		return []string{}
+		return []string{IngressPodmanHost}
 	default:
 		return []string{IngressRouteString, IngressLoadBalancerString, IngressNodePortString, IngressNginxIngressString, IngressContourHttpProxyString, IngressKubernetes, IngressNoneString}
 	}
