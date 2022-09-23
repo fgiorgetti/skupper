@@ -8,8 +8,6 @@ import (
 
 	"github.com/skupperproject/skupper/api/types"
 	"github.com/skupperproject/skupper/client"
-	"github.com/skupperproject/skupper/pkg/qdr"
-	"github.com/skupperproject/skupper/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -31,18 +29,6 @@ func (s *SkupperKubeSite) Create(cmd *cobra.Command, args []string) error {
 
 	silenceCobra(cmd)
 	ns := cli.GetNamespace()
-
-	routerModeFlag := cmd.Flag("router-mode")
-
-	if routerModeFlag.Changed {
-		options := []string{string(types.TransportModeInterior), string(types.TransportModeEdge)}
-		if !utils.StringSliceContains(options, initFlags.routerMode) {
-			return fmt.Errorf(`invalid "--router-mode=%v", it must be one of "%v"`, initFlags.routerMode, strings.Join(options, ", "))
-		}
-		routerCreateOpts.RouterMode = initFlags.routerMode
-	} else {
-		routerCreateOpts.RouterMode = string(types.TransportModeInterior)
-	}
 
 	routerIngressFlag := cmd.Flag("ingress")
 	routerCreateOpts.Platform = s.kube.Platform()
@@ -74,18 +60,6 @@ func (s *SkupperKubeSite) Create(cmd *cobra.Command, args []string) error {
 	siteConfig, err := cli.SiteConfigInspect(context.Background(), nil)
 	if err != nil {
 		return err
-	}
-	if routerLogging != "" {
-		logConfig, err := qdr.ParseRouterLogConfig(routerLogging)
-		if err != nil {
-			return fmt.Errorf("Bad value for --router-logging: %s", err)
-		}
-		routerCreateOpts.Router.Logging = logConfig
-	}
-	if routerCreateOpts.Router.DebugMode != "" {
-		if routerCreateOpts.Router.DebugMode != "asan" && routerCreateOpts.Router.DebugMode != "gdb" {
-			return fmt.Errorf("Bad value for --router-debug-mode: %s (use 'asan' or 'gdb')", routerCreateOpts.Router.DebugMode)
-		}
 	}
 
 	if LoadBalancerTimeout.Seconds() <= 0 {
@@ -131,6 +105,7 @@ func (s *SkupperKubeSite) CreateFlags(cmd *cobra.Command) {
 	s.kubeInit.annotations = []string{}
 	s.kubeInit.routerServiceAnnotations = []string{}
 	s.kubeInit.controllerServiceAnnotations = []string{}
+	cmd.Flag("ingress").Usage += " If not specified route is used when available, otherwise loadbalancer is used."
 	cmd.Flags().BoolVarP(&routerCreateOpts.EnableConsole, "enable-console", "", true, "Enable skupper console")
 	cmd.Flags().BoolVarP(&routerCreateOpts.CreateNetworkPolicy, "create-network-policy", "", false, "Create network policy to restrict access to skupper services exposed through this site to current pods in namespace")
 	cmd.Flags().StringVarP(&routerCreateOpts.AuthMode, "console-auth", "", "", "Authentication mode for console(s). One of: 'openshift', 'internal', 'unsecured'")
@@ -143,6 +118,7 @@ func (s *SkupperKubeSite) CreateFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSliceVar(&s.kubeInit.controllerServiceAnnotations, "controller-service-annotation", []string{}, "Annotations to add to skupper controller service")
 	cmd.Flags().BoolVarP(&routerCreateOpts.EnableServiceSync, "enable-service-sync", "", true, "Participate in cross-site service synchronization")
 
+	cmd.Flags().IntVar(&routerCreateOpts.Routers, "routers", 0, "Number of router replicas to start")
 	cmd.Flags().StringVar(&routerCreateOpts.Router.Cpu, "router-cpu", "", "CPU request for router pods")
 	cmd.Flags().StringVar(&routerCreateOpts.Router.Memory, "router-memory", "", "Memory request for router pods")
 	cmd.Flags().StringVar(&routerCreateOpts.Router.CpuLimit, "router-cpu-limit", "", "CPU limit for router pods")
