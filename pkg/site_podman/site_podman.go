@@ -11,6 +11,7 @@ import (
 	"github.com/skupperproject/skupper/pkg/domain"
 	"github.com/skupperproject/skupper/pkg/qdr"
 	"github.com/skupperproject/skupper/pkg/utils"
+	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 type SitePodman struct {
@@ -31,17 +32,19 @@ func (s *SitePodman) GetIngressClasses() []string {
 }
 
 type SitePodmanHandler struct {
-	cli *podman.PodmanRestClient
+	cli      *podman.PodmanRestClient
+	endpoint string
 }
 
-func NewSitePodmanHandler(endpoint, basePath string) (*SitePodmanHandler, error) {
-	c, err := podman.NewPodmanClient(endpoint, basePath)
+func NewSitePodmanHandler(endpoint string) (*SitePodmanHandler, error) {
+	c, err := podman.NewPodmanClient(endpoint, "")
 	if err != nil {
 		return nil, err
 	}
 
 	return &SitePodmanHandler{
-		cli: c,
+		cli:      c,
+		endpoint: endpoint,
 	}, nil
 }
 
@@ -144,6 +147,14 @@ func (s *SitePodmanHandler) Create(site domain.Site) error {
 			}
 		}
 	}()
+
+	// Save podman local configuration
+	err = NewPodmanConfigFileHandler().Save(&PodmanConfig{
+		Endpoint: s.endpoint,
+	})
+	if err != nil {
+		return err
+	}
 
 	// Create network
 	err = s.createNetwork(podmanSite)
@@ -294,6 +305,17 @@ func (s *SitePodmanHandler) canCreate(site *SitePodman) error {
 		}
 	}
 
+	// Validating podman endpoint refers to local machine
+	testVolumeName := "skupper-test-" + rand.String(5)
+	v, err := cli.VolumeCreate(&container.Volume{Name: testVolumeName})
+	if err != nil {
+		return fmt.Errorf("unable to validate volume creation - %w", err)
+	}
+	defer cli.VolumeRemove(testVolumeName)
+	if _, err = v.ListFiles(); err != nil {
+		return fmt.Errorf("You cannot use a remote podman endpoint - %w", err)
+	}
+
 	return nil
 }
 
@@ -312,14 +334,14 @@ func (s *SitePodmanHandler) createNetwork(site *SitePodman) error {
 func (s *SitePodmanHandler) Get() (domain.Site, error) {
 	site := &SitePodman{
 		SiteCommon:     &domain.SiteCommon{},
-		PodmanEndpoint: s.cli.RestClient.Host,
+		PodmanEndpoint: s.endpoint,
 	}
 
 	// getting router config
 	configHandler := NewRouterConfigHandlerPodman(s.cli)
 	config, err := configHandler.GetRouterConfig()
 	if err != nil {
-		return nil, fmt.Errorf("Skupper is not enabled for user '%s'", Namespace)
+		return nil, fmt.Errorf("Skupper is not enabled for user '%s'", Username)
 	}
 
 	// Setting basic site info
