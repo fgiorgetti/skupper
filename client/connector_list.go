@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -14,35 +13,6 @@ import (
 	kubeqdr "github.com/skupperproject/skupper/pkg/kube/qdr"
 	"github.com/skupperproject/skupper/pkg/qdr"
 )
-
-func getLinkStatus(s *corev1.Secret, edge bool, connections []qdr.Connection) types.LinkStatus {
-	link := types.LinkStatus{
-		Name: s.ObjectMeta.Name,
-	}
-	if s.ObjectMeta.Labels[types.SkupperTypeQualifier] == types.TypeClaimRequest {
-		link.Url = s.ObjectMeta.Annotations[types.ClaimUrlAnnotationKey]
-		if desc, ok := s.ObjectMeta.Annotations[types.StatusAnnotationKey]; ok {
-			link.Description = "Failed to redeem claim: " + desc
-		}
-		link.Configured = false
-	} else {
-		if edge {
-			link.Url = fmt.Sprintf("%s:%s", s.ObjectMeta.Annotations["edge-host"], s.ObjectMeta.Annotations["edge-port"])
-		} else {
-			link.Url = fmt.Sprintf("%s:%s", s.ObjectMeta.Annotations["inter-router-host"], s.ObjectMeta.Annotations["inter-router-port"])
-		}
-		link.Configured = true
-		if connection := kubeqdr.GetInterRouterOrEdgeConnection(link.Url, connections); connection != nil && connection.Active {
-			link.Connected = true
-			link.Cost, _ = strconv.Atoi(s.ObjectMeta.Annotations[types.TokenCost])
-			link.Created = s.ObjectMeta.CreationTimestamp.String()
-		}
-		if s.ObjectMeta.Labels[types.SkupperDisabledQualifier] == "true" {
-			link.Description = "Destination host is not allowed"
-		}
-	}
-	return link
-}
 
 func (cli *VanClient) getRouterConfig() (*qdr.RouterConfig, error) {
 	configmap, err := kube.GetConfigMap(types.TransportConfigMapName, cli.Namespace, cli.KubeClient)
@@ -71,7 +41,7 @@ func (cli *VanClient) ConnectorList(ctx context.Context) ([]types.LinkStatus, er
 	edge := current.IsEdge()
 	connections, _ := kubeqdr.GetConnections(cli.Namespace, cli.KubeClient, cli.RestConfig)
 	for _, s := range secrets.Items {
-		links = append(links, getLinkStatus(&s, edge, connections))
+		links = append(links, qdr.GetLinkStatus(&s, edge, connections))
 	}
 	return links, nil
 }
@@ -98,7 +68,7 @@ func GetLocalLinkStatus(cli *VanClient, namespace string, siteNameMap map[string
 		var connectedTo string
 		siteId := s.ObjectMeta.Annotations[types.TokenGeneratedBy]
 		connectedTo = siteId[:7] + "-" + siteNameMap[siteId]
-		linkStatus := getLinkStatus(&s, edge, connections)
+		linkStatus := qdr.GetLinkStatus(&s, edge, connections)
 		mapLinks[connectedTo] = &linkStatus
 	}
 	return mapLinks, nil

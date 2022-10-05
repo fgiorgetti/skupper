@@ -37,7 +37,6 @@ func AddSslProfile(secretName string, namespace string, cli kubernetes.Interface
 }
 
 func RemoveSslProfile(secretName string, namespace string, cli kubernetes.Interface) error {
-
 	configmap, err := kube.GetConfigMap(types.TransportConfigMapName, namespace, cli)
 	if err != nil {
 		return err
