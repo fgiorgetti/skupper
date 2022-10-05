@@ -162,7 +162,7 @@ func (s *SiteQueryServer) Request(request *qdr.Request) (*qdr.Response, error) {
 }
 
 func (s *SiteQueryServer) HandleSiteQuery(request *qdr.Request) (*qdr.Response, error) {
-	//if request has explicit version, send SiteQueryData, else send LegacySiteData
+	// if request has explicit version, send SiteQueryData, else send LegacySiteData
 	if request.Version == "" {
 		event.Record(SiteQueryRequest, "legacy site data request")
 		data := s.siteInfo.AsLegacySiteInfo()
@@ -340,11 +340,14 @@ func querySites(agent qdr.RequestResponse, sites []data.SiteQueryData) {
 			Address: getSiteQueryAddress(s.SiteId),
 			Version: client.Version,
 		}
+		if s.Namespace == "" {
+			continue
+		}
 		response, err := agent.Request(&request)
 		if err != nil {
 			event.Recordf(SiteQueryError, "Request to %s failed: %s", s.SiteId, err)
 		} else if response.Version == "" {
-			//assume legacy version of site-query protocol
+			// assume legacy version of site-query protocol
 			info := data.LegacySiteInfo{}
 			err := json.Unmarshal([]byte(response.Body), &info)
 			if err != nil {
