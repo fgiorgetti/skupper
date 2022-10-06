@@ -57,10 +57,6 @@ func (cli *VanClient) GetVersion(component string, name string) string {
 	return kube.GetComponentVersion(cli.Namespace, cli.KubeClient, component, name)
 }
 
-func (cli *VanClient) GetMinimumCompatibleVersion() string {
-	return version.MinimumCompatibleVersion
-}
-
 func NewClient(namespace string, context string, kubeConfigPath string) (*VanClient, error) {
 	c := &VanClient{}
 
