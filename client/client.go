@@ -20,7 +20,6 @@ import (
 )
 
 var Version = "undefined"
-var minimumCompatibleVersion = "0.8.0"
 var defaultRetry = wait.Backoff{
 	Steps:    100,
 	Duration: 10 * time.Millisecond,
@@ -56,10 +55,6 @@ func (cli *VanClient) GetDiscoveryClient() *discovery.DiscoveryClient {
 
 func (cli *VanClient) GetVersion(component string, name string) string {
 	return kube.GetComponentVersion(cli.Namespace, cli.KubeClient, component, name)
-}
-
-func (cli *VanClient) GetMinimumCompatibleVersion() string {
-	return minimumCompatibleVersion
 }
 
 func NewClient(namespace string, context string, kubeConfigPath string) (*VanClient, error) {
