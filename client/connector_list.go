@@ -3,7 +3,6 @@ package client
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
