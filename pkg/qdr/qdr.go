@@ -247,7 +247,7 @@ func (r *RouterConfig) UpdateBridgeConfig(desired BridgeConfig) bool {
 }
 
 func (r *RouterConfig) GetSiteMetadata() SiteMetadata {
-	return getSiteMetadata(r.Metadata.Metadata)
+	return GetSiteMetadata(r.Metadata.Metadata)
 }
 
 func (r *RouterConfig) SetSiteMetadata(site *SiteMetadata) {
