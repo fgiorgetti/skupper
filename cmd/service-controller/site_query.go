@@ -343,9 +343,9 @@ func querySites(agent qdr.RequestResponse, sites []data.SiteQueryData) {
 		// Non kubernetes sites do not yet have a Service Controller,
 		// this request won't be sent to avoid an unnecessary timeout.
 		// TODO Remove this once non-kubernetes have a service controller in place
-		if s.Namespace == "" {
-			continue
-		}
+		// if s.Namespace == "" {
+		// 	continue
+		// }
 		response, err := agent.Request(&request)
 		if err != nil {
 			event.Recordf(SiteQueryError, "Request to %s failed: %s", s.SiteId, err)
@@ -389,9 +389,9 @@ func queryGateways(agent qdr.RequestResponse, sites []data.SiteQueryData) []data
 		// Non kubernetes sites do not yet have a Service Controller,
 		// this request won't be sent to avoid an unnecessary timeout.
 		// TODO Remove this once non-kubernetes have a service controller in place
-		if s.Namespace == "" {
-			continue
-		}
+		// if s.Namespace == "" {
+		// 	continue
+		// }
 		response, err := agent.Request(&request)
 		if err != nil {
 			event.Recordf(GatewayQueryError, "Request to %s failed: %s", s.SiteId, err)
