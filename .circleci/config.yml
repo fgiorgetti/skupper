@@ -373,6 +373,7 @@ jobs:
     steps:
       - checkout
       - go/mod-download-cached
+      - run: make generate-client
 
       - compile_go_program:
           goos: linux
