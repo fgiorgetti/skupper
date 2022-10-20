@@ -10,6 +10,7 @@ import (
 
 	"github.com/skupperproject/skupper/api/types"
 	"github.com/skupperproject/skupper/client"
+	"github.com/skupperproject/skupper/pkg/domain"
 	"github.com/skupperproject/skupper/pkg/event"
 	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -140,6 +141,8 @@ func TestClaimHandler(t *testing.T) {
 		vanClient: cli,
 		siteId:    "site-a",
 	}
+	siteMeta, _ := cli.GetSiteMetadata()
+	handler.redeemer = domain.NewClaimRedeemer(handler.name, handler.siteId, siteMeta.Version, handler.updateSecret, event.Recordf)
 
 	verifier := &MockVerifier{
 		cli: &client.VanClient{
@@ -199,6 +202,8 @@ func TestInvalidClaims(t *testing.T) {
 		vanClient: cli,
 		siteId:    "site-a",
 	}
+	siteMeta, _ := cli.GetSiteMetadata()
+	handler.redeemer = domain.NewClaimRedeemer(handler.name, handler.siteId, siteMeta.Version, handler.updateSecret, event.Recordf)
 
 	var tests = []struct {
 		secret *corev1.Secret
@@ -392,6 +397,8 @@ func TestIncompatibleClaims(t *testing.T) {
 				vanClient: cli,
 				siteId:    "site-a",
 			}
+			siteMeta, _ := cli.GetSiteMetadata()
+			handler.redeemer = domain.NewClaimRedeemer(handler.name, handler.siteId, siteMeta.Version, handler.updateSecret, event.Recordf)
 
 			// defining the claim on the site that is going to redeem the claim
 			claim := newTestClaim(name, server.URL, password, test.clientSiteVersion)
