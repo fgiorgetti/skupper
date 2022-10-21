@@ -875,6 +875,10 @@ func init() {
 		skupperCli = &SkupperKube{}
 	case types.PlatformPodman:
 		skupperCli = &SkupperPodman{}
+	default:
+		fmt.Printf("invalid platform: %s", config.GetPlatform())
+		fmt.Println()
+		os.Exit(1)
 	}
 
 	cmdInit := NewCmdInit(skupperCli.Site())
