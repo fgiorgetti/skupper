@@ -468,6 +468,14 @@ type TransportConnectedSites struct {
 	Warnings []string
 }
 
+type ServiceInterfaceHandler interface {
+	Create(service *ServiceInterface) error
+	List() (map[string]*ServiceInterface, error)
+	Get(address string) (*ServiceInterface, error)
+	Update(service *ServiceInterface) error
+	Delete(address string) error
+}
+
 type ServiceInterface struct {
 	Address                  string                   `json:"address" yaml:"address"`
 	Protocol                 string                   `json:"protocol" yaml:"protocol"`
