@@ -509,7 +509,7 @@ func (cli *VanClient) GetRouterSpecFromOpts(options types.SiteConfigSpec, siteId
 	}
 
 	isEdge := options.RouterMode == string(types.TransportModeEdge)
-	routerConfig := qdr.InitialConfigSkupperRouter(van.Name+"-${HOSTNAME}", siteId, Version, isEdge, 3, options.Router)
+	routerConfig := qdr.InitialConfigSkupperRouter(van.Name+"-${HOSTNAME}", siteId, version.Version, isEdge, 3, options.Router)
 	van.RouterConfig, _ = qdr.MarshalRouterConfig(routerConfig)
 
 	envVars := []corev1.EnvVar{}
