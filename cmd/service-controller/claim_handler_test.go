@@ -12,6 +12,7 @@ import (
 	"github.com/skupperproject/skupper/client"
 	"github.com/skupperproject/skupper/pkg/domain"
 	"github.com/skupperproject/skupper/pkg/event"
+	"github.com/skupperproject/skupper/pkg/version"
 	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -133,7 +134,7 @@ func TestClaimHandler(t *testing.T) {
 	event.StartDefaultEventStore(nil)
 	cli := &client.VanClient{
 		Namespace:  "claim-handler-test",
-		KubeClient: initFakeClientSet("claim-handler-test", client.Version),
+		KubeClient: initFakeClientSet("claim-handler-test", version.Version),
 	}
 
 	handler := &ClaimHandler{
@@ -147,7 +148,7 @@ func TestClaimHandler(t *testing.T) {
 	verifier := &MockVerifier{
 		cli: &client.VanClient{
 			Namespace:  "claim-handler-server-test",
-			KubeClient: initFakeClientSet("claim-handler-server-test", client.Version),
+			KubeClient: initFakeClientSet("claim-handler-server-test", version.Version),
 		},
 	}
 	server := httptest.NewServer(verifier)
@@ -194,7 +195,7 @@ func TestInvalidClaims(t *testing.T) {
 	event.StartDefaultEventStore(nil)
 	cli := &client.VanClient{
 		Namespace:  "claim-handler-test",
-		KubeClient: initFakeClientSet("claim-handler-test", client.Version),
+		KubeClient: initFakeClientSet("claim-handler-test", version.Version),
 	}
 
 	handler := &ClaimHandler{
@@ -352,7 +353,7 @@ func TestIncompatibleClaims(t *testing.T) {
 	verifier := &MockVerifier{
 		cli: &client.VanClient{
 			Namespace:  "claim-handler-server-test",
-			KubeClient: initFakeClientSet("claim-handler-server-test", client.Version),
+			KubeClient: initFakeClientSet("claim-handler-server-test", version.Version),
 		},
 	}
 	server := httptest.NewServer(verifier)

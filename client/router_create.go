@@ -9,6 +9,7 @@ import (
 	"time"
 
 	routev1 "github.com/openshift/api/route/v1"
+	"github.com/skupperproject/skupper/pkg/version"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -508,7 +509,7 @@ func (cli *VanClient) GetRouterSpecFromOpts(options types.SiteConfigSpec, siteId
 	}
 
 	isEdge := options.RouterMode == string(types.TransportModeEdge)
-	routerConfig := qdr.InitialConfigSkupperRouter(van.Name+"-${HOSTNAME}", siteId, Version, isEdge, 3, options.Router)
+	routerConfig := qdr.InitialConfigSkupperRouter(van.Name+"-${HOSTNAME}", siteId, version.Version, isEdge, 3, options.Router)
 	van.RouterConfig, _ = qdr.MarshalRouterConfig(routerConfig)
 
 	envVars := []corev1.EnvVar{}

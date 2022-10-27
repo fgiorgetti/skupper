@@ -20,7 +20,6 @@ import (
 	"github.com/skupperproject/skupper/pkg/kube"
 )
 
-var Version = "undefined"
 var defaultRetry = wait.Backoff{
 	Steps:    100,
 	Duration: 10 * time.Millisecond,

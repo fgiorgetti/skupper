@@ -4,13 +4,13 @@ import (
 	"fmt"
 
 	"github.com/skupperproject/skupper/api/types"
-	"github.com/skupperproject/skupper/client"
 	"github.com/skupperproject/skupper/client/container"
 	"github.com/skupperproject/skupper/client/podman"
 	"github.com/skupperproject/skupper/pkg/config"
 	"github.com/skupperproject/skupper/pkg/domain"
 	"github.com/skupperproject/skupper/pkg/qdr"
 	"github.com/skupperproject/skupper/pkg/utils"
+	"github.com/skupperproject/skupper/pkg/version"
 	"k8s.io/apimachinery/pkg/util/rand"
 )
 
@@ -204,7 +204,7 @@ func (s *SitePodmanHandler) Create(site domain.Site) error {
 	// Create initial transport config file
 	podmanSite.RouterOpts.MaxFrameSize = types.RouterMaxFrameSizeDefault
 	podmanSite.RouterOpts.MaxSessionFrames = types.RouterMaxSessionFramesDefault
-	initialRouterConfig := qdr.InitialConfigSkupperRouter(podmanSite.GetName(), podmanSite.GetId(), client.Version, podmanSite.IsEdge(), 3, podmanSite.RouterOpts)
+	initialRouterConfig := qdr.InitialConfigSkupperRouter(podmanSite.GetName(), podmanSite.GetId(), version.Version, podmanSite.IsEdge(), 3, podmanSite.RouterOpts)
 	var routerConfigHandler qdr.RouterConfigHandler
 	routerConfigHandler = NewRouterConfigHandlerPodman(s.cli)
 	err = routerConfigHandler.SaveRouterConfig(&initialRouterConfig)

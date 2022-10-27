@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/skupperproject/skupper/api/types"
-	"github.com/skupperproject/skupper/pkg/domain"
 	"github.com/skupperproject/skupper/pkg/kube"
+	"github.com/skupperproject/skupper/pkg/version"
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -310,11 +310,11 @@ func TestVerifySiteCompatibility(t *testing.T) {
 		})
 	}
 
-	originalMinimumCompatible := domain.MinimumCompatibleVersion
+	originalMinimumCompatible := version.MinimumCompatibleVersion
 	for _, test := range testTable {
-		name := fmt.Sprintf("site-%s-minimum-%s-provided-%s", test.siteVersion, domain.MinimumCompatibleVersion, test.clientSiteVersion)
+		name := fmt.Sprintf("site-%s-minimum-%s-provided-%s", test.siteVersion, version.MinimumCompatibleVersion, test.clientSiteVersion)
 		t.Run(name, func(t *testing.T) {
-			domain.MinimumCompatibleVersion = test.minimumCompatible
+			version.MinimumCompatibleVersion = test.minimumCompatible
 			initKubeClient(test.siteVersion)
 			compatErr := cli.VerifySiteCompatibility(test.clientSiteVersion)
 			assert.Assert(t, test.accept == (compatErr == nil))
@@ -323,5 +323,5 @@ func TestVerifySiteCompatibility(t *testing.T) {
 			}
 		})
 	}
-	domain.MinimumCompatibleVersion = originalMinimumCompatible
+	version.MinimumCompatibleVersion = originalMinimumCompatible
 }
