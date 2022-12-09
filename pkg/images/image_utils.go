@@ -1,9 +1,10 @@
-package types
+package images
 
 import (
 	"os"
 	"strings"
 
+	"github.com/skupperproject/skupper/api/types"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -40,8 +41,8 @@ func GetRouterImagePullPolicy() string {
 	return getPullPolicy(RouterPullPolicyEnvKey)
 }
 
-func GetRouterImageDetails() ImageDetails {
-	return ImageDetails{
+func GetRouterImageDetails() types.ImageDetails {
+	return types.ImageDetails{
 		Name:       GetRouterImageName(),
 		PullPolicy: GetRouterImagePullPolicy(),
 	}
@@ -74,15 +75,15 @@ func GetServiceControllerImagePullPolicy() string {
 	return getPullPolicy(ServiceControllerPullPolicyEnvKey)
 }
 
-func GetServiceControllerImageDetails() ImageDetails {
-	return ImageDetails{
+func GetServiceControllerImageDetails() types.ImageDetails {
+	return types.ImageDetails{
 		Name:       GetServiceControllerImageName(),
 		PullPolicy: GetServiceControllerImagePullPolicy(),
 	}
 }
 
-func GetConfigSyncImageDetails() ImageDetails {
-	return ImageDetails{
+func GetConfigSyncImageDetails() types.ImageDetails {
+	return types.ImageDetails{
 		Name:       GetConfigSyncImageName(),
 		PullPolicy: GetConfigSyncImagePullPolicy(),
 	}
