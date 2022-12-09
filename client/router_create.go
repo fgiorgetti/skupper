@@ -9,6 +9,7 @@ import (
 	"time"
 
 	routev1 "github.com/openshift/api/route/v1"
+	"github.com/skupperproject/skupper/pkg/images"
 	"github.com/skupperproject/skupper/pkg/version"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -53,8 +54,8 @@ func OauthProxyContainer(serviceAccount string, servicePort string) *corev1.Cont
 
 func ConfigSyncContainer() *corev1.Container {
 	return &corev1.Container{
-		Image:           types.GetConfigSyncImageName(),
-		ImagePullPolicy: kube.GetPullPolicy(types.GetConfigSyncImagePullPolicy()),
+		Image:           images.GetConfigSyncImageName(),
+		ImagePullPolicy: kube.GetPullPolicy(images.GetConfigSyncImagePullPolicy()),
 		Name:            "config-sync",
 	}
 }
@@ -81,7 +82,7 @@ func (cli *VanClient) GetVanControllerSpec(options types.SiteConfigSpec, van *ty
 		oauthProxy
 	)
 
-	van.Controller.Image = types.GetServiceControllerImageDetails()
+	van.Controller.Image = images.GetServiceControllerImageDetails()
 	van.Controller.Replicas = 1
 	van.Controller.LabelSelector = map[string]string{
 		types.ComponentAnnotation: types.ControllerComponentName,
@@ -106,7 +107,7 @@ func (cli *VanClient) GetVanControllerSpec(options types.SiteConfigSpec, van *ty
 	envVars = append(envVars, corev1.EnvVar{Name: "SKUPPER_ROUTER_MODE", Value: options.RouterMode})
 	envVars = append(envVars, corev1.EnvVar{Name: "OWNER_NAME", Value: transport.ObjectMeta.Name})
 	envVars = append(envVars, corev1.EnvVar{Name: "OWNER_UID", Value: string(transport.ObjectMeta.UID)})
-	envVars = types.AddRouterImageOverrideToEnv(envVars)
+	envVars = images.AddRouterImageOverrideToEnv(envVars)
 	if !options.EnableServiceSync {
 		envVars = append(envVars, corev1.EnvVar{Name: "SKUPPER_DISABLE_SERVICE_SYNC", Value: "true"})
 	}
@@ -505,7 +506,7 @@ func (cli *VanClient) GetRouterSpecFromOpts(options types.SiteConfigSpec, siteId
 
 	van.AuthMode = types.ConsoleAuthMode(options.AuthMode)
 
-	van.Transport.Image = types.GetRouterImageDetails()
+	van.Transport.Image = images.GetRouterImageDetails()
 	van.Transport.Replicas = 1
 	if options.Routers != 0 {
 		van.Transport.Replicas = int32(options.Routers)
@@ -594,7 +595,7 @@ func (cli *VanClient) GetRouterSpecFromOpts(options types.SiteConfigSpec, siteId
 		fmt.Println("Error configuring config-sync sidecar:", err)
 	}
 
-	van.ConfigSync.Image = types.GetConfigSyncImageDetails()
+	van.ConfigSync.Image = images.GetConfigSyncImageDetails()
 
 	sidecars := []*corev1.Container{
 		kube.ContainerForConfigSync(van.ConfigSync),
