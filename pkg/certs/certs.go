@@ -302,3 +302,19 @@ func GenerateSecretFile(secretFile string, secret *corev1.Secret, localOnly bool
 	fmt.Println()
 	return nil
 }
+
+func GetTlsCrtHostnames(tlscrtData []byte) (subject string, hostnames []string, err error) {
+	b, _ := pem.Decode(tlscrtData)
+	if b == nil {
+		return "", nil, fmt.Errorf("error decoding certificate data")
+	}
+	cert, err := x509.ParseCertificate(b.Bytes)
+	if err != nil {
+		return "", nil, err
+	}
+	subject = cert.Subject.CommonName
+	for _, name := range cert.DNSNames {
+		hostnames = append(hostnames, name)
+	}
+	return subject, hostnames, nil
+}
