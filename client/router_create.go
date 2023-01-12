@@ -132,7 +132,7 @@ func (cli *VanClient) GetVanControllerSpec(options types.SiteConfigSpec, van *ty
 		if err != nil {
 			fmt.Println("Error configuring vFlow collector sidecar:", err)
 		}
-		van.Collector.Image = GetFlowCollectorImageDetails()
+		van.Collector.Image = images.GetFlowCollectorImageDetails()
 		van.Collector.EnvVar = envVars
 		sidecars = append(sidecars, kube.ContainerForFlowCollector(van.Collector))
 		if options.AuthMode == string(types.ConsoleAuthModeOpenshift) {

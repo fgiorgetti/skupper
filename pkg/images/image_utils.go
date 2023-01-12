@@ -119,8 +119,8 @@ func GetFlowCollectorImagePullPolicy() string {
 	return getPullPolicy(FlowCollectorPullPolicyEnvKey)
 }
 
-func GetFlowCollectorImageDetails() ImageDetails {
-	return ImageDetails{
+func GetFlowCollectorImageDetails() types.ImageDetails {
+	return types.ImageDetails{
 		Name:       GetFlowCollectorImageName(),
 		PullPolicy: GetFlowCollectorImagePullPolicy(),
 	}
