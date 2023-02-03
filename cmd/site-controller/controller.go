@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/skupperproject/skupper/client/vault"
 	"github.com/skupperproject/skupper/pkg/version"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -325,6 +326,38 @@ func (c *SiteController) generate(token *corev1.Secret) error {
 			token.ObjectMeta.Annotations[types.TokenGeneratedBy] = siteId
 		}
 		_, err = c.vanClient.KubeClient.CoreV1().Secrets(token.ObjectMeta.Namespace).Update(token)
+		if err != nil {
+			return err
+		}
+		if targetSite, ok := token.ObjectMeta.Annotations[types.SkupperTargetSiteQualifier]; ok {
+			log.Printf("Validating storage")
+			siteConfig, err := c.vanClient.SiteConfigInspectInNamespace(context.Background(), nil, token.ObjectMeta.Namespace)
+			log.Printf("SiteConfig info: %v", siteConfig.Spec)
+			if err != nil {
+				log.Printf("error retrieving site info from namespace: %s", token.ObjectMeta.Namespace)
+				return fmt.Errorf("error retrieving site info from namespace: %s", token.ObjectMeta.Namespace)
+			}
+			if siteConfig.Spec.Storage == "vault" {
+				log.Printf("Retrieving vault settings")
+				cm, err := c.vanClient.KubeClient.CoreV1().ConfigMaps(token.ObjectMeta.Namespace).Get(siteConfig.Spec.StorageSettings, metav1.GetOptions{})
+				if err != nil {
+					log.Printf("unable to retrieve vault settings: %v", err)
+					return fmt.Errorf("unable to retrieve vault settings: %v", err)
+				}
+				address := cm.Data["address"]
+				vaultToken := cm.Data["token"]
+				vaultCli := vault.NewClient(address, vaultToken, siteConfig.Spec.SkupperName)
+				log.Printf("Publishing token into vault: %s - target site: %s", token.Name, targetSite)
+				token.Namespace = ""
+				err = vaultCli.PublishToken(context.Background(), targetSite, token)
+				if err != nil {
+					log.Printf("unable to publish token to target site %s - %v", targetSite, err)
+					return fmt.Errorf("unable to publish token to target site %s - %v", targetSite, err)
+				} else {
+					log.Printf("token published into vault: %s - target site: %s", token.Name, targetSite)
+				}
+			}
+		}
 		return err
 	} else {
 		log.Printf("Failed to generate token for request %s: %s", token.ObjectMeta.Name, err)

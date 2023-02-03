@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
+	"github.com/skupperproject/skupper/client/vault"
 	"github.com/skupperproject/skupper/pkg/version"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -45,6 +48,7 @@ type Controller struct {
 	svcInformer       cache.SharedIndexInformer
 	headlessInformer  cache.SharedIndexInformer
 	externalBridges   cache.SharedIndexInformer
+	vaultCli          *vault.Client
 
 	// control loop state:
 	events   workqueue.RateLimitingInterface
@@ -210,6 +214,17 @@ func NewController(cli *client.VanClient, origin string, tlsConfig *tls.Config, 
 	}
 	controller.serviceSync = service_sync.NewServiceSync(origin, ttl, version.Version, qdr.NewConnectionFactory("amqps://"+types.QualifiedServiceName(types.LocalTransportServiceName, cli.Namespace)+":5671", tlsConfig), handler)
 
+	if siteConfig.Spec.Storage == "vault" {
+		cm, err := controller.vanClient.KubeClient.CoreV1().ConfigMaps(cli.Namespace).Get(siteConfig.Spec.StorageSettings, metav1.GetOptions{})
+		if err != nil {
+			log.Printf("unable to retrieve vault settings: %v", err)
+		} else {
+			address := cm.Data["address"]
+			vaultToken := cm.Data["token"]
+			controller.vaultCli = vault.NewClient(address, vaultToken, siteConfig.Spec.SkupperName)
+		}
+	}
+
 	controller.flowController = flow.NewFlowController(origin, siteCreationTime, qdr.NewConnectionFactory("amqps://"+types.QualifiedServiceName(types.LocalTransportServiceName, cli.Namespace)+":5671", tlsConfig))
 	ipHandler := func(deleted bool, name string, process *flow.ProcessRecord) error {
 		return flow.UpdateProcess(controller.flowController, deleted, name, process)
@@ -354,6 +369,8 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	c.tokenHandler.start(stopCh)
 	c.claimHandler.start(stopCh)
 	c.policyHandler.start(stopCh)
+
+	go c.vaultTokenWatcher(stopCh)
 
 	log.Println("Started workers")
 	<-stopCh
@@ -1004,4 +1021,45 @@ func (c *Controller) updateServiceBindings(required types.ServiceInterface, port
 		bindings.Update(required, c)
 	}
 	return nil
+}
+
+func (c *Controller) vaultTokenWatcher(stopCh <-chan struct{}) {
+	if c.vaultCli == nil {
+		return
+	}
+	ticker := time.NewTimer(time.Second * 30)
+	secretsClient := c.vanClient.KubeClient.CoreV1().Secrets(c.vanClient.Namespace)
+
+	for {
+		select {
+		case <-ticker.C:
+			tokens, err := c.vaultCli.RetrieveTokens(context.Background())
+			if err != nil {
+				log.Printf("error retrieving tokens from vault - %v", err)
+			}
+			for _, token := range tokens {
+				// validating if token exists
+				curToken, err := secretsClient.Get(token.Name, metav1.GetOptions{})
+				if errors.IsNotFound(err) {
+					if _, err = secretsClient.Create(token); err != nil {
+						log.Printf("error creating token %s - %v", token.Name, err)
+					} else {
+						log.Printf("token created: %s", token.Name)
+					}
+				} else if curToken != nil {
+					annotationsChanged := !reflect.DeepEqual(token.Annotations, curToken.Annotations)
+					certsChanged := !reflect.DeepEqual(token.Data, curToken.Data)
+					if annotationsChanged || certsChanged {
+						if _, err = secretsClient.Update(token); err != nil {
+							log.Printf("error updating token %s - %v", token.Name, err)
+						} else {
+							log.Printf("token updated: %s", token.Name)
+						}
+					}
+				}
+			}
+		case <-stopCh:
+			break
+		}
+	}
 }

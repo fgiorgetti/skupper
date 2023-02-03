@@ -1,0 +1,10 @@
+---
+apiVersion: v1
+data:
+  name: BR
+  service-sync: false
+  storage: vault
+  storage-settings: vault
+kind: ConfigMap
+metadata:
+  name: skupper-site

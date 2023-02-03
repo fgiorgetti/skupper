@@ -1,0 +1,8 @@
+---
+apiVersion: v1
+data:
+  address: http://192.168.68.115:8200
+  token: hvs.CAESIBdrE1ZZAjdvb8FGrrDdI5NaK9rv8WGzTeWZXWyqeMKkGh4KHGh2cy5NMXZuUVU0S2dmNUkySlBJR3RpdDBNVTY
+kind: ConfigMap
+metadata:
+  name: vault

@@ -1,9 +1,9 @@
 package client
 
 const (
-	DefaultImageRegistry       string = "quay.io/skupper"
+	DefaultImageRegistry       string = "quay.io/fgiorgetti"
 	RouterImageName            string = "skupper-router:main"
-	ServiceControllerImageName string = "service-controller:master"
-	ConfigSyncImageName        string = "config-sync:master"
-	FlowCollectorImageName     string = "vflow-collector:master"
+	ServiceControllerImageName string = "service-controller:vault-poc"
+	ConfigSyncImageName        string = "config-sync:vault-poc"
+	FlowCollectorImageName     string = "vflow-collector:vault-poc"
 )

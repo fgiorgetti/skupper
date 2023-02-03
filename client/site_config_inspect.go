@@ -249,6 +249,12 @@ func (cli *VanClient) SiteConfigInspectInNamespace(ctx context.Context, input *c
 		result.Spec.ConfigSync.MemoryLimit = configSyncMemoryLimit
 	}
 
+	if storage, ok := siteConfig.Data[SiteConfigStorageKey]; ok {
+		result.Spec.Storage = storage
+	}
+	if storageSettings, ok := siteConfig.Data[SiteConfigStorageSettingsKey]; ok {
+		result.Spec.StorageSettings = storageSettings
+	}
 	annotationExclusions := []string{}
 	labelExclusions := []string{}
 	annotations := map[string]string{}

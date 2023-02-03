@@ -1,0 +1,10 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: BR-to-US
+  labels:
+    skupper.io/type: "connection-token-request"
+  annotations:
+    skupper.io/target-site: "BR"
+type: Opaque

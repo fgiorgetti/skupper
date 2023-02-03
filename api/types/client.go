@@ -107,6 +107,8 @@ type SiteConfigSpec struct {
 	Controller          ControllerOptions
 	ConfigSync          ConfigSyncOptions
 	FlowCollector       FlowCollectorOptions
+	Storage             string
+	StorageSettings     string
 	Platform            Platform
 }
 

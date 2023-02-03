@@ -23,6 +23,8 @@ const (
 	SiteConfigIngressHostKey         string = "ingress-host"
 	SiteConfigCreateNetworkPolicyKey string = "create-network-policy"
 	SiteConfigRoutersKey             string = "routers"
+	SiteConfigStorageKey             string = "storage"
+	SiteConfigStorageSettingsKey     string = "storage-settings"
 
 	// console options
 	SiteConfigConsoleKey               string = "console"
@@ -101,6 +103,8 @@ func (cli *VanClient) SiteConfigCreate(ctx context.Context, spec types.SiteConfi
 			SiteConfigConsoleUserKey:           "",
 			SiteConfigConsolePasswordKey:       "",
 			SiteConfigIngressKey:               types.IngressLoadBalancerString,
+			SiteConfigStorageKey:               spec.Storage,
+			SiteConfigStorageSettingsKey:       spec.StorageSettings,
 		},
 	}
 	if spec.SkupperName != "" {

@@ -1,0 +1,10 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: UK-to-BR
+  labels:
+    skupper.io/type: "connection-token-request"
+  annotations:
+    skupper.io/target-site: "UK"
+type: Opaque

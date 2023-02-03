@@ -70,6 +70,17 @@ func (s *SkupperKubeSite) Create(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	switch routerCreateOpts.Storage {
+	case "vault":
+		if routerCreateOpts.StorageSettings == "" {
+			return fmt.Errorf("vault ConfigMap name is required and it must provide address and token values")
+		}
+	default:
+		if !utils.StringSliceContains([]string{"", "internal"}, routerCreateOpts.Storage) {
+			return fmt.Errorf("invalid credential storage type, valid types: internal or vault")
+		}
+	}
+
 	routerCreateOpts.SkupperNamespace = ns
 	siteConfig, err := cli.SiteConfigInspect(context.Background(), nil)
 	if err != nil {
@@ -177,6 +188,9 @@ func (s *SkupperKubeSite) CreateFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&routerCreateOpts.FlowCollector.Memory, "vflow-collector-memory", "", "Memory request for vFlow collector pods")
 	cmd.Flags().StringVar(&routerCreateOpts.FlowCollector.CpuLimit, "vflow-collector-cpu-limit", "", "CPU limit for vFlow collector pods")
 	cmd.Flags().StringVar(&routerCreateOpts.FlowCollector.MemoryLimit, "vflow-collector-memory-limit", "", "Memory limit for vFlow collector pods")
+
+	cmd.Flags().StringVar(&routerCreateOpts.Storage, "storage", "", "Credential storage to use: internal or vault")
+	cmd.Flags().StringVar(&routerCreateOpts.FlowCollector.Cpu, "storage-settings", "", "Configmap name with settings for credential storage")
 
 	cmd.Flags().DurationVar(&LoadBalancerTimeout, "timeout", types.DefaultTimeoutDuration, "Configurable timeout for the ingress loadbalancer option.")
 

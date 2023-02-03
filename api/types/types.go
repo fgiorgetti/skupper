@@ -160,6 +160,7 @@ const (
 	OriginalAssignedQualifier   string = InternalQualifier + "/originalAssignedPort"
 	InternalTypeQualifier       string = InternalQualifier + "/type"
 	SkupperTypeQualifier        string = BaseQualifier + "/type"
+	SkupperTargetSiteQualifier  string = BaseQualifier + "/target-site"
 	TypeProxyQualifier          string = InternalTypeQualifier + "=proxy"
 	SkupperDisabledQualifier    string = InternalQualifier + "/disabled"
 	TypeToken                   string = "connection-token"

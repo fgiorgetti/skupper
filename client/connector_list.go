@@ -68,10 +68,16 @@ func (cli *VanClient) ConnectorList(ctx context.Context) ([]types.LinkStatus, er
 	if err != nil {
 		return links, err
 	}
+	cm, err := cli.KubeClient.CoreV1().ConfigMaps(cli.Namespace).Get(types.SiteConfigMapName, metav1.GetOptions{})
+	if err != nil {
+		return links, err
+	}
 	edge := current.IsEdge()
 	connections, _ := kubeqdr.GetConnections(cli.Namespace, cli.KubeClient, cli.RestConfig)
 	for _, s := range secrets.Items {
-		links = append(links, getLinkStatus(&s, edge, connections))
+		if generatedBy, ok := s.Annotations[types.TokenGeneratedBy]; !ok || string(cm.ObjectMeta.UID) != generatedBy {
+			links = append(links, getLinkStatus(&s, edge, connections))
+		}
 	}
 	return links, nil
 }

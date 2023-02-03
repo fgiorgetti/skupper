@@ -1,0 +1,10 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: US-to-UK
+  labels:
+    skupper.io/type: "connection-token-request"
+  annotations:
+    skupper.io/target-site: "US"
+type: Opaque
