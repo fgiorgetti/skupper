@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Secret
 metadata:
-  name: BR-to-US
+  name: br-to-us
   labels:
     skupper.io/type: "connection-token-request"
   annotations:
