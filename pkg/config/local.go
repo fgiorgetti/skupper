@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strconv"
 
 	"github.com/skupperproject/skupper/api/types"
 	"github.com/skupperproject/skupper/pkg/utils"
@@ -14,8 +15,12 @@ import (
 )
 
 var (
-	PlatformConfigFile = path.Join(GetDataHome(), "platform.yaml")
+	PlatformConfigFile = DefaultPlatformConfigFile()
 )
+
+func DefaultPlatformConfigFile() string {
+	return path.Join(os.TempDir(), "platform.yaml."+strconv.Itoa(os.Getppid()))
+}
 
 type PlatformInfo struct {
 	Current  types.Platform `yaml:"current"`
