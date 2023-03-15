@@ -375,7 +375,6 @@ jobs:
       - run: docker login quay.io -u ${QUAY_LOGIN} -p ${QUAY_PASSWORD}
       - run: make -e generate-client
       - run: make -e docker-build
-      - run: make -e docker-push
 
   remove_from_registry:
     executor:
@@ -516,7 +515,6 @@ jobs:
             source $BASH_ENV
             make -e generate-client
             make -e docker-build
-            make -e docker-push
 
   publish-github-master-images:
     executor:
@@ -537,4 +535,3 @@ jobs:
             source $BASH_ENV
             make -e generate-client
             make -e docker-build
-            make -e docker-push

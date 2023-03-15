@@ -1,14 +1,17 @@
-VERSION := $(shell git describe --tags --dirty=-modified --always)
-SERVICE_CONTROLLER_IMAGE := quay.io/skupper/service-controller
-SITE_CONTROLLER_IMAGE := quay.io/skupper/site-controller
-CONFIG_SYNC_IMAGE := quay.io/skupper/config-sync
-FLOW_COLLECTOR_IMAGE := quay.io/skupper/flow-collector
-TEST_IMAGE := quay.io/skupper/skupper-tests
+VERSION := $(shell git describe --tags --dirty=-`git rev-parse --short HEAD`-modified --always)
+SERVICE_CONTROLLER_IMAGE ?= quay.io/fgiorgetti/service-controller
+SITE_CONTROLLER_IMAGE ?= quay.io/fgiorgetti/site-controller
+CONFIG_SYNC_IMAGE ?= quay.io/fgiorgetti/config-sync
+FLOW_COLLECTOR_IMAGE ?= quay.io/fgiorgetti/flow-collector
+TEST_IMAGE ?= quay.io/fgiorgetti/skupper-tests
 TEST_BINARIES_FOLDER := ${PWD}/test/integration/bin
 DOCKER := docker
 LDFLAGS := -X github.com/skupperproject/skupper/pkg/version.Version=${VERSION}
 
 all: build-cmd build-get build-config-sync build-controllers build-tests
+
+nothing:
+	@echo Version is: ${VERSION}
 
 build-tests:
 	mkdir -p ${TEST_BINARIES_FOLDER}
@@ -40,22 +43,13 @@ build-config-sync:
 build-controllers: build-site-controller build-service-controller build-flow-collector
 
 docker-build-test-image:
-	${DOCKER} build -t ${TEST_IMAGE} -f Dockerfile.ci-test .
+	${DOCKER} buildx build --push --platform linux/arm64,linux/s390x,linux/amd64 -t ${TEST_IMAGE} -f Dockerfile.ci-test .
 
 docker-build: docker-build-test-image
-	${DOCKER} build -t ${SERVICE_CONTROLLER_IMAGE} -f Dockerfile.service-controller .
-	${DOCKER} build -t ${SITE_CONTROLLER_IMAGE} -f Dockerfile.site-controller .
-	${DOCKER} build -t ${CONFIG_SYNC_IMAGE} -f Dockerfile.config-sync .
-	${DOCKER} build -t ${FLOW_COLLECTOR_IMAGE} -f Dockerfile.flow-collector .
-
-docker-push-test-image:
-	${DOCKER} push ${TEST_IMAGE}
-
-docker-push: docker-push-test-image
-	${DOCKER} push ${SERVICE_CONTROLLER_IMAGE}
-	${DOCKER} push ${SITE_CONTROLLER_IMAGE}
-	${DOCKER} push ${CONFIG_SYNC_IMAGE}
-	${DOCKER} push ${FLOW_COLLECTOR_IMAGE}
+	${DOCKER} buildx build --push --platform linux/arm64,linux/s390x,linux/amd64 -t ${SERVICE_CONTROLLER_IMAGE} -f Dockerfile.service-controller .
+	${DOCKER} buildx build --push --platform linux/arm64,linux/s390x,linux/amd64 -t ${SITE_CONTROLLER_IMAGE} -f Dockerfile.site-controller .
+	${DOCKER} buildx build --push --platform linux/arm64,linux/s390x,linux/amd64 -t ${CONFIG_SYNC_IMAGE} -f Dockerfile.config-sync .
+	${DOCKER} buildx build --push --platform linux/arm64,linux/s390x,linux/amd64 -t ${FLOW_COLLECTOR_IMAGE} -f Dockerfile.flow-collector .
 
 format:
 	go fmt ./...
@@ -90,7 +84,7 @@ test:
 clean:
 	rm -rf skupper service-controller site-controller release get config-sync ${TEST_BINARIES_FOLDER}
 
-package: release/windows.zip release/darwin.zip release/linux.tgz
+package: release/windows.zip release/darwin.zip release/linux.tgz release/s390x.tgz release/arm64.tgz
 
 release/linux.tgz: release/linux/skupper
 	tar -czf release/linux.tgz -C release/linux/ skupper
@@ -109,3 +103,15 @@ release/darwin/skupper: cmd/skupper/skupper.go
 
 release/darwin.zip: release/darwin/skupper
 	zip -j release/darwin.zip release/darwin/skupper
+
+release/s390x/skupper: cmd/skupper/skupper.go
+	GOOS=linux GOARCH=s390x go build -ldflags="${LDFLAGS}" -o release/s390x/skupper ./cmd/skupper
+
+release/s390x.tgz: release/s390x/skupper
+	tar -czf release/s390x.tgz release/s390x/skupper
+
+release/arm64/skupper: cmd/skupper/skupper.go
+	GOOS=linux GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o release/arm64/skupper ./cmd/skupper
+
+release/arm64.tgz: release/arm64/skupper
+	tar -czf release/arm64.tgz release/arm64/skupper
