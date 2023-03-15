@@ -10,9 +10,6 @@ LDFLAGS := -X github.com/skupperproject/skupper/pkg/version.Version=${VERSION}
 
 all: build-cmd build-get build-config-sync build-controllers build-tests
 
-nothing:
-	@echo Version is: ${VERSION}
-
 build-tests:
 	mkdir -p ${TEST_BINARIES_FOLDER}
 	go test -c -tags=job -v ./test/integration/examples/tcp_echo/job -o ${TEST_BINARIES_FOLDER}/tcp_echo_test
