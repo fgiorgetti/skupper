@@ -1,9 +1,9 @@
 VERSION := $(shell git describe --tags --dirty=-`git rev-parse --short HEAD`-modified --always)
-SERVICE_CONTROLLER_IMAGE ?= quay.io/fgiorgetti/service-controller
-SITE_CONTROLLER_IMAGE ?= quay.io/fgiorgetti/site-controller
-CONFIG_SYNC_IMAGE ?= quay.io/fgiorgetti/config-sync
-FLOW_COLLECTOR_IMAGE ?= quay.io/fgiorgetti/flow-collector
-TEST_IMAGE ?= quay.io/fgiorgetti/skupper-tests
+SERVICE_CONTROLLER_IMAGE ?= quay.io/fgiorgetti/service-controller:multiarch
+SITE_CONTROLLER_IMAGE ?= quay.io/fgiorgetti/site-controller:multiarch
+CONFIG_SYNC_IMAGE ?= quay.io/fgiorgetti/config-sync:multiarch
+FLOW_COLLECTOR_IMAGE ?= quay.io/fgiorgetti/flow-collector:multiarch
+TEST_IMAGE ?= quay.io/fgiorgetti/skupper-tests:multiarch
 TEST_BINARIES_FOLDER := ${PWD}/test/integration/bin
 DOCKER := docker
 LDFLAGS := -X github.com/skupperproject/skupper/pkg/version.Version=${VERSION}
