@@ -12,6 +12,7 @@ import (
 	"github.com/skupperproject/skupper/client/generated/libpod/client/containers"
 	"github.com/skupperproject/skupper/client/generated/libpod/client/exec"
 	"github.com/skupperproject/skupper/client/generated/libpod/models"
+	"github.com/skupperproject/skupper/test/utils/constants"
 )
 
 func (p *PodmanRestClient) ContainerList() ([]*container.Container, error) {
@@ -117,6 +118,7 @@ func (p *PodmanRestClient) ContainerCreate(container *container.Container) error
 	}
 	container.Labels["application"] = types.AppName
 	params.Create = ToSpecGenerator(container)
+	params.SetTimeout(constants.ImagePullingAndResourceCreationTimeout)
 	_, err := cli.ContainerCreateLibpod(params)
 	if err != nil {
 		return fmt.Errorf("error creating container %s: %v", container.Name, err)

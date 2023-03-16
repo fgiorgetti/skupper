@@ -2,11 +2,13 @@ package podman
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
-	"github.com/go-openapi/runtime"
+	goopenapiruntime "github.com/go-openapi/runtime"
 	"github.com/skupperproject/skupper/client/container"
 	"github.com/skupperproject/skupper/client/generated/libpod/client/images"
+	"github.com/skupperproject/skupper/test/utils/constants"
 )
 
 func (p *PodmanRestClient) ImageList() ([]*container.Image, error) {
@@ -63,13 +65,14 @@ func (p *PodmanRestClient) ImagePull(id string) error {
 	params.TLSVerify = new(bool)
 	params.AllTags = new(bool)
 	params.Quiet = new(bool)
-	params.Arch = stringP("")
-	params.OS = stringP("")
+	params.Arch = stringP(runtime.GOARCH)
+	params.OS = stringP(runtime.GOOS)
 	params.Variant = stringP("")
 	params.Policy = stringP("always")
+	params.SetTimeout(constants.ImagePullingAndResourceCreationTimeout)
 
 	// Need to do that as the default response reader is being closed too soon
-	op := &runtime.ClientOperation{
+	op := &goopenapiruntime.ClientOperation{
 		ID:                 "ImagePullLibpod",
 		Method:             "POST",
 		PathPattern:        "/libpod/images/pull",
