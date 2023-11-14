@@ -132,10 +132,14 @@ func (c *FlowController) updateBeaconAndHeartbeats(stopCh <-chan struct{}) {
 	for {
 		select {
 		case <-beaconTimer.C:
+			log.Printf("sending beacon info: %v", beacon)
 			c.beaconOutgoing <- beacon
+			log.Printf("beacon info queued")
 		case <-heartbeatTimer.C:
+			log.Printf("sending heartbeat: %v", beacon)
 			heartbeat.Now = uint64(time.Now().UnixNano()) / uint64(time.Microsecond)
 			c.heartbeatOutgoing <- heartbeat
+			log.Printf("heartbeat queued")
 		case <-tickerAge.C:
 		case <-stopCh:
 			return
@@ -213,9 +217,9 @@ func (c *FlowController) Start(stopCh <-chan struct{}) {
 }
 
 func (c *FlowController) run(stopCh <-chan struct{}) {
-	beaconSender := newSender(c.connectionFactory, BeaconAddress, true, c.beaconOutgoing)
-	heartbeatSender := newSender(c.connectionFactory, RecordPrefix+c.origin+".heartbeats", true, c.heartbeatOutgoing)
-	recordSender := newSender(c.connectionFactory, RecordPrefix+c.origin, false, c.recordOutgoing)
+	beaconSender := newSenderWithTimeout(c.connectionFactory, BeaconAddress, true, c.beaconOutgoing, time.Second*10)
+	heartbeatSender := newSenderWithTimeout(c.connectionFactory, RecordPrefix+c.origin+".heartbeats", true, c.heartbeatOutgoing, time.Second*10)
+	recordSender := newSenderWithTimeout(c.connectionFactory, RecordPrefix+c.origin, false, c.recordOutgoing, time.Second*10)
 	flushReceiver := newReceiver(c.connectionFactory, DirectPrefix+c.origin, c.flushIncoming)
 
 	beaconSender.start()
@@ -228,7 +232,7 @@ func (c *FlowController) run(stopCh <-chan struct{}) {
 	<-stopCh
 
 	beaconSender.stop()
-	heartbeatSender.start()
+	heartbeatSender.stop()
 	recordSender.stop()
 	flushReceiver.stop()
 }

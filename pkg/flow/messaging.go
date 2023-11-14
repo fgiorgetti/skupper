@@ -34,6 +34,7 @@ func (c *base) stop() {
 type sender struct {
 	base
 	sendSettled bool
+	sendTimeout time.Duration
 	ticker      *time.Ticker
 	request     *amqp.Message
 }
@@ -54,19 +55,26 @@ func newSender(connectionFactory messaging.ConnectionFactory, address string, se
 	}
 }
 
+func newSenderWithTimeout(connectionFactory messaging.ConnectionFactory, address string, sendSettled bool, update chan interface{}, timeout time.Duration) *sender {
+	sdr := newSender(connectionFactory, address, sendSettled, update)
+	sdr.sendTimeout = timeout
+	return sdr
+}
+
 func (c *sender) send() {
 	c.ticker = time.NewTicker(5 * time.Second)
 	defer c.ticker.Stop()
 	for !c.closed {
 		err := c._send()
 		if err != nil {
-			log.Printf("COLLECTOR: Error sending out updates %s", err.Error())
+			log.Printf("COLLECTOR: Error sending out updates to %s - %s", c.address, err.Error())
 		}
 	}
 	log.Println("COLLECTOR: Flow process stopped sending")
 }
 
 func (c *sender) _send() error {
+	log.Printf("connecting to %s - address: %s", c.connectionFactory.Url(), c.address)
 	client, err := c.connectionFactory.Connect()
 	if err != nil {
 		return err
@@ -82,6 +90,7 @@ func (c *sender) _send() error {
 
 	defer sender.Close()
 
+	log.Printf("processing outgoing messages to: %s", c.address)
 	for {
 		select {
 		case update := <-c.outgoing:
@@ -137,7 +146,13 @@ func (c *sender) _send() error {
 		}
 		if c.request != nil {
 			c.request.SendSettled = c.sendSettled
-			err = sender.Send(c.request)
+			log.Printf("sending message to %s: %v", c.address, c.request)
+			if c.sendTimeout.Seconds() > 0 {
+				err = sender.SendWithTimeout(c.request, c.sendTimeout)
+			} else {
+				err = sender.Send(c.request)
+			}
+			log.Printf("message sent to %s: %v - error: %s", c.address, c.request, err)
 			if err != nil {
 				return err
 			} else {
