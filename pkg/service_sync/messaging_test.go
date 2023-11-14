@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	amqp "github.com/interconnectedcloud/go-amqp"
 	"gotest.tools/assert"
@@ -145,6 +146,10 @@ type MockSender struct {
 }
 
 func (s *MockSender) Send(msg *amqp.Message) error {
+	return s.connection.send(s.address, msg)
+}
+
+func (s *MockSender) SendWithTimeout(msg *amqp.Message, timeout time.Duration) error {
 	return s.connection.send(s.address, msg)
 }
 

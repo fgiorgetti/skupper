@@ -213,9 +213,9 @@ func (c *FlowController) Start(stopCh <-chan struct{}) {
 }
 
 func (c *FlowController) run(stopCh <-chan struct{}) {
-	beaconSender := newSender(c.connectionFactory, BeaconAddress, true, c.beaconOutgoing)
-	heartbeatSender := newSender(c.connectionFactory, RecordPrefix+c.origin+".heartbeats", true, c.heartbeatOutgoing)
-	recordSender := newSender(c.connectionFactory, RecordPrefix+c.origin, false, c.recordOutgoing)
+	beaconSender := newSenderWithTimeout(c.connectionFactory, BeaconAddress, true, c.beaconOutgoing, time.Second*10)
+	heartbeatSender := newSenderWithTimeout(c.connectionFactory, RecordPrefix+c.origin+".heartbeats", true, c.heartbeatOutgoing, time.Second*10)
+	recordSender := newSenderWithTimeout(c.connectionFactory, RecordPrefix+c.origin, false, c.recordOutgoing, time.Second*10)
 	flushReceiver := newReceiver(c.connectionFactory, DirectPrefix+c.origin, c.flushIncoming)
 
 	beaconSender.start()
@@ -228,7 +228,7 @@ func (c *FlowController) run(stopCh <-chan struct{}) {
 	<-stopCh
 
 	beaconSender.stop()
-	heartbeatSender.start()
+	heartbeatSender.stop()
 	recordSender.stop()
 	flushReceiver.stop()
 }

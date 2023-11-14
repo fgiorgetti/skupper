@@ -1,6 +1,8 @@
 package messaging
 
 import (
+	"time"
+
 	amqp "github.com/interconnectedcloud/go-amqp"
 )
 
@@ -17,6 +19,7 @@ type Connection interface {
 
 type Sender interface {
 	Send(msg *amqp.Message) error
+	SendWithTimeout(msg *amqp.Message, timeout time.Duration) error
 	Close() error
 }
 
