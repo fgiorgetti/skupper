@@ -298,11 +298,13 @@ func (s *SiteHandler) Create(ctx context.Context, site domain.Site) error {
 	}()
 
 	// Save podman local configuration
-	err = NewPodmanConfigFileHandler().Save(&Config{
-		Endpoint: s.endpoint,
-	})
-	if err != nil {
-		return err
+	if !container.IsBootstrapMode() {
+		err = NewPodmanConfigFileHandler().Save(&Config{
+			Endpoint: s.endpoint,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	// Create network
@@ -395,23 +397,28 @@ func (s *SiteHandler) Create(ctx context.Context, site domain.Site) error {
 		})
 	}
 
-	// Creating startup scripts first
-	scripts := config.GetStartupScripts(types.PlatformPodman)
-	err = scripts.Create()
-	if err != nil {
-		return fmt.Errorf("error creating startup scripts: %w\n", err)
-	}
+	if s.cli.IsRunningInContainer() {
+		fmt.Println("Skupper containers need to be added to a systemd service externally,")
+		fmt.Println("since this site has been initialized through a bootstrap container.")
+	} else {
+		// Creating startup scripts first
+		scripts := config.GetStartupScripts(types.PlatformPodman)
+		err = scripts.Create()
+		if err != nil {
+			return fmt.Errorf("error creating startup scripts: %w\n", err)
+		}
 
-	// Creating systemd user service
-	if err = config.NewSystemdServiceInfo(types.PlatformPodman).Create(); err != nil {
-		fmt.Printf("Unable to create startup service - %v\n", err)
-		fmt.Printf("The startup scripts: %s and %s are available at %s\n,",
-			scripts.GetStartFileName(), scripts.GetStopFileName(), scripts.GetPath())
-	}
+		// Creating systemd user service
+		if err = config.NewSystemdServiceInfo(types.PlatformPodman).Create(); err != nil {
+			fmt.Printf("Unable to create startup service - %v\n", err)
+			fmt.Printf("The startup scripts: %s and %s are available at %s\n,",
+				scripts.GetStartFileName(), scripts.GetStopFileName(), scripts.GetPath())
+		}
 
-	// Validate if lingering is enabled for current user
-	if Username != "root" && !config.IsLingeringEnabled(Username) {
-		fmt.Printf("It is recommended to enable lingering for %s, otherwise Skupper may not start on boot.\n", Username)
+		// Validate if lingering is enabled for current user
+		if Username != "root" && !config.IsLingeringEnabled(Username) {
+			fmt.Printf("It is recommended to enable lingering for %s, otherwise Skupper may not start on boot.\n", Username)
+		}
 	}
 
 	return nil
@@ -822,7 +829,11 @@ func (s *SiteHandler) prepareFlowCollectorDeployment(site *Site) *SkupperDeploym
 	}
 	endpoint := site.PodmanEndpoint
 	if s.cli.IsSockEndpoint() {
-		sockFile := strings.TrimPrefix(s.cli.GetEndpoint(), "unix://")
+		cliEndpoint := s.cli.GetEndpoint()
+		if container.IsBootstrapMode() {
+			cliEndpoint = endpoin
+		}
+		sockFile := strings.TrimPrefix(cliEndpoint, "unix://")
 		endpoint = "/tmp/podman.sock"
 		volumeMounts[sockFile] = endpoint
 	}
@@ -901,7 +912,7 @@ func (s *SiteHandler) getConsoleUserPass() (string, string, error) {
 
 	var files []os.DirEntry
 
-	if !s.cli.IsRunningInContainer() {
+	if !s.cli.IsRunningInContainer() || container.IsBootstrapMode() {
 		files, err = v.ListFiles()
 	} else {
 		files, err = os.ReadDir("/etc/console-users")
@@ -915,7 +926,7 @@ func (s *SiteHandler) getConsoleUserPass() (string, string, error) {
 	f := files[0]
 	user := f.Name()
 	var pass string
-	if !s.cli.IsRunningInContainer() {
+	if !s.cli.IsRunningInContainer() || container.IsBootstrapMode() {
 		pass, err = v.ReadFile(user)
 	} else {
 		var passData []byte
@@ -944,7 +955,11 @@ func (s *SiteHandler) prepareControllerDeployment(site *Site) *SkupperDeployment
 
 	endpoint := site.PodmanEndpoint
 	if s.cli.IsSockEndpoint() {
-		sockFile := strings.TrimPrefix(s.cli.GetEndpoint(), "unix://")
+		cliEndpoint := s.cli.GetEndpoint()
+		if container.IsBootstrapMode() {
+			cliEndpoint = endpoint
+		}
+		sockFile := strings.TrimPrefix(cliEndpoint, "unix://")
 		endpoint = "/tmp/podman.sock"
 		volumeMounts[sockFile] = endpoint
 	}

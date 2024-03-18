@@ -26,7 +26,7 @@ func (r *RouterConfigHandler) GetRouterConfig() (*qdr.RouterConfig, error) {
 	var err error
 	var routerConfigStr string
 
-	if !r.cli.IsRunningInContainer() {
+	if !r.cli.IsRunningInContainer() || container.IsBootstrapMode() {
 		var configVolume *container.Volume
 		configVolume, err = r.cli.VolumeInspect(types.TransportConfigMapName)
 		if err != nil {

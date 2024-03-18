@@ -1,14 +1,16 @@
 VERSION := $(shell git describe --tags --dirty=-modified --always)
-SERVICE_CONTROLLER_IMAGE := quay.io/skupper/service-controller
-CONTROLLER_PODMAN_IMAGE := quay.io/skupper/controller-podman
-SITE_CONTROLLER_IMAGE := quay.io/skupper/site-controller
-CONFIG_SYNC_IMAGE := quay.io/skupper/config-sync
-FLOW_COLLECTOR_IMAGE := quay.io/skupper/flow-collector
-TEST_IMAGE := quay.io/skupper/skupper-tests
+SERVICE_CONTROLLER_IMAGE := quay.io/fgiorgetti/service-controller
+BOOTSTRAP_IMAGE := quay.io/fgiorgetti/bootstrap
+CONTROLLER_PODMAN_IMAGE := quay.io/fgiorgetti/controller-podman
+SITE_CONTROLLER_IMAGE := quay.io/fgiorgetti/site-controller
+CONFIG_SYNC_IMAGE := quay.io/fgiorgetti/config-sync
+FLOW_COLLECTOR_IMAGE := quay.io/fgiorgetti/flow-collector
+TEST_IMAGE := quay.io/fgiorgetti/skupper-tests
 TEST_BINARIES_FOLDER := ${PWD}/test/integration/bin
 DOCKER := docker
 LDFLAGS := -X github.com/skupperproject/skupper/pkg/version.Version=${VERSION}
-PLATFORMS ?= linux/amd64,linux/arm64
+PLATFORMS ?= linux/amd64
+#PLATFORMS ?= linux/amd64,linux/arm64
 GOOS ?= linux
 GOARCH ?= amd64
 
@@ -35,6 +37,9 @@ build-service-controller:
 build-controller-podman:
 	GOOS=${GOOS} GOARCH=${GOARCH} go build -ldflags="${LDFLAGS}"  -o controller-podman cmd/controller-podman/main.go
 
+build-bootstrap:
+	GOOS=${GOOS} GOARCH=${GOARCH} go build -ldflags="${LDFLAGS}"  -o bootstrap cmd/bootstrap/main.go
+
 build-site-controller:
 	GOOS=${GOOS} GOARCH=${GOARCH} go build -ldflags="${LDFLAGS}"  -o site-controller cmd/site-controller/main.go cmd/site-controller/controller.go
 
@@ -44,7 +49,7 @@ build-flow-collector:
 build-config-sync:
 	GOOS=${GOOS} GOARCH=${GOARCH} go build -ldflags="${LDFLAGS}"  -o config-sync cmd/config-sync/main.go cmd/config-sync/config_sync.go cmd/config-sync/collector.go
 
-build-controllers: build-site-controller build-service-controller build-controller-podman build-flow-collector
+build-controllers: build-site-controller build-service-controller build-controller-podman build-flow-collector build-bootstrap
 
 build-manifest:
 	go build -ldflags="${LDFLAGS}"  -o manifest ./cmd/manifest
@@ -52,6 +57,10 @@ build-manifest:
 docker-build-test-image:
 	${DOCKER} buildx build --platform ${PLATFORMS} -t ${TEST_IMAGE} -f Dockerfile.ci-test .
 	${DOCKER} buildx build --load -t ${TEST_IMAGE} -f Dockerfile.ci-test .
+
+docker-build-bootstrap: generate-client
+	${DOCKER} buildx build --platform ${PLATFORMS} -t ${BOOTSTRAP_IMAGE} -f Dockerfile.bootstrap .
+	${DOCKER} buildx build --load  -t ${BOOTSTRAP_IMAGE} -f Dockerfile.bootstrap .
 
 docker-build: generate-client docker-build-test-image
 	${DOCKER} buildx build --platform ${PLATFORMS} -t ${SERVICE_CONTROLLER_IMAGE} -f Dockerfile.service-controller .
@@ -67,6 +76,9 @@ docker-build: generate-client docker-build-test-image
 
 docker-push-test-image:
 	${DOCKER} buildx build --push --platform ${PLATFORMS} -t ${TEST_IMAGE} -f Dockerfile.ci-test .
+
+docker-push-bootstrap:
+	${DOCKER} buildx build --push --platform ${PLATFORMS} -t ${BOOTSTRAP_IMAGE} -f Dockerfile.bootstrap .
 
 docker-push: docker-push-test-image
 	${DOCKER} buildx build --push --platform ${PLATFORMS} -t ${SERVICE_CONTROLLER_IMAGE} -f Dockerfile.service-controller .

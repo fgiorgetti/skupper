@@ -21,7 +21,11 @@ func (p *PodmanRestClient) VolumeCreate(volume *container.Volume) (*container.Vo
 	if err != nil {
 		return nil, err
 	}
-	return FromCreatedToVolume(created), nil
+	cv, err := FromCreatedToVolume(created), nil
+	if err == nil && p.IsRunningInContainer() {
+		cv.Source = p.VolumesInternalPath(cv.Name)
+	}
+	return cv, err
 }
 
 func ToVolumeCreateOptions(v *container.Volume) *models.VolumeCreateOptions {
@@ -96,6 +100,9 @@ func (p *PodmanRestClient) VolumeInspect(id string) (*container.Volume, error) {
 		return nil, err
 	}
 	v := FromInspectToVolume(vi)
+	if p.IsRunningInContainer() {
+		v.Source = p.VolumesInternalPath(v.Name)
+	}
 	return v, err
 }
 
@@ -114,17 +121,25 @@ func (p *PodmanRestClient) VolumeList() ([]*container.Volume, error) {
 	if err != nil {
 		return nil, err
 	}
-	return FromListToVolume(pvList), nil
+	return p.fromListToVolume(pvList), nil
 }
 
-func FromListToVolume(vi *volumes.VolumeListLibpodOK) []*container.Volume {
+func (p *PodmanRestClient) fromListToVolume(vi *volumes.VolumeListLibpodOK) []*container.Volume {
 	list := []*container.Volume{}
 	for _, pv := range vi.Payload {
+		volumeSource := pv.Mountpoint
+		if p.IsRunningInContainer() {
+			volumeSource = p.VolumesInternalPath(pv.Name)
+		}
 		list = append(list, &container.Volume{
 			Name:   pv.Name,
-			Source: pv.Mountpoint,
+			Source: volumeSource,
 			Labels: pv.Labels,
 		})
 	}
 	return list
+}
+
+func (p *PodmanRestClient) VolumesInternalPath(volumeName string) string {
+	return fmt.Sprintf("/opt/podman/volumes/%s/_data", volumeName)
 }

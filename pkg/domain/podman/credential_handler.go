@@ -61,7 +61,7 @@ func (p *CredentialHandler) ListCredentials() ([]types.Credential, error) {
 		var files []os.DirEntry
 		var mountPoint string
 		var ok bool
-		if !p.cli.IsRunningInContainer() {
+		if !p.cli.IsRunningInContainer() || container.IsBootstrapMode() {
 			files, err = v.ListFiles()
 		} else {
 			if mountPoint, ok = credentialMountInContainer[v.Name]; !ok {
@@ -86,7 +86,7 @@ func (p *CredentialHandler) ListCredentials() ([]types.Credential, error) {
 				var ca *types.CertAuthority
 				var content string
 				var contentData []byte
-				if !p.cli.IsRunningInContainer() {
+				if !p.cli.IsRunningInContainer() || container.IsBootstrapMode() {
 					content, err = v.ReadFile(file.Name())
 				} else {
 					contentData, err = os.ReadFile(path.Join(mountPoint, file.Name()))
@@ -105,7 +105,7 @@ func (p *CredentialHandler) ListCredentials() ([]types.Credential, error) {
 				var dataStr string
 				var data []byte
 				var err error
-				if !p.cli.IsRunningInContainer() {
+				if !p.cli.IsRunningInContainer() || container.IsBootstrapMode() {
 					dataStr, err = v.ReadFile(file.Name())
 				} else {
 					data, err = os.ReadFile(path.Join(mountPoint, file.Name()))

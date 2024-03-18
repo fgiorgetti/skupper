@@ -29,6 +29,7 @@ type Client interface {
 	ContainerStart(id string) error
 	ContainerStop(id string) error
 	ContainerRestart(id string) error
+	IsRunningInContainer() bool
 	ImageList() ([]*Image, error)
 	ImageInspect(id string) (*Image, error)
 	ImagePull(ctx context.Context, id string) error
@@ -42,6 +43,7 @@ type Client interface {
 	VolumeInspect(id string) (*Volume, error)
 	VolumeRemove(id string) error
 	VolumeList() ([]*Volume, error)
+	VolumesInternalPath(volumeName string) string
 }
 
 type VersionInfo struct {
@@ -311,4 +313,8 @@ func IsOwnedBySkupper(labels map[string]string) bool {
 	}
 	owner, ok := labels["application"]
 	return ok && owner == types.AppName
+}
+
+func IsBootstrapMode() bool {
+	return os.Getenv("SKUPPER_BOOTSTRAP") != ""
 }

@@ -382,7 +382,7 @@ func (s *ServiceHandler) GetServiceRouterConfig(address string) (*qdr.RouterConf
 	}
 	var configStr string
 	configFile := path.Join(address, types.TransportConfigFile)
-	if !s.cli.IsRunningInContainer() {
+	if !s.cli.IsRunningInContainer() || container.IsBootstrapMode() {
 		configStr, err = vol.ReadFile(configFile)
 	} else {
 		var configData []byte
@@ -604,7 +604,7 @@ func (s *ServiceInterfaceHandler) manipulateService(service *types.ServiceInterf
 		return fmt.Errorf("error reading volume %s - %w", types.ServiceInterfaceConfigMap, err)
 	}
 	var lockfile string
-	if !s.cli.IsRunningInContainer() {
+	if !s.cli.IsRunningInContainer() || container.IsBootstrapMode() {
 		lockfile = path.Join(vol.Source, SkupperServicesLockfile)
 	} else {
 		lockfile = path.Join(ServiceInterfaceMount, SkupperServicesLockfile)
@@ -634,7 +634,7 @@ func (s *ServiceInterfaceHandler) manipulateService(service *types.ServiceInterf
 	if err != nil {
 		return fmt.Errorf("error serializing %s - %w", types.ServiceInterfaceConfigMap, err)
 	}
-	if !s.cli.IsRunningInContainer() {
+	if !s.cli.IsRunningInContainer() || container.IsBootstrapMode() {
 		_, err = vol.CreateFile(SkupperServicesFilename, content, true)
 	} else {
 		var f *os.File
@@ -660,7 +660,7 @@ func (s *ServiceInterfaceHandler) List() (map[string]*types.ServiceInterface, er
 		return res, fmt.Errorf("cannot read volume %s - %w", types.ServiceInterfaceConfigMap, err)
 	}
 	var data string
-	if !s.cli.IsRunningInContainer() {
+	if !s.cli.IsRunningInContainer() || container.IsBootstrapMode() {
 		data, err = servicesVolume.ReadFile(SkupperServicesFilename)
 	} else {
 		var dataBytes []byte
