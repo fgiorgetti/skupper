@@ -2,16 +2,21 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"log"
 	"os"
 	"strconv"
 	"time"
 
+	"github.com/openshift/api/console/v1alpha1"
+	console "github.com/openshift/client-go/console/clientset/versioned/typed/console/v1alpha1"
 	"github.com/skupperproject/skupper/pkg/version"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	corev1informer "k8s.io/client-go/informers/core/v1"
@@ -22,6 +27,11 @@ import (
 	"github.com/skupperproject/skupper/api/types"
 	"github.com/skupperproject/skupper/client"
 	"github.com/skupperproject/skupper/pkg/kube"
+)
+
+var (
+	//go:embed plugin-nginx.conf
+	nginxConf string
 )
 
 type SiteController struct {
@@ -142,6 +152,7 @@ func (c *SiteController) Run(stopCh <-chan struct{}) error {
 	defer c.workqueue.ShutDown()
 
 	c.updateControllerClusterRoles()
+	c.activateConsolePlugin()
 
 	log.Println("Starting the Skupper site controller informers")
 	go c.siteInformer.Run(stopCh)
@@ -482,5 +493,273 @@ func (c *SiteController) updateChecks() {
 		} else {
 			log.Printf("Unexpected item in site informer store: %v", s)
 		}
+	}
+}
+
+func (c *SiteController) activateConsolePlugin() {
+	// Create the SiteConsole resource
+	if os.Getenv("WATCH_NAMESPACE") != "" || c.vanClient.RouteClient == nil {
+		return
+	}
+	// Reading the current namespace
+	namespaceBytes, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+	if err != nil {
+		log.Printf("unable read namespace: %s", err)
+		return
+	}
+	namespace := string(namespaceBytes)
+	// Reading the owner reference
+	siteCtrlDeploy, err := c.vanClient.KubeClient.AppsV1().Deployments(namespace).Get(context.Background(), "skupper-site-controller", metav1.GetOptions{})
+	if err != nil {
+		log.Printf("Failed to retrieve site controller deployment: %s", err)
+		log.Println("Unable to activate the console plugin")
+		return
+	}
+	var ownerReference = metav1.OwnerReference{
+		APIVersion: "apps/v1",
+		Kind:       "Deployment",
+		Name:       siteCtrlDeploy.Name,
+		UID:        siteCtrlDeploy.UID,
+	}
+	c.createConsolePluginConfig(namespace, ownerReference)
+	c.createConsolePluginService(namespace, ownerReference)
+	c.createConsolePluginDeployment(namespace, ownerReference)
+	c.createConsolePlugin(namespace, ownerReference)
+}
+
+func (c *SiteController) createConsolePlugin(namespace string, reference metav1.OwnerReference) {
+	//TODO Validate if ConsolePlugin CRD is available
+	consoleCli, err := console.NewForConfig(c.vanClient.RestConfig)
+	if err != nil {
+		log.Printf("unable to manage console plugins: %s", err)
+		return
+	}
+
+	consolePlugin := &v1alpha1.ConsolePlugin{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "skupper-site-console",
+			OwnerReferences: []metav1.OwnerReference{
+				reference,
+			},
+		},
+		Spec: v1alpha1.ConsolePluginSpec{
+			DisplayName: "Skupper site console",
+			Service: v1alpha1.ConsolePluginService{
+				Name:      "skupper-site-console",
+				Namespace: namespace,
+				Port:      9443,
+				BasePath:  "/",
+			},
+		},
+	}
+	_, err = consoleCli.ConsolePlugins().Create(context.Background(), consolePlugin, metav1.CreateOptions{})
+	if err != nil && !errors.IsAlreadyExists(err) {
+		log.Printf("unable to create console plugin: %s", err)
+	}
+}
+
+func (c *SiteController) createConsolePluginDeployment(namespace string, reference metav1.OwnerReference) {
+	int32p := func(i int) *int32 {
+		i32 := int32(i)
+		return &i32
+	}
+	boolp := func(b bool) *bool {
+		return &b
+	}
+	consolePluginDeployment := &appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "skupper-site-console",
+			Labels: map[string]string{
+				"app":                                "skupper-site-console",
+				"app.kubernetes.io/component":        "site-console",
+				"app.kubernetes.io/instance":         "skupper-site-console",
+				"app.kubernetes.io/name":             "skupper-site-console",
+				"app.kubernetes.io/part-of":          "skupper",
+				"app.openshift.io/runtime-namespace": "skupper-site-console",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				reference,
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: int32p(1),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "skupper-site-console"},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app":                         "skupper-site-console",
+						"app.kubernetes.io/component": "site-console",
+						"app.kubernetes.io/instance":  "skupper-site-console",
+						"app.kubernetes.io/name":      "skupper-site-console",
+						"app.kubernetes.io/part-of":   "skupper",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "site-console",
+							Image: "quay.io/vbartoli/rhsi-plugin",
+							Ports: []corev1.ContainerPort{
+								{
+									ContainerPort: 9443,
+									Protocol:      corev1.ProtocolTCP,
+								},
+							},
+							ImagePullPolicy: corev1.PullAlways,
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "plugin-serving-cert",
+									ReadOnly:  true,
+									MountPath: "/var/serving-cert",
+								},
+								{
+									Name:      "nginx-conf",
+									ReadOnly:  true,
+									MountPath: "/etc/nginx/nginx.conf",
+									SubPath:   "nginx.conf",
+								},
+							},
+							SecurityContext: &corev1.SecurityContext{
+								RunAsNonRoot: boolp(true),
+							},
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: "plugin-serving-cert",
+							VolumeSource: corev1.VolumeSource{
+								Secret: &corev1.SecretVolumeSource{
+									SecretName:  "skupper-site-console-cert",
+									DefaultMode: int32p(420),
+								},
+							},
+						},
+						{
+							Name: "nginx-conf",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: "skupper-site-console-nginx-conf",
+									},
+									DefaultMode: int32p(420),
+								},
+							},
+						},
+						{
+							Name: "plugin-conf",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: "skupper-site-console-plugin-conf",
+									},
+									DefaultMode: int32p(420),
+								},
+							},
+						},
+					},
+					RestartPolicy:      corev1.RestartPolicyAlways,
+					DNSPolicy:          corev1.DNSClusterFirst,
+					ServiceAccountName: "skupper-site-controller",
+				},
+			},
+		},
+	}
+	existingDeployment, err := c.vanClient.KubeClient.AppsV1().Deployments(namespace).Get(context.Background(), consolePluginDeployment.ObjectMeta.Name, metav1.GetOptions{})
+	if existingDeployment != nil && (err == nil || !errors.IsNotFound(err)) {
+		if existingDeployment.Spec.Template.Spec.Containers[0].Image != consolePluginDeployment.Spec.Template.Spec.Containers[0].Image {
+			existingDeployment.Spec = consolePluginDeployment.Spec
+			_, err = c.vanClient.KubeClient.AppsV1().Deployments(namespace).Update(context.Background(), existingDeployment, metav1.UpdateOptions{})
+			if err != nil {
+				log.Printf("unable to update site console deployment: %s", err)
+			}
+		}
+	}
+	_, err = c.vanClient.KubeClient.AppsV1().Deployments(namespace).Create(context.Background(), consolePluginDeployment, metav1.CreateOptions{})
+	if err != nil && !errors.IsAlreadyExists(err) {
+		log.Printf("unable to create console plugin deployment: %s", err)
+		return
+	}
+}
+
+func (c *SiteController) createConsolePluginService(namespace string, reference metav1.OwnerReference) {
+	consolePluginService := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "skupper-site-console",
+			Annotations: map[string]string{
+				"service.alpha.openshift.io/serving-cert-secret-name": "skupper-site-console-cert",
+			},
+			Labels: map[string]string{
+				"app":                         "skupper-site-console",
+				"app.kubernetes.io/component": "site-console",
+				"app.kubernetes.io/instance":  "skupper-site-console",
+				"app.kubernetes.io/name":      "skupper-site-console",
+				"app.kubernetes.io/part-of":   "skupper",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				reference,
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "9443-tcp",
+					Protocol:   corev1.ProtocolTCP,
+					Port:       9443,
+					TargetPort: intstr.IntOrString{IntVal: 9443},
+				},
+			},
+			Selector: map[string]string{
+				"app": "skupper-site-console",
+			},
+			Type:            corev1.ServiceTypeClusterIP,
+			SessionAffinity: corev1.ServiceAffinityNone,
+		},
+	}
+	_, err := c.vanClient.KubeClient.CoreV1().Services(namespace).Create(context.Background(), consolePluginService, metav1.CreateOptions{})
+	if err != nil && !errors.IsAlreadyExists(err) {
+		log.Printf("unable to create skupper-site-console service: %s", err)
+	}
+}
+
+func (c *SiteController) createConsolePluginConfig(namespace string, reference metav1.OwnerReference) {
+	labels := map[string]string{
+		"app.kubernetes.io/component": "site-console",
+		"app.kubernetes.io/instance":  "skupper-site-console",
+		"app.kubernetes.io/name":      "skupper-site-console",
+		"app.kubernetes.io/part-of":   "skupper",
+	}
+
+	nginxConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "skupper-site-console-nginx-conf",
+			Labels: labels,
+			OwnerReferences: []metav1.OwnerReference{
+				reference,
+			},
+		},
+		Data: map[string]string{
+			"nginx.conf": nginxConf,
+		},
+	}
+	pluginConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "skupper-site-console-plugin-conf",
+			Labels: labels,
+		},
+	}
+	ctx := context.Background()
+	_, err := c.vanClient.KubeClient.CoreV1().ConfigMaps(namespace).Create(ctx, nginxConfigMap, metav1.CreateOptions{})
+	if err != nil && !errors.IsAlreadyExists(err) {
+		log.Printf("unable to create nginx configmap: %s", err)
+	}
+	_, err = c.vanClient.KubeClient.CoreV1().ConfigMaps(namespace).Create(ctx, pluginConfigMap, metav1.CreateOptions{})
+	if err != nil && !errors.IsAlreadyExists(err) {
+		log.Printf("unable to create nginx configmap: %s", err)
 	}
 }

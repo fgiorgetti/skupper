@@ -1,10 +1,10 @@
 VERSION := $(shell git describe --tags --dirty=-modified --always)
-SERVICE_CONTROLLER_IMAGE := quay.io/skupper/service-controller
-CONTROLLER_PODMAN_IMAGE := quay.io/skupper/controller-podman
-SITE_CONTROLLER_IMAGE := quay.io/skupper/site-controller
-CONFIG_SYNC_IMAGE := quay.io/skupper/config-sync
-FLOW_COLLECTOR_IMAGE := quay.io/skupper/flow-collector
-TEST_IMAGE := quay.io/skupper/skupper-tests
+SERVICE_CONTROLLER_IMAGE := quay.io/fgiorgetti/g/service-controller
+CONTROLLER_PODMAN_IMAGE := quay.io/fgiorgetti/g/controller-podman
+SITE_CONTROLLER_IMAGE := quay.io/fgiorgetti/site-controller:1.6.1-rc
+CONFIG_SYNC_IMAGE := quay.io/fgiorgetti/g/config-sync
+FLOW_COLLECTOR_IMAGE := quay.io/fgiorgetti/g/flow-collector
+TEST_IMAGE := quay.io/fgiorgetti/g/skupper-tests
 TEST_BINARIES_FOLDER := ${PWD}/test/integration/bin
 DOCKER := docker
 LDFLAGS := -X github.com/skupperproject/skupper/pkg/version.Version=${VERSION}
@@ -53,6 +53,11 @@ docker-build-test-image:
 	${DOCKER} buildx build --platform ${PLATFORMS} -t ${TEST_IMAGE} -f Dockerfile.ci-test .
 	${DOCKER} buildx build --load -t ${TEST_IMAGE} -f Dockerfile.ci-test .
 
+docker-build-site-controller: 
+	${DOCKER} buildx prune -af
+	${DOCKER} buildx build --platform ${PLATFORMS} -t ${SITE_CONTROLLER_IMAGE} -f Dockerfile.site-controller .
+	${DOCKER} buildx build --load  -t ${SITE_CONTROLLER_IMAGE} -f Dockerfile.site-controller .
+
 docker-build: generate-client docker-build-test-image
 	${DOCKER} buildx build --platform ${PLATFORMS} -t ${SERVICE_CONTROLLER_IMAGE} -f Dockerfile.service-controller .
 	${DOCKER} buildx build --load  -t ${SERVICE_CONTROLLER_IMAGE} -f Dockerfile.service-controller .
@@ -67,6 +72,9 @@ docker-build: generate-client docker-build-test-image
 
 docker-push-test-image:
 	${DOCKER} buildx build --push --platform ${PLATFORMS} -t ${TEST_IMAGE} -f Dockerfile.ci-test .
+
+docker-push-site-controller:
+	${DOCKER} buildx build --push --platform ${PLATFORMS} -t ${SITE_CONTROLLER_IMAGE} -f Dockerfile.site-controller .
 
 docker-push: docker-push-test-image
 	${DOCKER} buildx build --push --platform ${PLATFORMS} -t ${SERVICE_CONTROLLER_IMAGE} -f Dockerfile.service-controller .
