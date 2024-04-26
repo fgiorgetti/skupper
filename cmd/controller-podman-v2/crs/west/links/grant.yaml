@@ -1,0 +1,4 @@
+apiVersion: skupper.io/v1alpha1
+kind: Grant
+metadata:
+  name: east-to-west

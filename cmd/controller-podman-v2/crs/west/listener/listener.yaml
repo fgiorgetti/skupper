@@ -1,0 +1,40 @@
+---
+apiVersion: skupper.io/v1alpha1
+kind: Listener
+metadata:
+  name: backend
+spec:
+  host: backend
+  port: 8080
+  routingKey: backend-8080
+---
+apiVersion: skupper.io/v1alpha1
+kind: Listener
+metadata:
+  name: backend-copy
+spec:
+  host: backend
+  port: 8080
+  routingKey: backend-8080
+---
+apiVersion: v1
+data:
+  name: sk1
+kind: ConfigMap
+metadata:
+  creationTimestamp: "2024-04-23T18:57:53Z"
+  labels:
+    internal.skupper.io/site-controller-ignore: "true"
+  name: skupper-site
+  namespace: sk1
+  resourceVersion: "7526014"
+  uid: 1a30fa3a-fd01-4d6b-8451-5626e4267805
+---
+apiVersion: skupper.io/v1alpha1
+kind: Listener
+metadata:
+  name: backend-the-third
+spec:
+  host: backend
+  port: 8080
+  routingKey: backend-8080
