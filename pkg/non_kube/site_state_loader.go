@@ -69,6 +69,22 @@ func (f *FileSystemSiteStateLoader) Load() (*apis.SiteState, error) {
 					var grant v1alpha1.Grant
 					runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &grant)
 					siteState.Grants = append(siteState.Grants, grant)
+				case "Link":
+					var link v1alpha1.Link
+					runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &link)
+					siteState.Links = append(siteState.Links, link)
+				case "Claim":
+					var claim v1alpha1.Claim
+					runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &claim)
+					siteState.Claims = append(siteState.Claims, claim)
+				case "Certificate":
+					var certificate v1alpha1.Certificate
+					runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &certificate)
+					siteState.Certificates = append(siteState.Certificates, certificate)
+				case "SecuredAccess":
+					var securedAccess v1alpha1.SecuredAccess
+					runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &securedAccess)
+					siteState.SecuredAccesses = append(siteState.SecuredAccesses, securedAccess)
 				}
 			}
 		}
