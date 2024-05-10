@@ -1,6 +1,6 @@
 module github.com/skupperproject/skupper
 
-go 1.20
+go 1.21
 
 require (
 	github.com/briandowns/spinner v1.23.0
@@ -20,6 +20,7 @@ require (
 	github.com/openshift/api v0.0.0-20210428205234-a8389931bee7
 	github.com/openshift/client-go v0.0.0-20210112165513-ebc401615f47
 	github.com/prometheus/client_golang v1.14.0
+	github.com/prometheus/procfs v0.8.0
 	github.com/rogpeppe/go-internal v1.3.0
 	github.com/skupperproject/skupper-example-tcp-echo v0.0.0-20210727195922-db4a7dc7b35d
 	github.com/spf13/cobra v1.8.0

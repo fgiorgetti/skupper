@@ -4,13 +4,12 @@ ARG TARGETOS
 ARG TARGETARCH
 
 WORKDIR /go/src/app
-
 COPY go.mod .
 COPY go.sum .
 RUN go mod download
-
 COPY . .
-RUN make GOOS=$TARGETOS GOARCH=$TARGETARCH
+
+RUN make build-bootstrap GOOS=$TARGETOS GOARCH=$TARGETARCH
 
 FROM --platform=$TARGETPLATFORM registry.access.redhat.com/ubi9-minimal
 
@@ -21,5 +20,5 @@ RUN useradd --uid 10000 runner
 USER 10000
 
 WORKDIR /app
-COPY --from=builder /go/src/app/config-sync .
-CMD ["/app/config-sync"]
+COPY --from=builder /go/src/app/bootstrap .
+CMD ["/app/bootstrap"]
