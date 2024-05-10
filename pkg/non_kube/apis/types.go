@@ -26,9 +26,9 @@ type SiteState struct {
 }
 
 func (s *SiteState) IsInterior() bool {
-	// TODO Site.Spec.Options is not working
+	// TODO Site.Spec.Settings is not working
 	// TODO Define how router mode will be defined
-	return s.Site.Spec.Options == nil || s.Site.Spec.Options["mode"] != "edge"
+	return s.Site.Spec.Settings == nil || s.Site.Spec.Settings["mode"] != "edge"
 }
 
 func marshal(outputDirectory, resourceType, resourceName string, resource interface{}) error {
