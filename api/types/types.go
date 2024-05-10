@@ -257,6 +257,7 @@ const (
 	TypeTokenRequestQualifier   string = BaseQualifier + "/type=connection-token-request"
 	TokenGeneratedBy            string = BaseQualifier + "/generated-by"
 	SiteVersion                 string = BaseQualifier + "/site-version"
+	SiteId                      string = BaseQualifier + "/site-id"
 	TokenCost                   string = BaseQualifier + "/cost"
 	TokenTemplate               string = BaseQualifier + "/token-template"
 	UpdatedAnnotation           string = InternalQualifier + "/updated"

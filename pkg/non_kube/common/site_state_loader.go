@@ -1,4 +1,4 @@
-package non_kube
+package common
 
 import (
 	"bufio"
@@ -21,7 +21,17 @@ type FileSystemSiteStateLoader struct {
 }
 
 func (f *FileSystemSiteStateLoader) Load() (*apis.SiteState, error) {
-	var siteState = &apis.SiteState{}
+	var siteState = &apis.SiteState{
+		Site:            v1alpha1.Site{},
+		Listeners:       map[string]v1alpha1.Listener{},
+		Connectors:      map[string]v1alpha1.Connector{},
+		LinkAccesses:    map[string]v1alpha1.LinkAccess{},
+		Grants:          map[string]v1alpha1.Grant{},
+		Links:           map[string]v1alpha1.Link{},
+		Claims:          map[string]v1alpha1.Claim{},
+		Certificates:    map[string]v1alpha1.Certificate{},
+		SecuredAccesses: map[string]v1alpha1.SecuredAccess{},
+	}
 	yamlFileNames, err := f.readAllFiles(f.Path)
 	if err != nil {
 		return nil, err
@@ -33,7 +43,7 @@ func (f *FileSystemSiteStateLoader) Load() (*apis.SiteState, error) {
 			return nil, err
 		}
 		yamlDecoder := yamlutil.NewYAMLOrJSONDecoder(bufio.NewReader(yamlFile), 1024)
-		// read eventual multiple-document yaml
+		// allow reading multiple-document yaml
 		for {
 			var rawObj runtime.RawExtension
 			err = yamlDecoder.Decode(&rawObj)
@@ -52,39 +62,42 @@ func (f *FileSystemSiteStateLoader) Load() (*apis.SiteState, error) {
 			if v1alpha1.SchemeGroupVersion == gvk.GroupVersion() {
 				switch gvk.Kind {
 				case "Site":
+					if siteState.Site.Name != "" {
+						return nil, fmt.Errorf("multiple sites found, but only one site is allowed for bootstrapping")
+					}
 					runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &siteState.Site)
 				case "Listener":
 					var listener v1alpha1.Listener
 					runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &listener)
-					siteState.Listeners = append(siteState.Listeners, listener)
+					siteState.Listeners[listener.Name] = listener
 				case "Connector":
 					var connector v1alpha1.Connector
 					runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &connector)
-					siteState.Connectors = append(siteState.Connectors, connector)
+					siteState.Connectors[connector.Name] = connector
 				case "LinkAccess":
 					var linkAccess v1alpha1.LinkAccess
 					runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &linkAccess)
-					siteState.LinkAccesses = append(siteState.LinkAccesses, linkAccess)
+					siteState.LinkAccesses[linkAccess.Name] = linkAccess
 				case "Grant":
 					var grant v1alpha1.Grant
 					runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &grant)
-					siteState.Grants = append(siteState.Grants, grant)
+					siteState.Grants[grant.Name] = grant
 				case "Link":
 					var link v1alpha1.Link
 					runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &link)
-					siteState.Links = append(siteState.Links, link)
+					siteState.Links[link.Name] = link
 				case "Claim":
 					var claim v1alpha1.Claim
 					runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &claim)
-					siteState.Claims = append(siteState.Claims, claim)
+					siteState.Claims[claim.Name] = claim
 				case "Certificate":
 					var certificate v1alpha1.Certificate
 					runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &certificate)
-					siteState.Certificates = append(siteState.Certificates, certificate)
+					siteState.Certificates[certificate.Name] = certificate
 				case "SecuredAccess":
 					var securedAccess v1alpha1.SecuredAccess
 					runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &securedAccess)
-					siteState.SecuredAccesses = append(siteState.SecuredAccesses, securedAccess)
+					siteState.SecuredAccesses[securedAccess.Name] = securedAccess
 				}
 			}
 		}

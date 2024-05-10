@@ -1,4 +1,4 @@
-package non_kube
+package common
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 func TestFileSystemSiteStateLoder(t *testing.T) {
 	fsStateLoader := &FileSystemSiteStateLoader{
 		//Path: "/home/fgiorget/git/skupper-v2/api/types/crds",
-		Path: "/home/fgiorget/git/skupper-v2/cmd/controller-podman-v2/crs/west",
+		Path: "/home/fgiorget/git/skupper-v2/cmd/bootstrap/crs/west",
 	}
 	siteState, err := fsStateLoader.Load()
 	assert.Assert(t, err)

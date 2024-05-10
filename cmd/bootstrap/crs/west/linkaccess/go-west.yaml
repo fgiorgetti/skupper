@@ -1,0 +1,12 @@
+apiVersion: skupper.io/v1alpha1
+kind: LinkAccess
+metadata:
+  name: go-west
+spec:
+  roles:
+    - port: 55673
+      role: inter-router
+    - port: 45673
+      role: edge
+  tlsCredentials: go-west
+  ca: skupper-site-server

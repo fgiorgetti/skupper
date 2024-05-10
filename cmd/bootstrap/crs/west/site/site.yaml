@@ -3,6 +3,5 @@ kind: Site
 metadata:
   name: fedora-west
 spec:
-  settings:
-    - name: ingress
-      value: external
+  options:
+    mode: interior
