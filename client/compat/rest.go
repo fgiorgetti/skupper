@@ -1,4 +1,4 @@
-package podman
+package compat
 
 import (
 	"context"
@@ -24,7 +24,7 @@ import (
 
 const (
 	ENV_PODMAN_ENDPOINT  = "PODMAN_ENDPOINT"
-	DEFAULT_BASE_PATH    = "/v4.0.0"
+	DEFAULT_BASE_PATH    = ""
 	DefaultNetworkDriver = "bridge"
 )
 
@@ -33,14 +33,14 @@ var (
 	localAddresses = []string{"127.0.0.1", "::1", "0.0.0.0", "::"}
 )
 
-type PodmanRestClient struct {
+type CompatRestClient struct {
 	RestClient runtime.ClientTransport
 	endpoint   string
 }
 
-type RestClientFactory func(endpoint, basePath string) (*PodmanRestClient, error)
+type RestClientFactory func(endpoint, basePath string) (*CompatRestClient, error)
 
-func NewPodmanClient(endpoint, basePath string) (*PodmanRestClient, error) {
+func NewCompatClient(endpoint, basePath string) (*CompatRestClient, error) {
 	var err error
 
 	if endpoint == "" {
@@ -135,7 +135,7 @@ func NewPodmanClient(endpoint, basePath string) (*PodmanRestClient, error) {
 		}
 	}
 
-	cli := &PodmanRestClient{
+	cli := &CompatRestClient{
 		RestClient: c,
 		endpoint:   endpoint,
 	}
@@ -149,18 +149,17 @@ func GetDefaultPodmanEndpoint() string {
 	return fmt.Sprintf("unix://%s/podman/podman.sock", config.GetRuntimeDir())
 }
 
-func (p *PodmanRestClient) IsSockEndpoint() bool {
+func (p *CompatRestClient) IsSockEndpoint() bool {
 	return strings.HasPrefix(p.endpoint, "/") || strings.HasPrefix(p.endpoint, "unix://")
 }
 
-func (p *PodmanRestClient) GetEndpoint() string {
+func (p *CompatRestClient) GetEndpoint() string {
 	return p.endpoint
 }
 
-func (p *PodmanRestClient) IsRunningInContainer() bool {
+func (p *CompatRestClient) IsRunningInContainer() bool {
 	// See: https://docs.podman.io/en/latest/markdown/podman-run.1.html
 	_, err := os.Stat("/run/.containerenv")
-	//_, err := os.Stat("/.dockerenv")
 	return err == nil
 }
 
@@ -378,17 +377,17 @@ func ReadResponse(response runtime.ClientResponse, consumer runtime.Consumer) (i
 	}
 }
 
-func (p *PodmanRestClient) ResponseIDReader(httpClient *runtime.ClientOperation) {
+func (p *CompatRestClient) ResponseIDReader(httpClient *runtime.ClientOperation) {
 	httpClient.Reader = &responseReaderID{}
 }
 
-func (p *PodmanRestClient) Validate() error {
+func (p *CompatRestClient) Validate() error {
 	version, err := p.Version()
 	if err != nil {
 		return fmt.Errorf("Podman service is not available on provided endpoint (unable to verify version) - %w", err)
 	}
 	apiVersion := utils.ParseVersion(version.Server.APIVersion)
-	if apiVersion.Major < 4 {
+	if version.Engine == "podman" && apiVersion.Major < 4 {
 		return fmt.Errorf("podman version must be 4.0.0 or greater, found: %s", version.Server.APIVersion)
 	}
 	return nil

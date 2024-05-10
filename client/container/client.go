@@ -56,6 +56,7 @@ type Version struct {
 	Arch     string
 	Kernel   string
 	OS       string
+	Engine   string
 }
 
 type Container struct {
