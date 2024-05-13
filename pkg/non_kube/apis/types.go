@@ -1,12 +1,17 @@
 package apis
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"path"
 
 	"github.com/skupperproject/skupper/pkg/apis/skupper/v1alpha1"
 	"gopkg.in/yaml.v3"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/serializer/json"
+	"k8s.io/client-go/kubernetes/scheme"
 )
 
 type StaticSiteStateRenderer interface {
@@ -20,6 +25,7 @@ type SiteState struct {
 	LinkAccesses    map[string]v1alpha1.LinkAccess
 	Grants          map[string]v1alpha1.Grant
 	Links           map[string]v1alpha1.Link
+	Secrets         map[string]corev1.Secret
 	Claims          map[string]v1alpha1.Claim
 	Certificates    map[string]v1alpha1.Certificate
 	SecuredAccesses map[string]v1alpha1.SecuredAccess
@@ -29,6 +35,29 @@ func (s *SiteState) IsInterior() bool {
 	// TODO Site.Spec.Settings is not working
 	// TODO Define how router mode will be defined
 	return s.Site.Spec.Settings == nil || s.Site.Spec.Settings["mode"] != "edge"
+}
+
+type Token struct {
+	Link   *v1alpha1.Link
+	Secret *corev1.Secret
+}
+
+func (t *Token) Marshal() ([]byte, error) {
+	s := json.NewYAMLSerializer(json.DefaultMetaFactory, scheme.Scheme, scheme.Scheme)
+	buffer := new(bytes.Buffer)
+	writer := bufio.NewWriter(buffer)
+	_, _ = writer.Write([]byte("---\n"))
+	err := s.Encode(t.Secret, writer)
+	if err != nil {
+		return nil, err
+	}
+	_, _ = writer.Write([]byte("---\n"))
+	err = s.Encode(t.Link, writer)
+	if err != nil {
+		return nil, err
+	}
+	writer.Flush()
+	return buffer.Bytes(), nil
 }
 
 func marshal(outputDirectory, resourceType, resourceName string, resource interface{}) error {
@@ -87,6 +116,9 @@ func MarshalSiteState(siteState SiteState, outputDirectory string) error {
 		return err
 	}
 	if err = marshalMap(outputDirectory, "securedAccesses", siteState.SecuredAccesses); err != nil {
+		return err
+	}
+	if err = marshalMap(outputDirectory, "secrets", siteState.Secrets); err != nil {
 		return err
 	}
 	return nil

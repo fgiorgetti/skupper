@@ -1,4 +1,4 @@
 apiVersion: skupper.io/v1alpha1
-kind: Grant
+kind: Site
 metadata:
-  name: east-to-west
+  name: fedora-east

@@ -39,6 +39,10 @@ func (s *SiteStateRenderer) Render(loadedSiteState apis.SiteState) error {
 	}
 	// active (runtime) SiteState
 	s.siteState = common.CopySiteState(s.loadedSiteState)
+	err = common.RedeemClaims(&s.siteState)
+	if err != nil {
+		return fmt.Errorf("failed to redeem claims: %v", err)
+	}
 	err = common.PrepareCertificatesAndLinkAccess(&s.siteState)
 	if err != nil {
 		return fmt.Errorf("failed to prepare podman site: %w", err)
@@ -56,6 +60,7 @@ func (s *SiteStateRenderer) Render(loadedSiteState apis.SiteState) error {
 	if err = apis.MarshalSiteState(s.loadedSiteState, path.Join(s.configRenderer.OutputPath, common.LoadedSiteStatePath)); err != nil {
 		return err
 	}
+	// No more site state changes after this
 	if err = apis.MarshalSiteState(s.siteState, path.Join(s.configRenderer.OutputPath, common.RuntimeSiteStatePath)); err != nil {
 		return err
 	}

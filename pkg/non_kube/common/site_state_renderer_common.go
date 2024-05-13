@@ -3,7 +3,6 @@ package common
 import (
 	"fmt"
 	"maps"
-	"strings"
 
 	"github.com/skupperproject/skupper/pkg/apis/skupper/v1alpha1"
 	"github.com/skupperproject/skupper/pkg/non_kube/apis"
@@ -23,6 +22,7 @@ func CopySiteState(siteState apis.SiteState) apis.SiteState {
 	activeSiteState.Grants = maps.Clone(siteState.Grants)
 	activeSiteState.SecuredAccesses = maps.Clone(siteState.SecuredAccesses)
 	activeSiteState.Certificates = maps.Clone(siteState.Certificates)
+	activeSiteState.Secrets = maps.Clone(siteState.Secrets)
 	return activeSiteState
 }
 
@@ -130,18 +130,20 @@ func PrepareLinkAccessesCertificates(siteState *apis.SiteState) {
 		},
 	}
 
-	// TODO determine how ingress-hosts will be provided
 	for name, linkAccess := range siteState.LinkAccesses {
 		create := false
-		ingressHost := getOption(linkAccess.Spec.Options, "ingressHost", "127.0.0.1")
 		for _, role := range linkAccess.Spec.Roles {
-			if utils.StringSliceContains([]string{"edge", "inter-router"}, role.Role) {
+			if utils.StringSliceContains(validLinkAccessRoles, role.Role) {
 				create = true
 				break
 			}
 		}
 		if !create {
 			continue
+		}
+		hosts := linkAccess.Spec.SubjectAlternativeNames
+		if linkAccess.Spec.BindHost != "" && !utils.StringSliceContains(hosts, linkAccess.Spec.BindHost) {
+			hosts = append(hosts, linkAccess.Spec.BindHost)
 		}
 		siteState.Certificates[name] = v1alpha1.Certificate{
 			TypeMeta: metav1.TypeMeta{},
@@ -151,8 +153,20 @@ func PrepareLinkAccessesCertificates(siteState *apis.SiteState) {
 			Spec: v1alpha1.CertificateSpec{
 				Ca:      caName,
 				Subject: name,
-				Hosts:   strings.Split(ingressHost, ","),
+				Hosts:   hosts,
 				Server:  true,
+			},
+		}
+		clientCertificateName := fmt.Sprintf("client-%s", name)
+		siteState.Certificates[clientCertificateName] = v1alpha1.Certificate{
+			TypeMeta: metav1.TypeMeta{},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: clientCertificateName,
+			},
+			Spec: v1alpha1.CertificateSpec{
+				Ca:      caName,
+				Subject: clientCertificateName,
+				Client:  true,
 			},
 		}
 	}

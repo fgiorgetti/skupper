@@ -9,6 +9,10 @@ import (
 	"github.com/skupperproject/skupper/pkg/utils"
 )
 
+var (
+	validLinkAccessRoles = []string{"edge", "inter-router"}
+)
+
 type SiteStateValidator struct {
 }
 
@@ -25,7 +29,7 @@ func (s *SiteStateValidator) Validate(siteState apis.SiteState) error {
 	if err = s.validateLinkAccesses(siteState.LinkAccesses); err != nil {
 		return err
 	}
-	if err = s.validateLinks(siteState.Links); err != nil {
+	if err = s.validateLinks(siteState); err != nil {
 		return err
 	}
 	if err = s.validateClaims(siteState.Claims); err != nil {
@@ -59,14 +63,24 @@ func (s *SiteStateValidator) validateLinkAccesses(linkAccesses map[string]v1alph
 		if len(linkAccess.Spec.Roles) == 0 {
 			return fmt.Errorf("invalid link access: roles are required")
 		}
+		for _, role := range linkAccess.Spec.Roles {
+			if !utils.StringSliceContains(validLinkAccessRoles, role.Role) {
+				return fmt.Errorf("invalid link access: %s - invalid role: %s (valid roles: %s)",
+					linkAccess.Name, role.Role, validLinkAccessRoles)
+			}
+		}
 	}
 	return nil
 }
 
-func (s *SiteStateValidator) validateLinks(links map[string]v1alpha1.Link) error {
-	for _, link := range links {
+func (s *SiteStateValidator) validateLinks(siteState apis.SiteState) error {
+	for linkName, link := range siteState.Links {
 		if link.Name == "" {
 			return fmt.Errorf("invalid link name: empty string")
+		}
+		secretName := link.Spec.TlsCredentials
+		if _, ok := siteState.Secrets[secretName]; !ok {
+			return fmt.Errorf("invalid link %q - secret %s not found", linkName, secretName)
 		}
 	}
 	return nil
