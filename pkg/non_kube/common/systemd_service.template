@@ -7,8 +7,8 @@ RequiresMountsFor={{.RuntimeDir}}/containers
 [Service]
 TimeoutStopSec=70
 RemainAfterExit=yes
-ExecStart={{.SiteScriptPath}}/start.sh
-ExecStop={{.SiteScriptPath}}/stop.sh
+ExecStart=/bin/bash {{.SiteScriptPath}}/start.sh
+ExecStop=/bin/bash {{.SiteScriptPath}}/stop.sh
 Type=simple
 
 [Install]

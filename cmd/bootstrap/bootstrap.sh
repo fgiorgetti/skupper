@@ -1,14 +1,16 @@
 set -Ceu
 
 IMAGE="quay.io/fgiorgetti/bootstrap"
-PODMAN_ENDPOINT_DEFAULT="unix://${XDG_RUNTIME_DIR:-/run/user/${UID}}/podman/podman.sock"
-if [[ ${UID} = "0" ]]; then
-    PODMAN_ENDPOINT_DEFAULT="unix://${XDG_RUNTIME_DIR:-/run}/podman/podman.sock"
-fi
-PODMAN_ENDPOINT="${PODMAN_ENDPOINT:-${PODMAN_ENDPOINT_DEFAULT}}"
 INPUT_PATH="${1:-}"
 OUTPUT_PATH="${XDG_DATA_HOME:-${HOME}/.local/share}/skupper"
-CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME}/.config}"
+SERVICE_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user"
+PODMAN_ENDPOINT_DEFAULT="unix://${XDG_RUNTIME_DIR:-/run/user/${UID}}/podman/podman.sock"
+if [[ ${UID} -eq 0 ]]; then
+    PODMAN_ENDPOINT_DEFAULT="unix:///run/podman/podman.sock"
+    OUTPUT_PATH="/usr/local/share/skupper"
+    SERVICE_DIR="/etc/systemd/system"
+fi
+PODMAN_ENDPOINT="${PODMAN_ENDPOINT:-${PODMAN_ENDPOINT_DEFAULT}}"
 LOG_FILE="$(mktemp /tmp/skupper-bootstrap.XXXXX.log)"
 
 exit_error() {
@@ -41,9 +43,11 @@ create_service() {
       systemctl enable --now "${service_name}"
       systemctl daemon-reload
     else
-      service_dir="${CONFIG_HOME}/systemd/user/"
-      [[ ! -d "${service_dir}" ]] && mkdir -p "${service_dir}"
-      mv "${service_file}" "${service_dir}"
+      if [[ ! -d "${SERVICE_DIR}" ]]; then
+        echo "Unable to define path to SystemD service"
+        return
+      fi
+      mv "${service_file}" "${SERVICE_DIR}"
       systemctl --user enable --now "${service_name}"
       systemctl --user daemon-reload
     fi
@@ -53,6 +57,7 @@ main() {
     if [[ -z "${INPUT_PATH}" ]] || [[ ! -d "${INPUT_PATH}" ]]; then
       exit_error "Use: bootstrap.sh <local path to CRs>"
     fi
+
     # Must be mounted into the container
     MOUNTS=()
     ENV_VARS=()
@@ -70,7 +75,8 @@ main() {
     else
         ENV_VARS+=(-e PODMAN_ENDPOINT="${PODMAN_ENDPOINT}")
     fi
-    
+    ENV_VARS+=(-e OUTPUT_PATH="${OUTPUT_PATH}")
+
     # Running the bootstrap
     podman pull ${IMAGE}
     podman run --rm --name skupper-bootstrap \
