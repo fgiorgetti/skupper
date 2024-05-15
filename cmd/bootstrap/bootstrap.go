@@ -3,8 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
+	"path"
 
 	"github.com/skupperproject/skupper/pkg/non_kube/apis"
 	"github.com/skupperproject/skupper/pkg/non_kube/common"
@@ -29,9 +29,7 @@ func main() {
 	// It also expects the /output path to be mapped to the
 	// Host's XDG_DATA_HOME/skupper or $HOME/.local/share/skupper
 	//
-
-	log.Printf("Skupper V2 - nonkube bootstrap")
-	log.Printf("Version: %s", version.Version)
+	fmt.Printf("Skupper V2 - nonkube bootstrap (version: %s)\n", version.Version)
 
 	var inputPath string
 	var outputPath string
@@ -63,7 +61,20 @@ func main() {
 		fmt.Println("Failed to bootstrap:", err)
 		os.Exit(1)
 	}
-	fmt.Printf("Site %q has been rendered\n", siteState.Site.Name)
+	fmt.Printf("Site %q has been created\n", siteState.Site.Name)
+	siteHome, err := common.GetHostSiteHome(siteState.Site)
+	if err != nil {
+		fmt.Println("Failed to get site's home directory:", err)
+	} else {
+		tokenPath := path.Join(siteHome, common.RuntimeTokenPath)
+		tokens, _ := os.ReadDir(tokenPath)
+		for _, token := range tokens {
+			if !token.IsDir() {
+				fmt.Println("Static tokens have been defined at:", tokenPath)
+				break
+			}
+		}
+	}
 }
 
 func bootstrap(inputPath string) (*apis.SiteState, error) {

@@ -13,6 +13,7 @@ import (
 	"github.com/skupperproject/skupper/pkg/images"
 	"github.com/skupperproject/skupper/pkg/non_kube/apis"
 	"github.com/skupperproject/skupper/pkg/non_kube/common"
+	"github.com/skupperproject/skupper/pkg/utils"
 )
 
 type SiteStateRenderer struct {
@@ -86,7 +87,12 @@ func (s *SiteStateRenderer) Render(loadedSiteState apis.SiteState) error {
 	if err = s.startContainers(); err != nil {
 		return err
 	}
-	return err
+
+	// Create systemd service and scripts
+	if err = s.createSystemdService(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *SiteStateRenderer) prepareContainers() error {
@@ -176,5 +182,33 @@ func (s *SiteStateRenderer) startContainers() error {
 			return fmt.Errorf("failed to start %s container %q: %w", component, skupperContainer.Name, err)
 		}
 	}
+	return nil
+}
+
+func (s *SiteStateRenderer) createSystemdService() error {
+	// Creating startup scripts first
+	scripts, _ := common.GetStartupScripts(s.siteState.Site, s.configRenderer.RouterConfig.GetSiteMetadata().Id)
+	err := scripts.Create()
+	if err != nil {
+		return fmt.Errorf("error creating startup scripts: %w\n", err)
+	}
+
+	// Creating systemd user service
+	systemd, err := common.NewSystemdServiceInfo(s.siteState.Site)
+	if err != nil {
+		return err
+	}
+	if err = systemd.Create(); err != nil {
+		return fmt.Errorf("unable to create startup service %q - %v\n", systemd.GetServiceName(), err)
+	}
+
+	// Validate if lingering is enabled for current user
+	if !common.IsRunningInContainer() {
+		username := utils.ReadUsername()
+		if os.Getuid() != 0 && !common.IsLingeringEnabled(username) {
+			fmt.Printf("It is recommended to enable lingering for %s, otherwise Skupper may not start on boot.\n", username)
+		}
+	}
+
 	return nil
 }

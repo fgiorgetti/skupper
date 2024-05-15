@@ -4,10 +4,11 @@ import (
 	"path"
 
 	"github.com/skupperproject/skupper/pkg/config"
+	"github.com/skupperproject/skupper/pkg/non_kube/common"
 )
 
 var (
-	ConfigFile = path.Join(config.GetDataHome(), "podman.yaml")
+	ConfigFile = path.Join(common.GetDataHome(), "podman.yaml")
 )
 
 type Config struct {

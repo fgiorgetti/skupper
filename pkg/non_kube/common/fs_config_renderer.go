@@ -14,7 +14,6 @@ import (
 	"github.com/skupperproject/skupper/api/types"
 	"github.com/skupperproject/skupper/pkg/apis/skupper/v1alpha1"
 	"github.com/skupperproject/skupper/pkg/certs"
-	"github.com/skupperproject/skupper/pkg/config"
 	"github.com/skupperproject/skupper/pkg/non_kube/apis"
 	"github.com/skupperproject/skupper/pkg/qdr"
 	"github.com/skupperproject/skupper/pkg/utils"
@@ -32,6 +31,7 @@ const (
 	LoadedSiteStatePath    = "loaded/state"
 	RuntimeSiteStatePath   = "runtime/state"
 	RuntimeTokenPath       = "runtime/token"
+	RuntimeScriptsPath     = "runtime/scripts"
 )
 
 var (
@@ -44,6 +44,7 @@ var (
 		LoadedSiteStatePath,
 		RuntimeSiteStatePath,
 		RuntimeTokenPath,
+		RuntimeScriptsPath,
 	}
 )
 
@@ -51,11 +52,11 @@ const (
 	DefaultSslProfileBasePath = "${SSL_PROFILE_BASE_PATH}"
 )
 
-func getDefaultOutputPath(siteName string) string {
+func GetDefaultOutputPath(siteName string) string {
 	if IsRunningInContainer() {
 		return path.Join("/output", "sites", siteName)
 	}
-	return path.Join(config.GetDataHome(), "sites", siteName)
+	return path.Join(GetDataHome(), "sites", siteName)
 }
 
 type FileSystemConfigurationRenderer struct {
@@ -73,7 +74,7 @@ func (c *FileSystemConfigurationRenderer) Render(siteState apis.SiteState) error
 	var err error
 	// Set the default output path
 	if c.OutputPath == "" {
-		c.OutputPath = getDefaultOutputPath(siteState.Site.Name)
+		c.OutputPath = GetDefaultOutputPath(siteState.Site.Name)
 	}
 	if c.SslProfileBasePath == "" {
 		c.SslProfileBasePath = DefaultSslProfileBasePath
@@ -120,6 +121,12 @@ func (c *FileSystemConfigurationRenderer) Render(siteState apis.SiteState) error
 
 	// Creating the tokens
 	err = c.createTokens(siteState)
+	if err != nil {
+		return fmt.Errorf("unable to create tokens: %v", err)
+	}
+
+	// Creating service and scripts
+
 	return nil
 }
 

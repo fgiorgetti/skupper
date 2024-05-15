@@ -18,7 +18,7 @@ import (
 	runtimeclient "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
 	"github.com/skupperproject/skupper/client/generated/libpod/models"
-	"github.com/skupperproject/skupper/pkg/config"
+	"github.com/skupperproject/skupper/pkg/non_kube/common"
 	"github.com/skupperproject/skupper/pkg/utils"
 )
 
@@ -146,7 +146,7 @@ func NewPodmanClient(endpoint, basePath string) (*PodmanRestClient, error) {
 }
 
 func GetDefaultPodmanEndpoint() string {
-	return fmt.Sprintf("unix://%s/podman/podman.sock", config.GetRuntimeDir())
+	return fmt.Sprintf("unix://%s/podman/podman.sock", common.GetRuntimeDir())
 }
 
 func (p *PodmanRestClient) IsSockEndpoint() bool {

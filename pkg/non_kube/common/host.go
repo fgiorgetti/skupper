@@ -1,0 +1,79 @@
+package common
+
+import (
+	"fmt"
+	"os"
+	"path"
+
+	"github.com/prometheus/procfs"
+	"github.com/skupperproject/skupper/pkg/apis/skupper/v1alpha1"
+)
+
+func GetDataHome() string {
+	if os.Getuid() == 0 {
+		return "/usr/local/share/skupper"
+	}
+	dataHome, ok := os.LookupEnv("XDG_DATA_HOME")
+	if !ok {
+		homeDir, _ := os.UserHomeDir()
+		dataHome = homeDir + "/.local/share"
+	}
+	return path.Join(dataHome, "skupper")
+}
+
+func GetConfigHome() string {
+	configHome, ok := os.LookupEnv("XDG_CONFIG_HOME")
+	if !ok {
+		homeDir, _ := os.UserHomeDir()
+		return homeDir + "/.config"
+	} else {
+		return configHome
+	}
+}
+
+func GetRuntimeDir() string {
+	if os.Getuid() == 0 {
+		return "/run"
+	}
+	runtimeDir, ok := os.LookupEnv("XDG_RUNTIME_DIR")
+	if !ok {
+		runtimeDir = fmt.Sprintf("/run/user/%d", os.Getuid())
+	}
+	return runtimeDir
+}
+
+func GetHostDataHome() (string, error) {
+	if IsRunningInContainer() {
+		mounts, err := procfs.GetProcMounts(1)
+		if err != nil {
+			return "", fmt.Errorf("error getting mount points: %v", err)
+		}
+		for _, mount := range mounts {
+			if mount.MountPoint == "/output" {
+				return mount.Root, nil
+			}
+		}
+		return "", fmt.Errorf("unable to determine host data home directory")
+	} else {
+		return GetDataHome(), nil
+	}
+}
+
+func GetHostSiteHome(site v1alpha1.Site) (string, error) {
+	dataHome, err := GetHostDataHome()
+	if err != nil {
+		return "", err
+	}
+	return path.Join(dataHome, "sites", site.Name), nil
+}
+
+func IsRunningInContainer() bool {
+	// See: https://docs.podman.io/en/latest/markdown/podman-run.1.html
+	if _, err := os.Stat("/run/.containerenv"); err == nil {
+		return true
+	}
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+	return false
+}
