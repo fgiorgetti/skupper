@@ -145,13 +145,17 @@ func PrepareLinkAccessesCertificates(siteState *apis.SiteState) {
 		if linkAccess.Spec.BindHost != "" && !utils.StringSliceContains(hosts, linkAccess.Spec.BindHost) {
 			hosts = append(hosts, linkAccess.Spec.BindHost)
 		}
+		linkAccessCaName := caName
+		if linkAccess.Spec.Ca != "" {
+			linkAccessCaName = linkAccess.Spec.Ca
+		}
 		siteState.Certificates[name] = v1alpha1.Certificate{
 			TypeMeta: metav1.TypeMeta{},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: name,
 			},
 			Spec: v1alpha1.CertificateSpec{
-				Ca:      caName,
+				Ca:      linkAccessCaName,
 				Subject: name,
 				Hosts:   hosts,
 				Server:  true,
@@ -164,7 +168,7 @@ func PrepareLinkAccessesCertificates(siteState *apis.SiteState) {
 				Name: clientCertificateName,
 			},
 			Spec: v1alpha1.CertificateSpec{
-				Ca:      caName,
+				Ca:      linkAccessCaName,
 				Subject: clientCertificateName,
 				Client:  true,
 			},

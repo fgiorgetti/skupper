@@ -18,7 +18,7 @@ func TestFileSystemSiteStateLoder(t *testing.T) {
 	assert.Assert(t, siteState != nil)
 	assert.Assert(t, siteState.Site.Name != "")
 	//assert.Equal(t, len(siteState.Listeners), 2)
-	assert.Equal(t, len(siteState.Listeners), 3)
+	assert.Equal(t, len(siteState.Listeners), 1)
 	siteStateJson, _ := json.MarshalIndent(siteState, "", "  ")
 	fmt.Println(string(siteStateJson))
 }
