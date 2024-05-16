@@ -9,7 +9,6 @@ spec:
     - port: 45673
       role: edge
   tlsCredentials: go-west
-  ca: skupper-site-server
   bindHost: fgiorget
   subjectAlternativeNames:
     - 192.168.124.1
