@@ -168,15 +168,16 @@ func (c *FileSystemConfigurationRenderer) createTokens(siteState apis.SiteState)
 			},
 			Secret: secret,
 		}
+		linkHost := utils.DefaultStr(linkAccess.Spec.BindHost, "127.0.0.1")
 		if interRouter > 0 {
 			token.Link.Spec.InterRouter = v1alpha1.HostPort{
-				Host: linkAccess.Spec.BindHost,
+				Host: linkHost,
 				Port: interRouter,
 			}
 		}
 		if edge > 0 {
 			token.Link.Spec.Edge = v1alpha1.HostPort{
-				Host: linkAccess.Spec.BindHost,
+				Host: linkHost,
 				Port: edge,
 			}
 		}
@@ -207,9 +208,12 @@ func (c *FileSystemConfigurationRenderer) createRouterConfig(siteState apis.Site
 
 	// LinkAccess
 	for name, la := range siteState.LinkAccesses {
+		if la.Spec.TlsCredentials == "" {
+			la.Spec.TlsCredentials = name
+		}
 		for _, role := range la.Spec.Roles {
 			listenerName := fmt.Sprintf("%s-%s", name, role.Role)
-			host := utils.DefaultStr(la.Spec.BindHost, "0.0.0.0")
+			host := utils.DefaultStr(la.Spec.BindHost, "127.0.0.1")
 			c.RouterConfig.AddListener(qdr.Listener{
 				Name:             listenerName,
 				Role:             qdr.Role(role.Role),
