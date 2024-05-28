@@ -8,6 +8,7 @@ import (
 	"text/template"
 
 	"github.com/skupperproject/skupper/pkg/apis/skupper/v1alpha1"
+	"github.com/skupperproject/skupper/pkg/non_kube/apis"
 )
 
 var (
@@ -33,12 +34,12 @@ func GetStartupScripts(site v1alpha1.Site, siteId string) (*startupScripts, erro
 		Site:        site,
 		SiteId:      siteId,
 	}
-	siteHome, err := GetHostSiteHome(site)
+	siteHome, err := apis.GetHostSiteHome(site)
 	if err != nil {
 		return nil, err
 	}
 	scripts.path = path.Join(siteHome, RuntimeScriptsPath)
-	if IsRunningInContainer() {
+	if apis.IsRunningInContainer() {
 		scripts.path = path.Join(GetDefaultOutputPath(site.Name), RuntimeScriptsPath)
 	}
 	return scripts, nil

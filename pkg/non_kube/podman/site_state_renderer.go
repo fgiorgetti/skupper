@@ -96,7 +96,7 @@ func (s *SiteStateRenderer) Render(loadedSiteState apis.SiteState) error {
 }
 
 func (s *SiteStateRenderer) prepareContainers() error {
-	siteConfigPath, err := common.GetHostSiteHome(s.siteState.Site)
+	siteConfigPath, err := apis.GetHostSiteHome(s.siteState.Site)
 	if err != nil {
 		return err
 	}
@@ -203,7 +203,7 @@ func (s *SiteStateRenderer) createSystemdService() error {
 	}
 
 	// Validate if lingering is enabled for current user
-	if !common.IsRunningInContainer() {
+	if !apis.IsRunningInContainer() {
 		username := utils.ReadUsername()
 		if os.Getuid() != 0 && !common.IsLingeringEnabled(username) {
 			fmt.Printf("It is recommended to enable lingering for %s, otherwise Skupper may not start on boot.\n", username)

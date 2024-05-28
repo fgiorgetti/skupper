@@ -53,10 +53,10 @@ const (
 )
 
 func GetDefaultOutputPath(siteName string) string {
-	if IsRunningInContainer() {
+	if apis.IsRunningInContainer() {
 		return path.Join("/output", "sites", siteName)
 	}
-	return path.Join(GetDataHome(), "sites", siteName)
+	return path.Join(apis.GetDataHome(), "sites", siteName)
 }
 
 type FileSystemConfigurationRenderer struct {

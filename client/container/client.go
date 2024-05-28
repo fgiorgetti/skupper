@@ -122,6 +122,8 @@ type FileMount struct {
 	Source      string
 	Destination string
 	Options     []string
+	Propagation string
+	RW          bool
 }
 
 type Volume struct {

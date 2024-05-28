@@ -1,167 +1,14 @@
 package compat
 
 import (
-	"context"
-	"crypto/tls"
 	"encoding/binary"
 	"fmt"
 	"io"
-	"net"
-	"net/http"
-	"net/url"
-	"os"
 	"regexp"
-	"strings"
-	"time"
 
 	"github.com/go-openapi/runtime"
-	runtimeclient "github.com/go-openapi/runtime/client"
-	"github.com/go-openapi/strfmt"
 	"github.com/skupperproject/skupper/client/generated/libpod/models"
-	"github.com/skupperproject/skupper/pkg/config"
-	"github.com/skupperproject/skupper/pkg/utils"
 )
-
-const (
-	ENV_PODMAN_ENDPOINT  = "PODMAN_ENDPOINT"
-	DEFAULT_BASE_PATH    = ""
-	DefaultNetworkDriver = "bridge"
-)
-
-var (
-	formats        = strfmt.NewFormats()
-	localAddresses = []string{"127.0.0.1", "::1", "0.0.0.0", "::"}
-)
-
-type CompatRestClient struct {
-	RestClient runtime.ClientTransport
-	endpoint   string
-}
-
-type RestClientFactory func(endpoint, basePath string) (*CompatRestClient, error)
-
-func NewCompatClient(endpoint, basePath string) (*CompatRestClient, error) {
-	var err error
-
-	if endpoint == "" {
-		defaultEndpoint := GetDefaultPodmanEndpoint()
-		endpoint = utils.DefaultStr(os.Getenv(ENV_PODMAN_ENDPOINT), defaultEndpoint)
-	}
-
-	var u *url.URL
-	isSockFile := strings.HasPrefix(endpoint, "/")
-	if isSockFile || strings.HasPrefix(endpoint, "unix://") {
-		if isSockFile {
-			endpoint = "unix://" + endpoint
-		}
-		isSockFile = true
-		u, err = url.Parse(endpoint)
-		if err != nil {
-			return nil, err
-		}
-		u.Scheme = "http"
-		u.Host = "unix"
-	} else {
-		host := endpoint
-		match, _ := regexp.Match(`(http[s]*|tcp)://`, []byte(host))
-		if !match {
-			if !strings.Contains(host, "://") {
-				host = "http://" + host
-			} else {
-				return nil, fmt.Errorf("invalid endpoint: %s", host)
-			}
-		}
-		u, err = url.Parse(host)
-		if err != nil {
-			return nil, err
-		}
-		if u.Scheme == "tcp" {
-			u.Scheme = "http"
-		}
-		addresses, err := net.LookupHost(u.Hostname())
-		if err != nil {
-			return nil, fmt.Errorf("unable to resolve hostname: %s", u.Hostname())
-		}
-		for _, addr := range addresses {
-			if utils.StringSliceContains(localAddresses, addr) {
-				return nil, fmt.Errorf("local addresses cannot be used, got: %s", u.Hostname())
-			}
-		}
-	}
-	hostPort := u.Hostname()
-	if u.Port() != "" {
-		hostPort = net.JoinHostPort(u.Hostname(), u.Port())
-	}
-	if basePath == "" {
-		basePath = DEFAULT_BASE_PATH
-	}
-	c := runtimeclient.New(hostPort, basePath, []string{u.Scheme})
-	// Initializing transport like the http.DefaultTransport
-	// to avoid modifying it directly, as Runtime.Transport is
-	// set to http.DefaultTransport (variable)
-	dialer := &net.Dialer{
-		Timeout:   30 * time.Second,
-		KeepAlive: 30 * time.Second,
-	}
-	c.Transport = &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           dialer.DialContext,
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-	}
-	if u.Scheme == "https" {
-		ct := c.Transport.(*http.Transport)
-		if ct.TLSClientConfig == nil {
-			ct.TLSClientConfig = &tls.Config{}
-		}
-		ct.TLSClientConfig.InsecureSkipVerify = true
-	} else {
-		ct := c.Transport.(*http.Transport)
-		ct.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return net.Dial("tcp", hostPort)
-		}
-	}
-	if isSockFile {
-		_, err := os.Stat(u.RequestURI())
-		if err != nil {
-			return nil, fmt.Errorf("Podman service is not available on provided endpoint - %w", err)
-		}
-		ct := c.Transport.(*http.Transport)
-		ct.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return net.Dial("unix", u.RequestURI())
-		}
-	}
-
-	cli := &CompatRestClient{
-		RestClient: c,
-		endpoint:   endpoint,
-	}
-	if err = cli.Validate(); err != nil {
-		return nil, err
-	}
-	return cli, nil
-}
-
-func GetDefaultPodmanEndpoint() string {
-	return fmt.Sprintf("unix://%s/podman/podman.sock", config.GetRuntimeDir())
-}
-
-func (p *CompatRestClient) IsSockEndpoint() bool {
-	return strings.HasPrefix(p.endpoint, "/") || strings.HasPrefix(p.endpoint, "unix://")
-}
-
-func (p *CompatRestClient) GetEndpoint() string {
-	return p.endpoint
-}
-
-func (p *CompatRestClient) IsRunningInContainer() bool {
-	// See: https://docs.podman.io/en/latest/markdown/podman-run.1.html
-	_, err := os.Stat("/run/.containerenv")
-	return err == nil
-}
 
 // boolTrue returns a true bool pointer (for false, just use new(bool))
 func boolTrue() *bool {
@@ -377,18 +224,6 @@ func ReadResponse(response runtime.ClientResponse, consumer runtime.Consumer) (i
 	}
 }
 
-func (p *CompatRestClient) ResponseIDReader(httpClient *runtime.ClientOperation) {
+func (c *CompatClient) ResponseIDReader(httpClient *runtime.ClientOperation) {
 	httpClient.Reader = &responseReaderID{}
-}
-
-func (p *CompatRestClient) Validate() error {
-	version, err := p.Version()
-	if err != nil {
-		return fmt.Errorf("Podman service is not available on provided endpoint (unable to verify version) - %w", err)
-	}
-	apiVersion := utils.ParseVersion(version.Server.APIVersion)
-	if version.Engine == "podman" && apiVersion.Major < 4 {
-		return fmt.Errorf("podman version must be 4.0.0 or greater, found: %s", version.Server.APIVersion)
-	}
-	return nil
 }

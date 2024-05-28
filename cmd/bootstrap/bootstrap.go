@@ -34,7 +34,7 @@ func main() {
 	var inputPath string
 	var outputPath string
 	inputPath = flag.Arg(0)
-	if common.IsRunningInContainer() {
+	if apis.IsRunningInContainer() {
 		//
 		inputPath = "/input"
 		outputPath = "/output"
@@ -62,7 +62,7 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Printf("Site %q has been created\n", siteState.Site.Name)
-	siteHome, err := common.GetHostSiteHome(siteState.Site)
+	siteHome, err := apis.GetHostSiteHome(siteState.Site)
 	if err != nil {
 		fmt.Println("Failed to get site's home directory:", err)
 	} else {
