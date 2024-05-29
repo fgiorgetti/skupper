@@ -8,7 +8,7 @@ import (
 
 	"github.com/skupperproject/skupper/pkg/non_kube/apis"
 	"github.com/skupperproject/skupper/pkg/non_kube/common"
-	"github.com/skupperproject/skupper/pkg/non_kube/podman"
+	"github.com/skupperproject/skupper/pkg/non_kube/compat"
 	"github.com/skupperproject/skupper/pkg/version"
 )
 
@@ -86,7 +86,7 @@ func bootstrap(inputPath string) (*apis.SiteState, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load site state: %v", err)
 	}
-	var siteStateRenderer = &podman.SiteStateRenderer{}
+	var siteStateRenderer = &compat.SiteStateRenderer{}
 	err = siteStateRenderer.Render(*siteState)
 	if err != nil {
 		return nil, fmt.Errorf("failed to render site state: %v", err)

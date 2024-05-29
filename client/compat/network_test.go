@@ -49,10 +49,10 @@ func TestNetworkCreate(t *testing.T) {
 func TestNetworkConnect(t *testing.T) {
 	cli, err := NewCompatClient("/tmp/docker.sock", "")
 	assert.Assert(t, err)
-	_ = cli.NetworkDisconnect("my-network", "my-container")
+	//_ = cli.NetworkDisconnect("my-network", "my-container")
 	err = cli.NetworkConnect("my-network", "my-container", "alias1", "alias2")
 	assert.Assert(t, err)
-	_ = cli.NetworkDisconnect("my-network", "my-container")
-	assert.Assert(t, err)
+	//_ = cli.NetworkDisconnect("my-network", "my-container")
+	//assert.Assert(t, err)
 
 }

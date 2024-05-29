@@ -20,19 +20,24 @@ var (
 )
 
 type startupScripts struct {
-	StartScript string
-	StopScript  string
-	Site        v1alpha1.Site
-	SiteId      string
-	path        string
+	StartScript     string
+	StopScript      string
+	Site            v1alpha1.Site
+	SiteId          string
+	ContainerEngine string
+	path            string
 }
 
 func GetStartupScripts(site v1alpha1.Site, siteId string) (*startupScripts, error) {
 	scripts := &startupScripts{
-		StartScript: StartScriptPodmanTemplate,
-		StopScript:  StopScriptPodmanTemplate,
-		Site:        site,
-		SiteId:      siteId,
+		StartScript:     StartScriptPodmanTemplate,
+		StopScript:      StopScriptPodmanTemplate,
+		Site:            site,
+		SiteId:          siteId,
+		ContainerEngine: "podman",
+	}
+	if ce := os.Getenv("CONTAINER_ENGINE"); ce != "" {
+		scripts.ContainerEngine = ce
 	}
 	siteHome, err := apis.GetHostSiteHome(site)
 	if err != nil {

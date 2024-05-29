@@ -1,5 +1,7 @@
 set -Ceu
 
+CONTAINER_ENGINE=${CONTAINER_ENGINE:-podman}
+
 site=$1
 sites_path="${HOME}/.local/share/skupper/sites"
 service_path="${HOME}/.config/systemd/user"
@@ -9,7 +11,7 @@ if [[ ${UID} -eq 0 ]]; then
     service_path="/etc/systemd/system"
     systemctl="systemctl"
 fi
-podman rm -f ${site}-skupper-router
+${CONTAINER_ENGINE} rm -f ${site}-skupper-router
 rm -rf ${sites_path}/${site}/
 service="skupper-site-${site}.service"
 ${systemctl} stop ${service}

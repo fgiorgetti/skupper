@@ -4,13 +4,19 @@ IMAGE="quay.io/fgiorgetti/bootstrap"
 INPUT_PATH="${1:-}"
 OUTPUT_PATH="${XDG_DATA_HOME:-${HOME}/.local/share}/skupper"
 SERVICE_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user"
-PODMAN_ENDPOINT_DEFAULT="unix://${XDG_RUNTIME_DIR:-/run/user/${UID}}/podman/podman.sock"
+CONTAINER_ENGINE=${CONTAINER_ENGINE:-podman}
+CONTAINER_ENDPOINT_DEFAULT="unix://${XDG_RUNTIME_DIR:-/run/user/${UID}}/podman/podman.sock"
+if [[ "${CONTAINER_ENGINE}" = "docker" ]]; then
+    CONTAINER_ENDPOINT_DEFAULT="unix:///run/docker.sock"
+fi
 if [[ ${UID} -eq 0 ]]; then
-    PODMAN_ENDPOINT_DEFAULT="unix:///run/podman/podman.sock"
+    if [[ "${CONTAINER_ENGINE}" = "podman" ]]; then
+        CONTAINER_ENDPOINT_DEFAULT="unix:///run/podman/podman.sock"
+    fi
     OUTPUT_PATH="/usr/local/share/skupper"
     SERVICE_DIR="/etc/systemd/system"
 fi
-PODMAN_ENDPOINT="${PODMAN_ENDPOINT:-${PODMAN_ENDPOINT_DEFAULT}}"
+CONTAINER_ENDPOINT="${CONTAINER_ENDPOINT:-${CONTAINER_ENDPOINT_DEFAULT}}"
 LOG_FILE="$(mktemp /tmp/skupper-bootstrap.XXXXX.log)"
 
 exit_error() {
@@ -19,7 +25,7 @@ exit_error() {
 }
 
 is_sock_endpoint() {
-    [[ "${PODMAN_ENDPOINT}" =~ ^(\/|unix:\/\/) ]] && return 0
+    [[ "${CONTAINER_ENDPOINT}" =~ ^(\/|unix:\/\/) ]] && return 0
     return 1
 }
 
@@ -64,22 +70,22 @@ main() {
     
     # Mounts
     if is_sock_endpoint; then
-        MOUNTS+=(-v "${PODMAN_ENDPOINT/unix:\/\//}":/podman.sock:z)
+        MOUNTS+=(-v "${CONTAINER_ENDPOINT/unix:\/\//}":/podman.sock:z)
     fi
     MOUNTS+=(-v "${INPUT_PATH}":/input:z)
     MOUNTS+=(-v "${OUTPUT_PATH}":/output:z)
     
     # Env vars
     if is_sock_endpoint; then
-        ENV_VARS+=(-e PODMAN_ENDPOINT="/podman.sock")
+        ENV_VARS+=(-e CONTAINER_ENDPOINT="/podman.sock")
     else
-        ENV_VARS+=(-e PODMAN_ENDPOINT="${PODMAN_ENDPOINT}")
+        ENV_VARS+=(-e CONTAINER_ENDPOINT="${CONTAINER_ENDPOINT}")
     fi
     ENV_VARS+=(-e OUTPUT_PATH="${OUTPUT_PATH}")
 
     # Running the bootstrap
-    podman pull ${IMAGE}
-    podman run --rm --name skupper-bootstrap \
+    ${CONTAINER_ENGINE} pull ${IMAGE}
+    ${CONTAINER_ENGINE} run --rm --name skupper-bootstrap \
         --security-opt label=disable -u ${UID} --userns=keep-id \
         --name skupper-podman-bootstrap \
         ${MOUNTS[@]} \

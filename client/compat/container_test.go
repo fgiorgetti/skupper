@@ -196,9 +196,9 @@ func TestContainerCreate(t *testing.T) {
 
 func TestContainerExec(t *testing.T) {
 	//ccli, err := NewCompatClient("", "")
-	ccli, err := NewCompatClient("/run/docker.sock", "")
+	ccli, err := NewCompatClient("/tmp/docker.sock", "")
 	assert.Assert(t, err)
-	out, err := ccli.ContainerExec("skupper-router", []string{"ls", "-l", "/"})
+	out, err := ccli.ContainerExec("my-container", []string{"ls", "-l", "/"})
 	assert.Assert(t, err)
 	assert.Assert(t, len(out) > 0)
 	t.Logf(out)

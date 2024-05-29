@@ -3,7 +3,6 @@ package compat
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"testing"
 
 	"gotest.tools/assert"
@@ -37,7 +36,9 @@ func TestImagePull(t *testing.T) {
 	//ccli, err := NewCompatClient("", "")
 	ccli, err := NewCompatClient("/tmp/docker.sock", "")
 	assert.Assert(t, err)
-	os.Setenv("REGISTRY_AUTH_FILE", "/home/fgiorget/.docker/config.json")
+	//os.Setenv("REGISTRY_AUTH_FILE", "/home/fgiorget/.docker/config.json")
 	err = ccli.ImagePull(context.Background(), "quay.io/fgiorgetti/registry-private")
+	//err = ccli.ImagePull(context.Background(), "quay.io/skupper/skupper-router:main")
+	//err = ccli.ImagePull(context.Background(), "quay.io/skupper/skupper-router@sha256:4643bdf98d8e551eb7292718c16428ff467c5657b0d98bdbe7b559f516591c64")
 	assert.Assert(t, err)
 }

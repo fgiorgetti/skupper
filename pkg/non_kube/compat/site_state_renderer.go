@@ -1,4 +1,4 @@
-package podman
+package compat
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/skupperproject/skupper/api/types"
+	"github.com/skupperproject/skupper/client/compat"
 	"github.com/skupperproject/skupper/client/container"
-	"github.com/skupperproject/skupper/client/podman"
 	"github.com/skupperproject/skupper/pkg/images"
 	"github.com/skupperproject/skupper/pkg/non_kube/apis"
 	"github.com/skupperproject/skupper/pkg/non_kube/common"
@@ -21,7 +21,7 @@ type SiteStateRenderer struct {
 	siteState       apis.SiteState
 	configRenderer  *common.FileSystemConfigurationRenderer
 	containers      map[string]container.Container
-	cli             *podman.PodmanRestClient
+	cli             *compat.CompatClient
 }
 
 func (s *SiteStateRenderer) Render(loadedSiteState apis.SiteState) error {
@@ -33,8 +33,8 @@ func (s *SiteStateRenderer) Render(loadedSiteState apis.SiteState) error {
 		return err
 	}
 	s.loadedSiteState = loadedSiteState
-	// TODO define how to get podman socket endpoint from Site CR
-	s.cli, err = podman.NewPodmanClient("", "")
+	// TODO define how to get container engine socket endpoint from Site CR
+	s.cli, err = compat.NewCompatClient(os.Getenv("CONTAINER_ENDPOINT"), "")
 	if err != nil {
 		return fmt.Errorf("failed to create podman client: %v", err)
 	}

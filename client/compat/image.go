@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -40,7 +41,7 @@ func (c *CompatClient) ImageList() ([]*container.Image, error) {
 	params.All = boolTrue()
 	res, err := cli.ImageList(params)
 	if err != nil {
-		return nil, fmt.Errorf("error listing images: %v", err)
+		return nil, fmt.Errorf("error listing images: %v", ToAPIError(err))
 	}
 	var imgs []*container.Image
 	for _, img := range res.Payload {
@@ -67,7 +68,7 @@ func (c *CompatClient) ImageInspect(id string) (*container.Image, error) {
 	params.Name = id
 	res, err := cli.ImageInspect(params)
 	if err != nil {
-		return nil, fmt.Errorf("error inspecting image %s: %v", id, err)
+		return nil, fmt.Errorf("error inspecting image %s: %v", id, ToAPIError(err))
 	}
 	img := &container.Image{
 		Id:         strings.Replace(res.Payload.ID, "sha256:", "", 1),
@@ -90,16 +91,11 @@ func (c *CompatClient) ImageInspect(id string) (*container.Image, error) {
 
 func (c *CompatClient) ImagePull(ctx context.Context, id string) error {
 	params := images_compat.NewImageCreateParams()
-	params.FromImage = stringP(id)
-	var tag = "latest"
-	if strings.Contains(id, "@sha256:") {
-		tag = strings.Split(id, "@sha256:")[1]
-	} else if strings.Contains(id, ":") {
-		tags := strings.Split(id, ":")
-		tag = tags[len(tags)-1]
-	}
-	params.Tag = stringP(tag)
+	imgTag := toImageTag(id)
+	params.FromImage = stringP(imgTag.Image)
+	params.Tag = stringP(imgTag.Tag)
 	params.XRegistryAuth = c.getXRegistryAuth(id)
+	params.Context = ctx
 
 	// Need to do that as the default response reader is being closed too soon
 	reader := &responseReaderJSONErrorBody{}
@@ -143,11 +139,48 @@ func (c *CompatClient) ImagePull(ctx context.Context, id string) error {
 	return nil
 }
 
+type imageTag struct {
+	Image string
+	Tag   string
+}
+
+func toImageTag(imageName string) imageTag {
+	repositorySplit := strings.Split(imageName, "/")
+	hostPath := strings.Join(repositorySplit[:len(repositorySplit)-1], "/")
+	repository := repositorySplit[len(repositorySplit)-1]
+	sep := ":"
+	if strings.Contains(repository, "@sha256:") {
+		sep = "@"
+	}
+	nameTag := strings.Split(repository, sep)
+	tag := "latest"
+	if len(nameTag) == 2 {
+		tag = nameTag[1]
+	}
+	repositoryName := nameTag[0]
+	if len(hostPath) > 0 {
+		repositoryName = strings.Join([]string{hostPath, repositoryName}, "/")
+	}
+	return imageTag{
+		Image: repositoryName,
+		Tag:   tag,
+	}
+}
+
 func (c *CompatClient) getXRegistryAuth(image string) *string {
 	authFile := os.Getenv("REGISTRY_AUTH_FILE")
 	// use the default
 	if authFile == "" {
-		return nil
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil
+		}
+		defaultAuthFile := filepath.Join(homeDir, ".docker", "config.json")
+		info, err := os.Stat(defaultAuthFile)
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		authFile = defaultAuthFile
 	}
 	data, err := os.ReadFile(authFile)
 	if err != nil {

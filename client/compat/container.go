@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"os/user"
 	"strconv"
@@ -26,7 +25,7 @@ func (c *CompatClient) ContainerList() ([]*container.Container, error) {
 	params.All = boolTrue()
 	list, err := cli.ContainerList(params)
 	if err != nil {
-		return nil, fmt.Errorf("error listing containers: %v", err)
+		return nil, fmt.Errorf("error listing containers: %v", ToAPIError(err))
 	}
 	var cts []*container.Container
 	for _, c := range asInterfaceSlice(list.Payload) {
@@ -89,9 +88,6 @@ func (c *CompatClient) ContainerList() ([]*container.Container, error) {
 		// Ports
 		for _, v := range asInterfaceSlice(cMap["Ports"]) {
 			portsMap := asStringInterfaceMap(v)
-			for k, v := range portsMap {
-				log.Printf("PORT - %s - %T - %v", k, v, v)
-			}
 			port := container.Port{
 				Host:     strconv.FormatInt(jsonNumberAsInt(portsMap["PublicPort"]), 10),
 				Target:   strconv.FormatInt(jsonNumberAsInt(portsMap["PrivatePort"]), 10),
@@ -113,7 +109,7 @@ func (c *CompatClient) ContainerInspect(id string) (*container.Container, error)
 	params.Name = id
 	inspect, err := cli.ContainerInspect(params)
 	if err != nil {
-		return nil, fmt.Errorf("error inspecting container %q: %v", id, err)
+		return nil, fmt.Errorf("error inspecting container %q: %v", id, ToAPIError(err))
 	}
 	return FromInspectContainer(inspect.Payload), nil
 }
@@ -126,7 +122,6 @@ func FromInspectContainer(c *containers_compat.ContainerInspectOKBody) *containe
 	}
 	created, _ := time.Parse(time.RFC3339, c.Created)
 	ct.CreatedAt = created
-	fmt.Println(ct.CreatedAt)
 	ct.Networks = map[string]container.ContainerNetworkInfo{}
 	ct.Labels = map[string]string{}
 	ct.Annotations = map[string]string{}
@@ -238,7 +233,7 @@ func (c *CompatClient) ContainerCreate(container *container.Container) error {
 	params.Body = c.ToSpecGenerator(container)
 	_, err := cli.ContainerCreate(params)
 	if err != nil {
-		return fmt.Errorf("error creating container %s: %v", container.Name, err)
+		return fmt.Errorf("error creating container %s: %v", container.Name, ToAPIError(err))
 	}
 	return nil
 }
@@ -481,7 +476,7 @@ func (c *CompatClient) ContainerRename(currentName, newName string) error {
 	params.QueryName = newName
 	_, err := cli.ContainerRename(params)
 	if err != nil {
-		return fmt.Errorf("error renaming container %s to %s: %v", currentName, newName, err)
+		return fmt.Errorf("error renaming container %s to %s: %v", currentName, newName, ToAPIError(err))
 	}
 	return nil
 }
@@ -500,7 +495,7 @@ func (c *CompatClient) ContainerRemove(name string) error {
 	params.Force = boolTrue()
 	_, err = cli.ContainerDelete(params)
 	if err != nil {
-		return fmt.Errorf("error deleting container %s: %v", name, err)
+		return fmt.Errorf("error deleting container %s: %v", name, ToAPIError(err))
 	}
 	return nil
 }
@@ -528,7 +523,7 @@ func (c *CompatClient) ContainerExec(id string, command []string) (string, error
 	}
 	result, err := c.RestClient.Submit(execOp)
 	if err != nil {
-		return "", fmt.Errorf("error executing command on %s: %v", id, err)
+		return "", fmt.Errorf("error executing command on %s: %v", id, ToAPIError(err))
 	}
 	resp, ok := result.(*models.IDResponse)
 	if !ok {
@@ -605,7 +600,7 @@ func (c *CompatClient) ContainerStart(name string) error {
 	params.Name = name
 	_, err := cli.ContainerStart(params)
 	if err != nil {
-		return fmt.Errorf("error starting container %s: %v", name, err)
+		return fmt.Errorf("error starting container %s: %v", name, ToAPIError(err))
 	}
 	return nil
 }
@@ -616,7 +611,7 @@ func (c *CompatClient) ContainerStop(name string) error {
 	params.Name = name
 	_, err := cli.ContainerStop(params)
 	if err != nil {
-		return fmt.Errorf("error stopping container %s: %v", name, err)
+		return fmt.Errorf("error stopping container %s: %v", name, ToAPIError(err))
 	}
 	return nil
 }
@@ -627,7 +622,7 @@ func (c *CompatClient) ContainerRestart(name string) error {
 	params.Name = name
 	_, err := cli.ContainerRestart(params)
 	if err != nil {
-		return fmt.Errorf("error restarting container %s: %v", name, err)
+		return fmt.Errorf("error restarting container %s: %v", name, ToAPIError(err))
 	}
 	return nil
 }

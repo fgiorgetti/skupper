@@ -18,7 +18,7 @@ func (c *CompatClient) NetworkList() ([]*container.Network, error) {
 	params := networks_compat.NewNetworkListParams()
 	res, err := cli.NetworkList(params)
 	if err != nil {
-		return nil, fmt.Errorf("error listing networks: %v", err)
+		return nil, fmt.Errorf("error listing networks: %v", ToAPIError(err))
 	}
 	return ToNetworkInfoList(res.Payload), nil
 }
@@ -66,7 +66,7 @@ func (c *CompatClient) NetworkInspect(id string) (*container.Network, error) {
 	params := networks_compat.NewNetworkInspectParams()
 	res, err := cli.NetworkInspect(params)
 	if err != nil {
-		return nil, fmt.Errorf("error inspecting network %s: %v", id, err)
+		return nil, fmt.Errorf("error inspecting network %s: %v", id, ToAPIError(err))
 	}
 	return ToNetworkInfo(res.Payload), nil
 }
@@ -101,7 +101,7 @@ func (o *networkCreateResponseReader) ReadResponse(response runtime.ClientRespon
 		if err := consumer.Consume(response.Body(), result.Payload); err != nil && err != io.EOF {
 			return result, err
 		}
-		return result, nil
+		return nil, result
 	case 500:
 		result := networks_compat.NewNetworkCreateInternalServerError()
 		result.Payload = new(networks_compat.NetworkCreateInternalServerErrorBody)
@@ -110,7 +110,7 @@ func (o *networkCreateResponseReader) ReadResponse(response runtime.ClientRespon
 		if err := consumer.Consume(response.Body(), result.Payload); err != nil && err != io.EOF {
 			return result, err
 		}
-		return result, nil
+		return nil, result
 	default:
 		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
 	}
@@ -139,7 +139,7 @@ func (c *CompatClient) NetworkCreate(network *container.Network) (*container.Net
 
 	result, err := c.RestClient.Submit(op)
 	if err != nil {
-		return nil, fmt.Errorf("error creating network %s: %v", network.Name, err)
+		return nil, fmt.Errorf("error creating network %s: %v", network.Name, ToAPIError(err))
 	}
 	switch v := result.(type) {
 	case *networkCreateOK:
@@ -197,13 +197,12 @@ func (c *CompatClient) NetworkRemove(id string) error {
 	params.Name = id
 	_, err = cli.NetworkDelete(params)
 	if err != nil {
-		return fmt.Errorf("error removing network %s: %v", id, err)
+		return fmt.Errorf("error removing network %s: %v", id, ToAPIError(err))
 	}
 	return nil
 }
 
 func (c *CompatClient) NetworkConnect(id, container string, aliases ...string) error {
-	cli := networks_compat.New(c.RestClient, formats)
 	params := networks_compat.NewNetworkConnectParams()
 	params.Name = id
 	params.Create = &models.SwagCompatNetworkConnectRequest{
@@ -212,9 +211,21 @@ func (c *CompatClient) NetworkConnect(id, container string, aliases ...string) e
 			Aliases: aliases,
 		},
 	}
-	_, err := cli.NetworkConnect(params)
+	op := &runtime.ClientOperation{
+		ID:                 "NetworkConnect",
+		Method:             "POST",
+		PathPattern:        "/networks/{name}/connect",
+		ProducesMediaTypes: []string{"application/json"},
+		ConsumesMediaTypes: []string{"application/json", "application/x-tar"},
+		Schemes:            []string{"http", "https"},
+		Params:             params,
+		Reader:             &NetworkConnectReader{formats: formats},
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	}
+	_, err := c.RestClient.Submit(op)
 	if err != nil {
-		return fmt.Errorf("error connecting %s to network %s: %v", container, id, err)
+		return fmt.Errorf("error connecting %s to network %s: %v", container, id, ToAPIError(err))
 	}
 	return nil
 }
@@ -228,7 +239,39 @@ func (c *CompatClient) NetworkDisconnect(id, container string) error {
 	}
 	_, err := cli.NetworkDisconnect(params)
 	if err != nil {
-		return fmt.Errorf("error disconnecting %s from network %s: %v", container, id, err)
+		return fmt.Errorf("error disconnecting %s from network %s: %v", container, id, ToAPIError(err))
 	}
 	return nil
+}
+
+type NetworkConnectReader struct {
+	formats strfmt.Registry
+}
+
+// ReadResponse reads a server response into the received o.
+func (o *NetworkConnectReader) ReadResponse(response runtime.ClientResponse, consumer runtime.Consumer) (interface{}, error) {
+	switch response.Code() {
+	case 200:
+		result := networks_compat.NewNetworkConnectOK()
+		if err := consumer.Consume(response.Body(), result); err != nil && err != io.EOF {
+			return result, err
+		}
+		return result, nil
+	case 400, 403, 409:
+		result := networks_compat.NewNetworkConnectBadRequest()
+		result.Payload = new(networks_compat.NetworkConnectBadRequestBody)
+		if err := consumer.Consume(response.Body(), result.Payload); err != nil && err != io.EOF {
+			return result, err
+		}
+		return nil, result
+	case 500:
+		result := networks_compat.NewNetworkConnectInternalServerError()
+		result.Payload = new(networks_compat.NetworkConnectInternalServerErrorBody)
+		if err := consumer.Consume(response.Body(), result.Payload); err != nil && err != io.EOF {
+			return result, err
+		}
+		return nil, result
+	default:
+		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
+	}
 }

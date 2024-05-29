@@ -23,6 +23,7 @@ import (
 
 const (
 	ENV_CONTAINER_ENDPOINT = "CONTAINER_ENDPOINT"
+	ENV_CONTAINER_ENGINE   = "CONTAINER_ENGINE"
 	DEFAULT_BASE_PATH      = ""
 	DefaultNetworkDriver   = "bridge"
 )
@@ -153,6 +154,9 @@ func NewCompatClient(endpoint, basePath string) (*CompatClient, error) {
 }
 
 func GetDefaultContainerEndpoint() string {
+	if os.Getenv(ENV_CONTAINER_ENGINE) == "docker" {
+		return "unix:///run/docker.sock"
+	}
 	return fmt.Sprintf("unix://%s/podman/podman.sock", apis.GetRuntimeDir())
 }
 
@@ -206,4 +210,45 @@ func asStringStringMap(i interface{}) map[string]string {
 		result[k] = v.(string)
 	}
 	return result
+}
+
+type APIError struct {
+	// API root cause formatted for automated parsing
+	// Example: API root cause
+	Because string `json:"cause,omitempty"`
+
+	// human error message, formatted for a human to read
+	// Example: human error message
+	Message string `json:"message,omitempty"`
+
+	// http response code
+	ResponseCode int64 `json:"response,omitempty"`
+}
+
+func (a *APIError) Error() string {
+	return a.Message
+}
+
+func ToAPIError(err interface{}) *APIError {
+	if err == nil {
+		return nil
+	}
+	apiError := new(APIError)
+	genericApiError := map[string]interface{}{}
+	resultJson, _ := json.Marshal(err)
+	_ = json.Unmarshal(resultJson, &genericApiError)
+	payload, payloadOk := genericApiError["Payload"]
+	if payloadOk {
+		payloadJson, _ := json.Marshal(payload)
+		if jsonErr := json.Unmarshal(payloadJson, apiError); jsonErr != nil {
+			apiError.Message = fmt.Sprintf("unable to parse compat API error: %s", string(resultJson))
+		}
+		return apiError
+	}
+	if asError, ok := err.(error); ok {
+		apiError.Message = asError.Error()
+	} else {
+		apiError.Message = fmt.Sprintf("unable to parse error: %v", err)
+	}
+	return apiError
 }
