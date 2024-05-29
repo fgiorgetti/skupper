@@ -6,8 +6,13 @@ OUTPUT_PATH="${XDG_DATA_HOME:-${HOME}/.local/share}/skupper"
 SERVICE_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user"
 CONTAINER_ENGINE=${CONTAINER_ENGINE:-podman}
 CONTAINER_ENDPOINT_DEFAULT="unix://${XDG_RUNTIME_DIR:-/run/user/${UID}}/podman/podman.sock"
+RUNAS="${UID}"
+USERNS="keep-id"
 if [[ "${CONTAINER_ENGINE}" = "docker" ]]; then
     CONTAINER_ENDPOINT_DEFAULT="unix:///run/docker.sock"
+    USERNS="host"
+    DOCKERGID=$(getent group docker | cut -d: -f3)
+    RUNAS="${UID}:${DOCKERGID}"
 fi
 if [[ ${UID} -eq 0 ]]; then
     if [[ "${CONTAINER_ENGINE}" = "podman" ]]; then
@@ -70,14 +75,14 @@ main() {
     
     # Mounts
     if is_sock_endpoint; then
-        MOUNTS+=(-v "${CONTAINER_ENDPOINT/unix:\/\//}":/podman.sock:z)
+        MOUNTS+=(-v "${CONTAINER_ENDPOINT/unix:\/\//}":/${CONTAINER_ENGINE}.sock:z)
     fi
     MOUNTS+=(-v "${INPUT_PATH}":/input:z)
     MOUNTS+=(-v "${OUTPUT_PATH}":/output:z)
     
     # Env vars
     if is_sock_endpoint; then
-        ENV_VARS+=(-e CONTAINER_ENDPOINT="/podman.sock")
+        ENV_VARS+=(-e CONTAINER_ENDPOINT="/${CONTAINER_ENGINE}.sock")
     else
         ENV_VARS+=(-e CONTAINER_ENDPOINT="${CONTAINER_ENDPOINT}")
     fi
@@ -86,7 +91,7 @@ main() {
     # Running the bootstrap
     ${CONTAINER_ENGINE} pull ${IMAGE}
     ${CONTAINER_ENGINE} run --rm --name skupper-bootstrap \
-        --security-opt label=disable -u ${UID} --userns=keep-id \
+        --security-opt label=disable -u ${RUNAS} --userns=${USERNS} \
         --name skupper-podman-bootstrap \
         ${MOUNTS[@]} \
         ${ENV_VARS[@]} \
