@@ -10,6 +10,7 @@ import (
 	"github.com/skupperproject/skupper/api/types"
 	"github.com/skupperproject/skupper/client/compat"
 	"github.com/skupperproject/skupper/client/container"
+	"github.com/skupperproject/skupper/pkg/config"
 	"github.com/skupperproject/skupper/pkg/images"
 	"github.com/skupperproject/skupper/pkg/non_kube/apis"
 	"github.com/skupperproject/skupper/pkg/non_kube/common"
@@ -36,7 +37,7 @@ func (s *SiteStateRenderer) Render(loadedSiteState apis.SiteState) error {
 	// TODO define how to get container engine socket endpoint from Site CR
 	s.cli, err = compat.NewCompatClient(os.Getenv("CONTAINER_ENDPOINT"), "")
 	if err != nil {
-		return fmt.Errorf("failed to create podman client: %v", err)
+		return fmt.Errorf("failed to create container client: %v", err)
 	}
 	// active (runtime) SiteState
 	s.siteState = common.CopySiteState(s.loadedSiteState)
@@ -46,11 +47,11 @@ func (s *SiteStateRenderer) Render(loadedSiteState apis.SiteState) error {
 	}
 	err = common.PrepareCertificatesAndLinkAccess(&s.siteState)
 	if err != nil {
-		return fmt.Errorf("failed to prepare podman site: %w", err)
+		return fmt.Errorf("failed to prepare container site: %w", err)
 	}
 	// rendering non-kube configuration files and certificates
 	s.configRenderer = &common.FileSystemConfigurationRenderer{
-		Force: true, // TODO discuss how this should be handled?
+		Force: false, // TODO discuss how this should be handled?
 	}
 	err = s.configRenderer.Render(s.siteState)
 	if err != nil {
@@ -64,6 +65,13 @@ func (s *SiteStateRenderer) Render(loadedSiteState apis.SiteState) error {
 	// No more site state changes after this
 	if err = apis.MarshalSiteState(s.siteState, path.Join(s.configRenderer.OutputPath, common.RuntimeSiteStatePath)); err != nil {
 		return err
+	}
+	// Saving runtime platform
+	platform := config.GetPlatform()
+	content := fmt.Sprintf("platform: %s\n", string(platform))
+	err = os.WriteFile(path.Join(s.configRenderer.OutputPath, common.RuntimeSiteStatePath, "platform.yaml"), []byte(content), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write runtime platform: %w", err)
 	}
 
 	// TODO Render containers
@@ -128,7 +136,7 @@ func (s *SiteStateRenderer) prepareContainers() error {
 			},
 		},
 		RestartPolicy: "always",
-		// TODO handle resource utilization with podman sites
+		// TODO handle resource utilization with container sites
 	}
 	return nil
 }

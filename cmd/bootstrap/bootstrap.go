@@ -4,12 +4,20 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 
+	"github.com/skupperproject/skupper/api/types"
+	"github.com/skupperproject/skupper/pkg/config"
 	"github.com/skupperproject/skupper/pkg/non_kube/apis"
 	"github.com/skupperproject/skupper/pkg/non_kube/common"
 	"github.com/skupperproject/skupper/pkg/non_kube/compat"
+	"github.com/skupperproject/skupper/pkg/non_kube/systemd"
 	"github.com/skupperproject/skupper/pkg/version"
+)
+
+var (
+	platform = config.GetPlatform()
 )
 
 func main() {
@@ -49,6 +57,19 @@ func main() {
 				os.Exit(1)
 			}
 		}
+	} else {
+		binary := "podman"
+		if platform == types.PlatformSystemd {
+			binary = "skrouterd"
+		} else if platform == types.PlatformDocker {
+			binary = "docker"
+		}
+		err := exec.Command("command", "-v", binary).Run()
+		if err != nil {
+			fmt.Printf("Platform %q is not available.\n", platform)
+			fmt.Printf("ERROR! Command not found: %s.\n", binary)
+			os.Exit(1)
+		}
 	}
 	// TODO defined standard places for input path?
 	if inputPath == "" {
@@ -67,10 +88,14 @@ func main() {
 		fmt.Println("Failed to get site's home directory:", err)
 	} else {
 		tokenPath := path.Join(siteHome, common.RuntimeTokenPath)
+		hostTokenPath := tokenPath
+		if apis.IsRunningInContainer() {
+			tokenPath = path.Join("/output", "sites", siteState.Site.Name, common.RuntimeTokenPath)
+		}
 		tokens, _ := os.ReadDir(tokenPath)
 		for _, token := range tokens {
 			if !token.IsDir() {
-				fmt.Println("Static tokens have been defined at:", tokenPath)
+				fmt.Println("Static tokens have been defined at:", hostTokenPath)
 				break
 			}
 		}
@@ -86,7 +111,12 @@ func bootstrap(inputPath string) (*apis.SiteState, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load site state: %v", err)
 	}
-	var siteStateRenderer = &compat.SiteStateRenderer{}
+	var siteStateRenderer apis.StaticSiteStateRenderer
+	if platform == types.PlatformSystemd {
+		siteStateRenderer = &systemd.SiteStateRenderer{}
+	} else {
+		siteStateRenderer = &compat.SiteStateRenderer{}
+	}
 	err = siteStateRenderer.Render(*siteState)
 	if err != nil {
 		return nil, fmt.Errorf("failed to render site state: %v", err)

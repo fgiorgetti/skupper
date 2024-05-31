@@ -10,11 +10,15 @@ import (
 	"path/filepath"
 	"text/template"
 
+	"github.com/skupperproject/skupper/api/types"
 	"github.com/skupperproject/skupper/pkg/apis/skupper/v1alpha1"
+	"github.com/skupperproject/skupper/pkg/config"
 	"github.com/skupperproject/skupper/pkg/non_kube/apis"
 )
 
 var (
+	//go:embed systemd_container_service.template
+	SystemdContainerServiceTemplate string
 	//go:embed systemd_service.template
 	SystemdServiceTemplate string
 )
@@ -22,6 +26,7 @@ var (
 type systemdServiceInfo struct {
 	Site           v1alpha1.Site
 	SiteScriptPath string
+	SiteConfigPath string
 	RuntimeDir     string
 }
 
@@ -31,9 +36,11 @@ func NewSystemdServiceInfo(site v1alpha1.Site) (*systemdServiceInfo, error) {
 		return nil, err
 	}
 	siteScriptPath := path.Join(siteHomeDir, RuntimeScriptsPath)
+	siteConfigPath := path.Join(siteHomeDir, ConfigRouterPath)
 	return &systemdServiceInfo{
 		Site:           site,
 		SiteScriptPath: siteScriptPath,
+		SiteConfigPath: siteConfigPath,
 		RuntimeDir:     apis.GetRuntimeDir(),
 	}, nil
 }
@@ -51,8 +58,14 @@ func (s *systemdServiceInfo) Create() error {
 		return fmt.Errorf(msg)
 	}
 
+	platform := config.GetPlatform()
 	var buf = new(bytes.Buffer)
-	service := template.Must(template.New(s.GetServiceName()).Parse(SystemdServiceTemplate))
+	var service *template.Template
+	if platform == types.PlatformSystemd {
+		service = template.Must(template.New(s.GetServiceName()).Parse(SystemdServiceTemplate))
+	} else {
+		service = template.Must(template.New(s.GetServiceName()).Parse(SystemdContainerServiceTemplate))
+	}
 	err := service.Execute(buf, s)
 	if err != nil {
 		return err

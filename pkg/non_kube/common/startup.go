@@ -8,15 +8,16 @@ import (
 	"text/template"
 
 	"github.com/skupperproject/skupper/pkg/apis/skupper/v1alpha1"
+	"github.com/skupperproject/skupper/pkg/config"
 	"github.com/skupperproject/skupper/pkg/non_kube/apis"
 )
 
 var (
-	//go:embed startsh-podman.template
-	StartScriptPodmanTemplate string
+	//go:embed startsh-container.template
+	StartScriptContainerTemplate string
 
-	//go:embed stopsh-podman.template
-	StopScriptPodmanTemplate string
+	//go:embed stopsh-container.template
+	StopScriptContainerTemplate string
 )
 
 type startupScripts struct {
@@ -24,18 +25,23 @@ type startupScripts struct {
 	StopScript      string
 	Site            v1alpha1.Site
 	SiteId          string
+	SkupperPlatform string
 	ContainerEngine string
 	path            string
 }
 
 func GetStartupScripts(site v1alpha1.Site, siteId string) (*startupScripts, error) {
 	scripts := &startupScripts{
-		StartScript:     StartScriptPodmanTemplate,
-		StopScript:      StopScriptPodmanTemplate,
+		StartScript:     StartScriptContainerTemplate,
+		StopScript:      StopScriptContainerTemplate,
 		Site:            site,
 		SiteId:          siteId,
+		SkupperPlatform: "podman",
 		ContainerEngine: "podman",
 	}
+
+	platform := config.GetPlatform()
+	scripts.SkupperPlatform = string(platform)
 	if ce := os.Getenv("CONTAINER_ENGINE"); ce != "" {
 		scripts.ContainerEngine = ce
 	}

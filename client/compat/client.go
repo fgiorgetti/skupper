@@ -17,13 +17,13 @@ import (
 	"github.com/go-openapi/runtime"
 	runtimeclient "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
+	"github.com/skupperproject/skupper/api/types"
 	"github.com/skupperproject/skupper/pkg/non_kube/apis"
 	"github.com/skupperproject/skupper/pkg/utils"
 )
 
 const (
 	ENV_CONTAINER_ENDPOINT = "CONTAINER_ENDPOINT"
-	ENV_CONTAINER_ENGINE   = "CONTAINER_ENGINE"
 	DEFAULT_BASE_PATH      = ""
 	DefaultNetworkDriver   = "bridge"
 )
@@ -154,7 +154,7 @@ func NewCompatClient(endpoint, basePath string) (*CompatClient, error) {
 }
 
 func GetDefaultContainerEndpoint() string {
-	if os.Getenv(ENV_CONTAINER_ENGINE) == "docker" {
+	if os.Getenv(types.ENV_PLATFORM) == "docker" {
 		return "unix:///run/docker.sock"
 	}
 	return fmt.Sprintf("unix://%s/podman/podman.sock", apis.GetRuntimeDir())

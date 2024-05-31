@@ -2,11 +2,14 @@
 Description=skupper-site-{{.Site.Name}}.service
 Wants=network-online.target
 After=network-online.target
+RequiresMountsFor={{.RuntimeDir}}/containers
 
 [Service]
 TimeoutStopSec=70
+RemainAfterExit=yes
+ExecStart=/bin/bash {{.SiteScriptPath}}/start.sh
+ExecStop=/bin/bash {{.SiteScriptPath}}/stop.sh
 Type=simple
-ExecStart=skrouterd -c {{.SiteConfigPath}}/skrouterd.json
 
 [Install]
 WantedBy=default.target

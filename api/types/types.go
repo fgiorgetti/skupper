@@ -321,6 +321,8 @@ type Platform string
 const (
 	PlatformKubernetes Platform = "kubernetes"
 	PlatformPodman              = "podman"
+	PlatformDocker              = "docker"
+	PlatformSystemd             = "systemd"
 )
 
 func (p Platform) IsKubernetes() bool {

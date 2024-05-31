@@ -84,7 +84,11 @@ func (c *FileSystemConfigurationRenderer) Render(siteState apis.SiteState) error
 	if err == nil {
 		defer outputDir.Close()
 		if !c.Force {
-			return fmt.Errorf("output directory %s already exists", c.OutputPath)
+			siteConfigPath, err := apis.GetHostSiteHome(siteState.Site)
+			if err != nil {
+				return err
+			}
+			return fmt.Errorf("site %s already exists (path: %s)", siteState.Site.Name, siteConfigPath)
 		}
 		outputDirStat, err := outputDir.Stat()
 		if err != nil {

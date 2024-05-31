@@ -1,7 +1,5 @@
 set -Ceu
 
-CONTAINER_ENGINE=${CONTAINER_ENGINE:-podman}
-
 site=$1
 sites_path="${HOME}/.local/share/skupper/sites"
 service_path="${HOME}/.config/systemd/user"
@@ -11,7 +9,15 @@ if [[ ${UID} -eq 0 ]]; then
     service_path="/etc/systemd/system"
     systemctl="systemctl"
 fi
-${CONTAINER_ENGINE} rm -f ${site}-skupper-router
+if [[ ! -d "${sites_path}/${site}" ]]; then
+    echo "Site does not exist"
+    exit 0
+fi
+platform_file="${sites_path}/${site}/runtime/state/platform.yaml"
+SKUPPER_PLATFORM=$(grep '^platform: ' "${platform_file}" | sed -e 's/.*: //g')
+if [[ "${SKUPPER_PLATFORM}" != "systemd" ]]; then
+    ${SKUPPER_PLATFORM} rm -f ${site}-skupper-router
+fi
 rm -rf ${sites_path}/${site}/
 service="skupper-site-${site}.service"
 ${systemctl} stop ${service}
