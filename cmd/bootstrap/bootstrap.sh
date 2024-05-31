@@ -53,9 +53,9 @@ container_env() {
         fi
         export USERNS=""
         export OUTPUT_PATH="/usr/local/share/skupper"
-        mkdir -p "${OUTPUT_PATH}"
         export SERVICE_DIR="/etc/systemd/system"
     fi
+    mkdir -p "${OUTPUT_PATH}"
     export CONTAINER_ENDPOINT="${CONTAINER_ENDPOINT:-${CONTAINER_ENDPOINT_DEFAULT}}"
 }
 
