@@ -8,17 +8,6 @@ import (
 	"gotest.tools/assert"
 )
 
-func TestCompatRestClient(t *testing.T) {
-	//cli, err := NewCompatClient("/run/user/1000/podman/podman.sock", "")
-	cli, err := NewCompatClient("/run/docker.sock", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	version, err := cli.Version()
-	assert.Assert(t, err)
-	assert.Assert(t, version.Server.Version != "")
-}
-
 func TestToAPIError(t *testing.T) {
 	notFoundErr := volumes_compat.NewVolumeDeleteNotFound()
 	assert.Assert(t, notFoundErr != nil)
@@ -27,12 +16,27 @@ func TestToAPIError(t *testing.T) {
 	notFoundErr.Payload.Because = "Because it has to fail"
 	notFoundErr.Payload.ResponseCode = 404
 	// validating result only and both result and error
-	for _, e := range []interface{}{notFoundErr, fmt.Errorf("unused error")} {
-		apiErr := ToAPIError(e)
+	for _, test := range []struct {
+		actualError          error
+		expectedMessage      string
+		expectedBecause      string
+		expectedResponseCode int64
+	}{
+		{
+			actualError:          notFoundErr,
+			expectedMessage:      notFoundErr.Payload.Message,
+			expectedBecause:      notFoundErr.Payload.Because,
+			expectedResponseCode: notFoundErr.Payload.ResponseCode,
+		}, {
+			actualError:     fmt.Errorf("unused error"),
+			expectedMessage: "unused error",
+		},
+	} {
+		apiErr := ToAPIError(test.actualError)
 		assert.Assert(t, apiErr != nil)
-		assert.Equal(t, apiErr.Message, notFoundErr.Payload.Message)
-		assert.Equal(t, apiErr.Because, notFoundErr.Payload.Because)
-		assert.Equal(t, apiErr.ResponseCode, notFoundErr.Payload.ResponseCode)
+		assert.Equal(t, apiErr.Message, test.expectedMessage)
+		assert.Equal(t, apiErr.Because, test.expectedBecause)
+		assert.Equal(t, apiErr.ResponseCode, test.expectedResponseCode)
 	}
 
 	// validating none

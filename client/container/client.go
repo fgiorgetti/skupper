@@ -85,6 +85,9 @@ type Container struct {
 }
 
 func (c *Container) FromEnv(env []string) {
+	if c.Env == nil {
+		c.Env = make(map[string]string)
+	}
 	for _, e := range env {
 		if !strings.Contains(e, "=") {
 			continue

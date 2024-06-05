@@ -169,11 +169,15 @@ func (c *CompatClient) GetEndpoint() string {
 }
 
 func asStringInterfaceMap(i interface{}) map[string]interface{} {
+	res := make(map[string]interface{})
 	v := reflect.ValueOf(i)
 	if v.Kind() == reflect.Map {
-		return v.Interface().(map[string]interface{})
+		for _, k := range v.MapKeys() {
+			res[k.String()] = v.MapIndex(k).Interface()
+		}
+		return res
 	}
-	return make(map[string]interface{})
+	return res
 }
 
 func asInterfaceSlice(i interface{}) []interface{} {
@@ -188,8 +192,8 @@ func asSlice[T any](i interface{}) []T {
 	v := reflect.ValueOf(i)
 	s := make([]T, 0)
 	if v.Kind() == reflect.Slice {
-		for _, vv := range v.Interface().([]interface{}) {
-			s = append(s, vv.(T))
+		for _, vv := range v.Interface().([]T) {
+			s = append(s, vv)
 		}
 	}
 	return s

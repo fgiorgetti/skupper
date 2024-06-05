@@ -28,6 +28,7 @@ container_env() {
     case "${SKUPPER_PLATFORM}" in
         systemd)
             command -v skrouterd > /dev/null || exit_error "SystemD platform cannot be used: skrouterd not found"
+            command -v ${CONTAINER_ENGINE} > /dev/null || exit_error "SystemD platform cannot be used: ${CONTAINER_ENGINE} (container engine) not found"
             ;;
         docker)
             command -v docker > /dev/null || exit_error "Docker platform cannot be used: docker not found"

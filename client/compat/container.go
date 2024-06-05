@@ -115,9 +115,13 @@ func (c *CompatClient) ContainerInspect(id string) (*container.Container, error)
 }
 
 func FromInspectContainer(c *containers_compat.ContainerInspectOKBody) *container.Container {
+	containerName := c.Name
+	if containerName[0] == '/' {
+		containerName = containerName[1:]
+	}
 	ct := &container.Container{
 		ID:           c.ID,
-		Name:         c.Name,
+		Name:         containerName,
 		RestartCount: int(c.RestartCount),
 	}
 	created, _ := time.Parse(time.RFC3339, c.Created)
@@ -274,6 +278,10 @@ func (c *CompatClient) ToSpecGenerator(newContainer *container.Container) *model
 	spec.User = fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid())
 	if c.engine == "docker" {
 		spec.User = "0:0"
+		dockerGroup, err := user.LookupGroup("docker")
+		if err == nil {
+			spec.User = fmt.Sprintf("0:%s", dockerGroup.Gid)
+		}
 	}
 	// Network info
 	if len(newContainer.Networks) > 0 {

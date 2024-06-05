@@ -64,6 +64,7 @@ func ToNetworkInfo(network *models.NetworkResource) *container.Network {
 func (c *CompatClient) NetworkInspect(id string) (*container.Network, error) {
 	cli := networks_compat.New(c.RestClient, formats)
 	params := networks_compat.NewNetworkInspectParams()
+	params.Name = id
 	res, err := cli.NetworkInspect(params)
 	if err != nil {
 		return nil, fmt.Errorf("error inspecting network %s: %v", id, ToAPIError(err))
@@ -253,9 +254,6 @@ func (o *NetworkConnectReader) ReadResponse(response runtime.ClientResponse, con
 	switch response.Code() {
 	case 200:
 		result := networks_compat.NewNetworkConnectOK()
-		if err := consumer.Consume(response.Body(), result); err != nil && err != io.EOF {
-			return result, err
-		}
 		return result, nil
 	case 400, 403, 409:
 		result := networks_compat.NewNetworkConnectBadRequest()
