@@ -73,6 +73,8 @@ func (c *FileSystemConfigurationRenderer) Render(siteState *apis.SiteState) erro
 	// Set the default output path
 	if c.OutputPath == "" {
 		c.OutputPath = GetDefaultOutputPath(siteState.Site.Name)
+	} else {
+		_ = os.Setenv("OUTPUT_PATH", c.OutputPath)
 	}
 	if c.SslProfileBasePath == "" {
 		c.SslProfileBasePath = DefaultSslProfileBasePath
@@ -86,7 +88,10 @@ func (c *FileSystemConfigurationRenderer) Render(siteState *apis.SiteState) erro
 			if err != nil {
 				return err
 			}
-			return fmt.Errorf("site %s already exists (path: %s)", siteState.Site.Name, siteConfigPath)
+			_, err = os.Stat(siteConfigPath)
+			if err == nil {
+				return fmt.Errorf("site %s already exists (path: %s)", siteState.Site.Name, siteConfigPath)
+			}
 		}
 		outputDirStat, err := outputDir.Stat()
 		if err != nil {

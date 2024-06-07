@@ -47,11 +47,11 @@ func GetRuntimeDir() string {
 // running via container or the result of GetDataHome() otherwise.
 // This is only useful during the bootstrap process.
 func GetHostDataHome() (string, error) {
+	// If container provides OUTPUT_PATH use it
+	if os.Getenv("OUTPUT_PATH") != "" {
+		return os.Getenv("OUTPUT_PATH"), nil
+	}
 	if IsRunningInContainer() {
-		// If container provides OUTPUT_PATH use it
-		if os.Getenv("OUTPUT_PATH") != "" {
-			return os.Getenv("OUTPUT_PATH"), nil
-		}
 		mounts, err := procfs.GetProcMounts(1)
 		if err != nil {
 			return "", fmt.Errorf("error getting mount points: %v", err)
