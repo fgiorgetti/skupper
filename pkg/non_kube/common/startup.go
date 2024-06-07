@@ -23,14 +23,14 @@ var (
 type startupScripts struct {
 	StartScript     string
 	StopScript      string
-	Site            v1alpha1.Site
+	Site            *v1alpha1.Site
 	SiteId          string
 	SkupperPlatform string
 	ContainerEngine string
 	path            string
 }
 
-func GetStartupScripts(site v1alpha1.Site, siteId string) (*startupScripts, error) {
+func GetStartupScripts(site *v1alpha1.Site, siteId string) (*startupScripts, error) {
 	scripts := &startupScripts{
 		StartScript:     StartScriptContainerTemplate,
 		StopScript:      StopScriptContainerTemplate,

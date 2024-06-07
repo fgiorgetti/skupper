@@ -10,14 +10,12 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/google/uuid"
-	"github.com/skupperproject/skupper/api/types"
 	"github.com/skupperproject/skupper/pkg/apis/skupper/v1alpha1"
 	"github.com/skupperproject/skupper/pkg/certs"
+	"github.com/skupperproject/skupper/pkg/config"
 	"github.com/skupperproject/skupper/pkg/non_kube/apis"
 	"github.com/skupperproject/skupper/pkg/qdr"
 	"github.com/skupperproject/skupper/pkg/utils"
-	"github.com/skupperproject/skupper/pkg/version"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -70,7 +68,7 @@ type FileSystemConfigurationRenderer struct {
 }
 
 // Render simply renders the given site state as configuration files.
-func (c *FileSystemConfigurationRenderer) Render(siteState apis.SiteState) error {
+func (c *FileSystemConfigurationRenderer) Render(siteState *apis.SiteState) error {
 	var err error
 	// Set the default output path
 	if c.OutputPath == "" {
@@ -129,12 +127,31 @@ func (c *FileSystemConfigurationRenderer) Render(siteState apis.SiteState) error
 		return fmt.Errorf("unable to create tokens: %v", err)
 	}
 
-	// Creating service and scripts
+	// Saving runtime platform
+	platform := config.GetPlatform()
+	if platform == "kubernetes" {
+		platform = "podman"
+	}
+	content := fmt.Sprintf("platform: %s\n", string(platform))
+	err = os.WriteFile(path.Join(c.OutputPath, RuntimeSiteStatePath, "platform.yaml"), []byte(content), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write runtime platform: %w", err)
+	}
 
 	return nil
 }
 
-func (c *FileSystemConfigurationRenderer) createTokens(siteState apis.SiteState) error {
+func (c *FileSystemConfigurationRenderer) MarshalSiteStates(loadedSiteState, runtimeSiteState apis.SiteState) error {
+	if err := apis.MarshalSiteState(loadedSiteState, path.Join(c.OutputPath, LoadedSiteStatePath)); err != nil {
+		return err
+	}
+	if err := apis.MarshalSiteState(runtimeSiteState, path.Join(c.OutputPath, RuntimeSiteStatePath)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *FileSystemConfigurationRenderer) createTokens(siteState *apis.SiteState) error {
 	tokens := make([]apis.Token, 0)
 	for name, linkAccess := range siteState.LinkAccesses {
 		interRouter := 0
@@ -156,6 +173,8 @@ func (c *FileSystemConfigurationRenderer) createTokens(siteState apis.SiteState)
 		if err != nil {
 			return fmt.Errorf("unable to load client secret %s: %v", secretName, err)
 		}
+		// adjusting name to match the standard used by pkg/site/link.go
+		secret.Name = fmt.Sprintf("link-%s-profile", name)
 		token := apis.Token{
 			Link: &v1alpha1.Link{
 				TypeMeta: metav1.TypeMeta{
@@ -166,7 +185,7 @@ func (c *FileSystemConfigurationRenderer) createTokens(siteState apis.SiteState)
 					Name: linkName,
 				},
 				Spec: v1alpha1.LinkSpec{
-					TlsCredentials: secretName,
+					TlsCredentials: secret.Name,
 					Cost:           1,
 				},
 			},
@@ -200,105 +219,8 @@ func (c *FileSystemConfigurationRenderer) createTokens(siteState apis.SiteState)
 	return nil
 }
 
-func (c *FileSystemConfigurationRenderer) createRouterConfig(siteState apis.SiteState) error {
-	siteId := uuid.New().String()
-	c.RouterConfig = qdr.InitialConfig(siteState.Site.Name, siteId, version.Version, !siteState.IsInterior(), 3)
-
-	// Process order
-	// - LinkAccess
-	// - Listener
-	// - Connector
-	// - Link
-
-	// LinkAccess
-	for name, la := range siteState.LinkAccesses {
-		if la.Spec.TlsCredentials == "" {
-			la.Spec.TlsCredentials = name
-		}
-		for _, role := range la.Spec.Roles {
-			listenerName := fmt.Sprintf("%s-%s", name, role.Role)
-			host := utils.DefaultStr(la.Spec.BindHost, "127.0.0.1")
-			c.RouterConfig.AddListener(qdr.Listener{
-				Name:             listenerName,
-				Role:             qdr.Role(role.Role),
-				Host:             host,
-				Port:             int32(role.Port),
-				SslProfile:       la.Spec.TlsCredentials,
-				SaslMechanisms:   "EXTERNAL",
-				AuthenticatePeer: true,
-				MaxFrameSize:     types.RouterMaxFrameSizeDefault,
-				MaxSessionFrames: types.RouterMaxSessionFramesDefault,
-			})
-		}
-		c.RouterConfig.AddSslProfileWithPath(path.Join(c.SslProfileBasePath, "certificates/server"), qdr.SslProfile{
-			Name: la.Spec.TlsCredentials,
-		})
-	}
-
-	// Links
-	for name, l := range siteState.Links {
-		connectorName := fmt.Sprintf("link-%s", name)
-		var hostPort v1alpha1.HostPort
-		var role string
-		if siteState.IsInterior() {
-			hostPort = l.Spec.InterRouter
-			role = "inter-router"
-		} else {
-			hostPort = l.Spec.Edge
-			role = "edge"
-		}
-		c.RouterConfig.AddConnector(qdr.Connector{
-			Name:             connectorName,
-			Role:             qdr.Role(role),
-			Host:             hostPort.Host,
-			Port:             strconv.Itoa(hostPort.Port),
-			SslProfile:       l.Spec.TlsCredentials,
-			MaxFrameSize:     types.RouterMaxFrameSizeDefault,
-			MaxSessionFrames: types.RouterMaxSessionFramesDefault,
-		})
-		c.RouterConfig.AddSslProfileWithPath(path.Join(c.SslProfileBasePath, "certificates/link"), qdr.SslProfile{
-			Name: l.Spec.TlsCredentials,
-		})
-	}
-
-	// TODO Render inter-router or edge connectors
-	// TODO TCP Listeners and Connectors cannot yet handle names (we need the proxy container first - iptables)
-	// TCP Listener
-	for name, listener := range siteState.Listeners {
-		listenerName := fmt.Sprintf("listener-%s", name)
-		c.RouterConfig.Bridges.AddTcpListener(qdr.TcpEndpoint{
-			Name:       listenerName,
-			Host:       listener.Spec.Host,
-			Port:       strconv.Itoa(listener.Spec.Port),
-			Address:    listener.Spec.RoutingKey,
-			SiteId:     siteId,
-			SslProfile: listener.Spec.TlsCredentials,
-		})
-		if listener.Spec.TlsCredentials != "" {
-			c.RouterConfig.AddSslProfileWithPath(path.Join(c.SslProfileBasePath, "certificates/server"), qdr.SslProfile{
-				Name: listener.Spec.TlsCredentials,
-			})
-		}
-	}
-	// TCP Connector
-	for name, connector := range siteState.Connectors {
-		connectorName := fmt.Sprintf("connector-%s", name)
-		c.RouterConfig.Bridges.AddTcpConnector(qdr.TcpEndpoint{
-			Name:       connectorName,
-			Host:       connector.Spec.Host,
-			Port:       strconv.Itoa(connector.Spec.Port),
-			Address:    connector.Spec.RoutingKey,
-			SiteId:     siteId,
-			SslProfile: connector.Spec.TlsCredentials,
-		})
-		if connector.Spec.TlsCredentials != "" {
-			c.RouterConfig.AddSslProfileWithPath(path.Join(c.SslProfileBasePath, "certificates/client"), qdr.SslProfile{
-				Name: connector.Spec.TlsCredentials,
-			})
-		}
-	}
-	// Log (static for now) TODO use site specific options to configure logging
-	c.RouterConfig.SetLogLevel("ROUTER_CORE", "error+")
+func (c *FileSystemConfigurationRenderer) createRouterConfig(siteState *apis.SiteState) error {
+	c.RouterConfig = siteState.ToRouterConfig(c.SslProfileBasePath)
 
 	// Saving router config
 	routerConfigJson, err := qdr.MarshalRouterConfig(c.RouterConfig)
@@ -313,9 +235,9 @@ func (c *FileSystemConfigurationRenderer) createRouterConfig(siteState apis.Site
 	return nil
 }
 
-func (c *FileSystemConfigurationRenderer) createTlsCertificates(siteState apis.SiteState) error {
+func (c *FileSystemConfigurationRenderer) createTlsCertificates(siteState *apis.SiteState) error {
 	var err error
-	writeSecretFiles := func(basePath string, secret corev1.Secret) error {
+	writeSecretFiles := func(basePath string, secret *corev1.Secret) error {
 		baseDir, err := os.Open(basePath)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -356,7 +278,7 @@ func (c *FileSystemConfigurationRenderer) createTlsCertificates(siteState apis.S
 		}
 		secret := certs.GenerateCASecret(name, certificate.Spec.Subject)
 		caPath := path.Join(c.OutputPath, "certificates/ca", name)
-		err = writeSecretFiles(caPath, secret)
+		err = writeSecretFiles(caPath, &secret)
 		if err != nil {
 			return err
 		}
@@ -387,7 +309,7 @@ func (c *FileSystemConfigurationRenderer) createTlsCertificates(siteState apis.S
 			continue
 		}
 		certPath := path.Join(c.OutputPath, "certificates", purpose, name)
-		err = writeSecretFiles(certPath, secret)
+		err = writeSecretFiles(certPath, &secret)
 		if err != nil {
 			return err
 		}
@@ -408,7 +330,7 @@ func (c *FileSystemConfigurationRenderer) createTlsCertificates(siteState apis.S
 	return nil
 }
 
-func (c *FileSystemConfigurationRenderer) connectJson(siteState apis.SiteState) *string {
+func (c *FileSystemConfigurationRenderer) connectJson(siteState *apis.SiteState) *string {
 	var host string
 	port := 0
 	for _, la := range siteState.LinkAccesses {

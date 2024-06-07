@@ -34,6 +34,9 @@ build-get:
 build-bootstrap:
 	GOOS=${GOOS} GOARCH=${GOARCH} go build -ldflags="${LDFLAGS}"  -o bootstrap ./cmd/bootstrap
 
+build-bootstrap-debug:
+	GOOS=${GOOS} GOARCH=${GOARCH} go build -gcflags="all=-N -l" -ldflags="${LDFLAGS}" -o bootstrap ./cmd/bootstrap
+
 build-controller:
 	go build -ldflags="${LDFLAGS}"  -o controller cmd/controller/main.go cmd/controller/controller.go
 

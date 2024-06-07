@@ -27,7 +27,7 @@ type SiteStateValidator struct {
 // to validate the site state against the spec (CRD), but to a more
 // basic level, like to ensure that mandatory fields for each resource are
 // populated and users will be able to operate the non-k8s site.
-func (s *SiteStateValidator) Validate(siteState apis.SiteState) error {
+func (s *SiteStateValidator) Validate(siteState *apis.SiteState) error {
 	var err error
 	if err = s.validateSite(siteState.Site); err != nil {
 		return err
@@ -54,17 +54,20 @@ func (s *SiteStateValidator) Validate(siteState apis.SiteState) error {
 	return nil
 }
 
-func (s *SiteStateValidator) validateSite(site v1alpha1.Site) error {
+func (s *SiteStateValidator) validateSite(site *v1alpha1.Site) error {
 	if err := ValidateName(site.Name); err != nil {
 		return fmt.Errorf("invalid site name: %w", err)
 	}
 	return nil
 }
 
-func (s *SiteStateValidator) validateLinkAccesses(linkAccesses map[string]v1alpha1.LinkAccess) error {
+func (s *SiteStateValidator) validateLinkAccesses(linkAccesses map[string]*v1alpha1.LinkAccess) error {
 	for _, linkAccess := range linkAccesses {
 		if err := ValidateName(linkAccess.Name); err != nil {
 			return fmt.Errorf("invalid link access name: %w", err)
+		}
+		if linkAccess.Spec.TlsCredentials == "" {
+			return fmt.Errorf("invalid link access tls credentials: empty")
 		}
 		if len(linkAccess.Spec.Roles) == 0 {
 			return fmt.Errorf("invalid link access: roles are required")
@@ -79,7 +82,7 @@ func (s *SiteStateValidator) validateLinkAccesses(linkAccesses map[string]v1alph
 	return nil
 }
 
-func (s *SiteStateValidator) validateLinks(siteState apis.SiteState) error {
+func (s *SiteStateValidator) validateLinks(siteState *apis.SiteState) error {
 	for linkName, link := range siteState.Links {
 		if err := ValidateName(link.Name); err != nil {
 			return fmt.Errorf("invalid link name: %w", err)
@@ -92,7 +95,7 @@ func (s *SiteStateValidator) validateLinks(siteState apis.SiteState) error {
 	return nil
 }
 
-func (s *SiteStateValidator) validateClaims(claims map[string]v1alpha1.Claim) error {
+func (s *SiteStateValidator) validateClaims(claims map[string]*v1alpha1.Claim) error {
 	for _, claim := range claims {
 		if err := ValidateName(claim.Name); err != nil {
 			return fmt.Errorf("invalid claim name: %w", err)
@@ -101,7 +104,7 @@ func (s *SiteStateValidator) validateClaims(claims map[string]v1alpha1.Claim) er
 	return nil
 }
 
-func (s *SiteStateValidator) validateGrants(grants map[string]v1alpha1.Grant) error {
+func (s *SiteStateValidator) validateGrants(grants map[string]*v1alpha1.Grant) error {
 	for _, grant := range grants {
 		if err := ValidateName(grant.Name); err != nil {
 			return fmt.Errorf("invalid grant name: %w", err)
@@ -110,7 +113,7 @@ func (s *SiteStateValidator) validateGrants(grants map[string]v1alpha1.Grant) er
 	return nil
 }
 
-func (s *SiteStateValidator) validateListeners(listeners map[string]v1alpha1.Listener) error {
+func (s *SiteStateValidator) validateListeners(listeners map[string]*v1alpha1.Listener) error {
 	hostPorts := map[string][]int{}
 	for name, listener := range listeners {
 		if err := ValidateName(listener.Name); err != nil {
@@ -134,7 +137,7 @@ func (s *SiteStateValidator) validateListeners(listeners map[string]v1alpha1.Lis
 	return nil
 }
 
-func (s *SiteStateValidator) validateConnectors(connectors map[string]v1alpha1.Connector) error {
+func (s *SiteStateValidator) validateConnectors(connectors map[string]*v1alpha1.Connector) error {
 	hostPorts := map[string][]int{}
 	for name, connector := range connectors {
 		if err := ValidateName(connector.Name); err != nil {

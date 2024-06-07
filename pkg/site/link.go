@@ -20,7 +20,6 @@ func NewLink(name string, profilePath string) *Link {
 		profilePath: profilePath,
 	}
 }
-
 func (l *Link) Apply(current *qdr.RouterConfig) bool {
 	if l.definition == nil {
 		return false
@@ -54,8 +53,11 @@ func sslProfileName(link *skupperv1alpha1.Link) string {
 type LinkMap map[string]*Link
 
 func (m LinkMap) Apply(current *qdr.RouterConfig) bool {
+	return m.ApplyWithSslProfile(current, "/etc/skupper-router-certs")
+}
+func (m LinkMap) ApplyWithSslProfile(current *qdr.RouterConfig, sslProfilePath string) bool {
 	for _, config := range m {
-		config.Apply(current)
+		config.ApplyWithSslProfilePath(current, sslProfilePath)
 	}
 	for _, connector := range current.Connectors {
 		if !strings.HasPrefix(connector.Name, "auto-mesh") {

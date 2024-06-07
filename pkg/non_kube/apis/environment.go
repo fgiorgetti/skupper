@@ -69,7 +69,7 @@ func GetHostDataHome() (string, error) {
 	}
 }
 
-func GetHostSiteHome(site v1alpha1.Site) (string, error) {
+func GetHostSiteHome(site *v1alpha1.Site) (string, error) {
 	dataHome, err := GetHostDataHome()
 	if err != nil {
 		return "", err

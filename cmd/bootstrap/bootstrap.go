@@ -117,7 +117,7 @@ func bootstrap(inputPath string) (*apis.SiteState, error) {
 	} else {
 		siteStateRenderer = &compat.SiteStateRenderer{}
 	}
-	err = siteStateRenderer.Render(*siteState)
+	err = siteStateRenderer.Render(siteState)
 	if err != nil {
 		return nil, fmt.Errorf("failed to render site state: %v", err)
 	}

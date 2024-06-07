@@ -24,13 +24,13 @@ var (
 )
 
 type systemdServiceInfo struct {
-	Site           v1alpha1.Site
+	Site           *v1alpha1.Site
 	SiteScriptPath string
 	SiteConfigPath string
 	RuntimeDir     string
 }
 
-func NewSystemdServiceInfo(site v1alpha1.Site) (*systemdServiceInfo, error) {
+func NewSystemdServiceInfo(site *v1alpha1.Site) (*systemdServiceInfo, error) {
 	siteHomeDir, err := apis.GetHostSiteHome(site)
 	if err != nil {
 		return nil, err
