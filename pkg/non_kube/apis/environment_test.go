@@ -4,13 +4,16 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path"
 	"reflect"
 	"testing"
 
 	"github.com/skupperproject/skupper/api/types"
+	"github.com/skupperproject/skupper/pkg/apis/skupper/v1alpha1"
 	"github.com/skupperproject/skupper/pkg/config"
 	"gopkg.in/yaml.v3"
 	"gotest.tools/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestGetConfigHome(t *testing.T) {
@@ -372,5 +375,47 @@ func TestPlatformInfo_Update(t *testing.T) {
 				assert.Assert(t, reflect.DeepEqual(tt.want, current), "want = %v, got = %v", tt.want, current)
 			}
 		})
+	}
+}
+
+func TestGetHostSiteHome(t *testing.T) {
+	fakeSite := &v1alpha1.Site{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "my-test-site",
+		},
+		Spec: v1alpha1.SiteSpec{},
+	}
+	homeDir, err := os.UserHomeDir()
+	assert.Assert(t, err)
+	defaultSiteHome := path.Join(homeDir, ".local/share/skupper/sites/my-test-site")
+	const fakeXdgDataHome = "/fake/xdg/home"
+	xdgSiteHome := path.Join(fakeXdgDataHome, "/skupper/sites/my-test-site")
+
+	envXdgDataHome := "XDG_DATA_HOME"
+	originalXdgDataHome := os.Getenv(envXdgDataHome)
+	defer func() {
+		_ = os.Setenv(envXdgDataHome, originalXdgDataHome)
+	}()
+	for _, scenario := range []struct {
+		expectedSiteHome string
+		useXdgDataHome   bool
+	}{
+		{
+			expectedSiteHome: defaultSiteHome,
+			useXdgDataHome:   false,
+		},
+		{
+			expectedSiteHome: xdgSiteHome,
+			useXdgDataHome:   true,
+		},
+	} {
+		if !scenario.useXdgDataHome {
+			assert.Assert(t, os.Unsetenv(envXdgDataHome))
+		} else {
+			assert.Assert(t, os.Setenv(envXdgDataHome, fakeXdgDataHome))
+		}
+		siteHome, err := GetHostSiteHome(fakeSite)
+		assert.Assert(t, err)
+		assert.Equal(t, siteHome, scenario.expectedSiteHome)
 	}
 }
