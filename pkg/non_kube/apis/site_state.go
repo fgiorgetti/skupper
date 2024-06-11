@@ -11,9 +11,11 @@ import (
 	"github.com/skupperproject/skupper/pkg/site"
 	"github.com/skupperproject/skupper/pkg/utils"
 	"github.com/skupperproject/skupper/pkg/version"
-	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer/json"
+	"k8s.io/client-go/kubernetes/scheme"
 )
 
 type StaticSiteStateRenderer interface {
@@ -73,6 +75,10 @@ func (s *SiteState) CreateRouterAccess(name string, port int) {
 	tlsClientName := fmt.Sprintf("%s-client", name)
 	// TODO RouterAccess instead (once available)
 	s.LinkAccesses[name] = &v1alpha1.LinkAccess{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "skupper.io/v1alpha1",
+			Kind:       "LinkAccess",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
@@ -88,53 +94,33 @@ func (s *SiteState) CreateRouterAccess(name string, port int) {
 		},
 	}
 	// TODO Validate if CA Certificate (CR) is properly described
-	s.Certificates[tlsCaName] = &v1alpha1.Certificate{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: tlsCaName,
-		},
-		Spec: v1alpha1.CertificateSpec{
-			Subject: tlsCaName,
-			Hosts:   []string{"127.0.0.1", "localhost"},
-			Signing: true,
-		},
-	}
+	s.Certificates[tlsCaName] = s.newCertificate(tlsCaName, &v1alpha1.CertificateSpec{
+		Subject: tlsCaName,
+		Hosts:   []string{"127.0.0.1", "localhost"},
+		Signing: true,
+	})
 	// TODO Validate if Server certificate looks good
-	s.Certificates[tlsServerName] = &v1alpha1.Certificate{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: tlsServerName,
-		},
-		Spec: v1alpha1.CertificateSpec{
-			Subject: "127.0.0.1",
-			Hosts:   []string{"127.0.0.1", "localhost"},
-			Ca:      tlsCaName,
-			Server:  true,
-		},
-	}
+	s.Certificates[tlsServerName] = s.newCertificate(tlsServerName, &v1alpha1.CertificateSpec{
+		Subject: "127.0.0.1",
+		Hosts:   []string{"127.0.0.1", "localhost"},
+		Ca:      tlsCaName,
+		Server:  true,
+	})
 	// TODO Validate if client certificate looks good
-	s.Certificates[tlsClientName] = &v1alpha1.Certificate{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: tlsClientName,
-		},
-		Spec: v1alpha1.CertificateSpec{
-			Subject: "127.0.0.1",
-			Hosts:   []string{"127.0.0.1", "localhost"},
-			Ca:      tlsCaName,
-			Client:  true,
-		},
-	}
+	s.Certificates[tlsClientName] = s.newCertificate(tlsClientName, &v1alpha1.CertificateSpec{
+		Subject: "127.0.0.1",
+		Hosts:   []string{"127.0.0.1", "localhost"},
+		Ca:      tlsCaName,
+		Client:  true,
+	})
 }
 
 func (s *SiteState) CreateLinkAccessesCertificates() {
 	caName := fmt.Sprintf("skupper-site-ca")
-	s.Certificates[caName] = &v1alpha1.Certificate{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: caName,
-		},
-		Spec: v1alpha1.CertificateSpec{
-			Subject: caName,
-			Signing: true,
-		},
-	}
+	s.Certificates[caName] = s.newCertificate(caName, &v1alpha1.CertificateSpec{
+		Subject: caName,
+		Signing: true,
+	})
 
 	for name, linkAccess := range s.LinkAccesses {
 		create := false
@@ -155,76 +141,62 @@ func (s *SiteState) CreateLinkAccessesCertificates() {
 		if linkAccess.Spec.Ca != "" {
 			linkAccessCaName = linkAccess.Spec.Ca
 		}
-		s.Certificates[name] = &v1alpha1.Certificate{
-			TypeMeta: metav1.TypeMeta{},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
-			},
-			Spec: v1alpha1.CertificateSpec{
-				Ca:      linkAccessCaName,
-				Subject: name,
-				Hosts:   hosts,
-				Server:  true,
-			},
-		}
+		s.Certificates[name] = s.newCertificate(name, &v1alpha1.CertificateSpec{
+			Ca:      linkAccessCaName,
+			Subject: name,
+			Hosts:   hosts,
+			Server:  true,
+		})
 		clientCertificateName := fmt.Sprintf("client-%s", name)
-		s.Certificates[clientCertificateName] = &v1alpha1.Certificate{
-			TypeMeta: metav1.TypeMeta{},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: clientCertificateName,
-			},
-			Spec: v1alpha1.CertificateSpec{
-				Ca:      linkAccessCaName,
-				Subject: clientCertificateName,
-				Client:  true,
-			},
-		}
+		s.Certificates[clientCertificateName] = s.newCertificate(clientCertificateName, &v1alpha1.CertificateSpec{
+			Ca:      linkAccessCaName,
+			Subject: clientCertificateName,
+			Client:  true,
+		})
 	}
 
 }
 
 func (s *SiteState) CreateBridgeCertificates() {
 	caName := fmt.Sprintf("skupper-service-ca")
-	s.Certificates[caName] = &v1alpha1.Certificate{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: caName,
-		},
-		Spec: v1alpha1.CertificateSpec{
-			Subject: caName,
-			Signing: true,
-		},
-	}
+	s.Certificates[caName] = s.newCertificate(caName, &v1alpha1.CertificateSpec{
+		Subject: caName,
+		Signing: true,
+	})
 	// TODO How can we differentiate a listener that does simple tls (CA only) vs mutual tls auth?
 	// 	    Should we introduce a "CA" field or should we inspect the content of the tlsCredential?
 	for _, listener := range s.Listeners {
 		if listener.Spec.TlsCredentials != "" {
-			s.Certificates[listener.Spec.TlsCredentials] = &v1alpha1.Certificate{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: listener.Spec.TlsCredentials,
-				},
-				Spec: v1alpha1.CertificateSpec{
-					Ca:      caName,
-					Subject: listener.Spec.Host,
-					Hosts:   []string{listener.Spec.Host},
-					Server:  true,
-				},
-			}
+			s.Certificates[listener.Spec.TlsCredentials] = s.newCertificate(listener.Spec.TlsCredentials, &v1alpha1.CertificateSpec{
+				Ca:      caName,
+				Subject: listener.Spec.Host,
+				Hosts:   []string{listener.Spec.Host},
+				Server:  true,
+			})
 		}
 	}
 	for _, connector := range s.Connectors {
 		if connector.Spec.TlsCredentials != "" {
-			s.Certificates[connector.Spec.TlsCredentials] = &v1alpha1.Certificate{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: connector.Spec.TlsCredentials,
-				},
-				Spec: v1alpha1.CertificateSpec{
-					Ca:      caName,
-					Subject: connector.Spec.Host,
-					Hosts:   []string{connector.Spec.Host},
-					Server:  true,
-				},
-			}
+			s.Certificates[connector.Spec.TlsCredentials] = s.newCertificate(connector.Spec.TlsCredentials, &v1alpha1.CertificateSpec{
+				Ca:      caName,
+				Subject: connector.Spec.Host,
+				Hosts:   []string{connector.Spec.Host},
+				Server:  true,
+			})
 		}
+	}
+}
+
+func (s *SiteState) newCertificate(name string, spec *v1alpha1.CertificateSpec) *v1alpha1.Certificate {
+	return &v1alpha1.Certificate{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "skupper.io/v1alpha1",
+			Kind:       "Certificate",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: *spec,
 	}
 }
 
@@ -280,14 +252,16 @@ func marshal(outputDirectory, resourceType, resourceName string, resource interf
 	if err != nil {
 		return fmt.Errorf("error creating directory %s: %w", writeDirectory, err)
 	}
-	resourceYaml, err := yaml.Marshal(resource)
+	fileName := path.Join(writeDirectory, fmt.Sprintf("%s.yaml", resourceName))
+	file, err := os.Create(fileName)
+	defer file.Close()
+	if err != nil {
+		return fmt.Errorf("error creating file %s: %w", fileName, err)
+	}
+	yaml := json.NewYAMLSerializer(json.DefaultMetaFactory, scheme.Scheme, scheme.Scheme)
+	err = yaml.Encode(resource.(runtime.Object), file)
 	if err != nil {
 		return fmt.Errorf("error marshalling resource %s: %w", resourceName, err)
-	}
-	fileName := path.Join(writeDirectory, fmt.Sprintf("%s.yaml", resourceName))
-	err = os.WriteFile(fileName, resourceYaml, 0644)
-	if err != nil {
-		return fmt.Errorf("error writing resource %s: %w", fileName, err)
 	}
 	return nil
 }

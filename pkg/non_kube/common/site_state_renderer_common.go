@@ -12,6 +12,7 @@ func CopySiteState(siteState *apis.SiteState) *apis.SiteState {
 	// Preserving loaded state
 	var activeSiteState = apis.NewSiteState()
 	siteState.Site.DeepCopyInto(activeSiteState.Site)
+	activeSiteState.SiteId = siteState.SiteId
 	activeSiteState.Listeners = maps.Clone(siteState.Listeners)
 	activeSiteState.Connectors = maps.Clone(siteState.Connectors)
 	activeSiteState.LinkAccesses = maps.Clone(siteState.LinkAccesses)

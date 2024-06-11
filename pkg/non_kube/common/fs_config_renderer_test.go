@@ -71,6 +71,10 @@ func fakeSiteState() *apis.SiteState {
 	return &apis.SiteState{
 		SiteId: "site-id",
 		Site: &v1alpha1.Site{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Site",
+				APIVersion: "skupper.io/v1alpha1",
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "site-name",
 			},
@@ -78,24 +82,32 @@ func fakeSiteState() *apis.SiteState {
 		},
 		Listeners: map[string]*v1alpha1.Listener{
 			"listener-one": {
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Listener",
+					APIVersion: "skupper.io/v1alpha1",
+				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "listener-one",
 				},
 				Spec: v1alpha1.ListenerSpec{
 					RoutingKey:     "listener-one-key",
-					Host:           "listener-one-host",
+					Host:           "10.0.0.1",
 					Port:           1234,
 					TlsCredentials: "listener-one-credentials",
 					Type:           "tcp",
 				},
 			},
 			"listener-two": {
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Listener",
+					APIVersion: "skupper.io/v1alpha1",
+				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "listener-two",
 				},
 				Spec: v1alpha1.ListenerSpec{
 					RoutingKey:     "listener-two-key",
-					Host:           "listener-two-host",
+					Host:           "10.0.0.2",
 					Port:           1234,
 					TlsCredentials: "listener-two-credentials",
 					Type:           "tcp",
@@ -104,6 +116,10 @@ func fakeSiteState() *apis.SiteState {
 		},
 		Connectors: map[string]*v1alpha1.Connector{
 			"connector-one": {
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Connector",
+					APIVersion: "skupper.io/v1alpha1",
+				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "connector-one",
 				},
@@ -118,6 +134,10 @@ func fakeSiteState() *apis.SiteState {
 		},
 		LinkAccesses: map[string]*v1alpha1.LinkAccess{
 			"link-access-one": {
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "LinkAccess",
+					APIVersion: "skupper.io/v1alpha1",
+				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "link-access-one",
 				},
@@ -143,6 +163,10 @@ func fakeSiteState() *apis.SiteState {
 		Grants: make(map[string]*v1alpha1.Grant),
 		Links: map[string]*v1alpha1.Link{
 			"link-one": {
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Link",
+					APIVersion: "skupper.io/v1alpha1",
+				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "link-one",
 				},
@@ -162,6 +186,10 @@ func fakeSiteState() *apis.SiteState {
 		},
 		Secrets: map[string]*corev1.Secret{
 			"link-one-profile": {
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Secret",
+					APIVersion: "v1",
+				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "link-one-profile",
 				},

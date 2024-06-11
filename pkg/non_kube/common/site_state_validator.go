@@ -8,11 +8,13 @@ import (
 	"github.com/skupperproject/skupper/pkg/apis/skupper/v1alpha1"
 	"github.com/skupperproject/skupper/pkg/non_kube/apis"
 	"github.com/skupperproject/skupper/pkg/utils"
+	corev1 "k8s.io/api/core/v1"
 )
 
 var (
 	validLinkAccessRoles = []string{"edge", "inter-router"}
 	rfc1123Regex         = regexp.MustCompile("^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")
+	hostnameRfc1123Regex = regexp.MustCompile(`^[a-z0-9]+([-.]{1}[a-z0-9]+)*$`)
 )
 
 const (
@@ -35,7 +37,7 @@ func (s *SiteStateValidator) Validate(siteState *apis.SiteState) error {
 	if err = s.validateLinkAccesses(siteState.LinkAccesses); err != nil {
 		return err
 	}
-	if err = s.validateLinks(siteState); err != nil {
+	if err = s.validateLinks(siteState.Links, siteState.Secrets); err != nil {
 		return err
 	}
 	if err = s.validateClaims(siteState.Claims); err != nil {
@@ -82,14 +84,20 @@ func (s *SiteStateValidator) validateLinkAccesses(linkAccesses map[string]*v1alp
 	return nil
 }
 
-func (s *SiteStateValidator) validateLinks(siteState *apis.SiteState) error {
-	for linkName, link := range siteState.Links {
+func (s *SiteStateValidator) validateLinks(links map[string]*v1alpha1.Link, secrets map[string]*corev1.Secret) error {
+	if links == nil || len(links) == 0 {
+		return nil
+	}
+	if secrets == nil || len(secrets) == 0 {
+		return fmt.Errorf("unable to process links (no secrets found)")
+	}
+	for linkName, link := range links {
 		if err := ValidateName(link.Name); err != nil {
 			return fmt.Errorf("invalid link name: %w", err)
 		}
 		secretName := link.Spec.TlsCredentials
-		if _, ok := siteState.Secrets[secretName]; !ok {
-			return fmt.Errorf("invalid link %q - secret %s not found", linkName, secretName)
+		if _, ok := secrets[secretName]; !ok {
+			return fmt.Errorf("invalid link %q - secret %q not found", linkName, secretName)
 		}
 	}
 	return nil
@@ -120,7 +128,7 @@ func (s *SiteStateValidator) validateListeners(listeners map[string]*v1alpha1.Li
 			return fmt.Errorf("invalid listener name: %w", err)
 		}
 		if listener.Spec.Host == "" || listener.Spec.Port == 0 {
-			return fmt.Errorf("host and port and required")
+			return fmt.Errorf("host and port are required")
 		}
 		// TODO allow host field to expose a name (not an ip)
 		//      this is related to iptables/proxy container and will also
@@ -138,24 +146,21 @@ func (s *SiteStateValidator) validateListeners(listeners map[string]*v1alpha1.Li
 }
 
 func (s *SiteStateValidator) validateConnectors(connectors map[string]*v1alpha1.Connector) error {
-	hostPorts := map[string][]int{}
-	for name, connector := range connectors {
+	for _, connector := range connectors {
 		if err := ValidateName(connector.Name); err != nil {
 			return fmt.Errorf("invalid connector name: %w", err)
 		}
 		if connector.Spec.Host == "" || connector.Spec.Port == 0 {
 			return fmt.Errorf("connector host and port are required")
 		}
-		// TODO allow host field to expose a name (not an ip)
-		//      this is related to iptables/proxy container and will also
-		//      require a container network to be provided
-		if ip := net.ParseIP(connector.Spec.Host); ip == nil {
-			return fmt.Errorf("invalid connector host: %s - a valid IP address is expected", connector.Spec.Host)
+		// TODO evaluate allowing a host field to expose a container by name
+		//      this is related to the iptables/proxy container and will also
+		//      require a container network to be provided somehow
+		ip := net.ParseIP(connector.Spec.Host)
+		validHostname := hostnameRfc1123Regex.MatchString(connector.Spec.Host)
+		if ip == nil && !validHostname {
+			return fmt.Errorf("invalid connector host: %s - a valid IP address or hostname is expected", connector.Spec.Host)
 		}
-		if utils.IntSliceContains(hostPorts[connector.Spec.Host], connector.Spec.Port) {
-			return fmt.Errorf("port %d is already mapped for host %q (listener: %q)", connector.Spec.Port, connector.Spec.Host, name)
-		}
-		hostPorts[connector.Spec.Host] = append(hostPorts[connector.Spec.Host], connector.Spec.Port)
 	}
 	return nil
 }

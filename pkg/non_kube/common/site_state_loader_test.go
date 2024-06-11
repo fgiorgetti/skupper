@@ -1,24 +1,30 @@
 package common
 
 import (
-	"encoding/json"
-	"fmt"
+	"os"
+	"path"
 	"testing"
 
+	"github.com/skupperproject/skupper/pkg/non_kube/apis"
 	"gotest.tools/assert"
 )
 
 func TestFileSystemSiteStateLoder(t *testing.T) {
-	fsStateLoader := &FileSystemSiteStateLoader{
-		//Path: "/home/fgiorget/git/skupper-v2/api/types/crds",
-		Path: "/home/fgiorget/git/skupper-v2/cmd/bootstrap/crs/west",
-	}
-	siteState, err := fsStateLoader.Load()
+	outputPath, err := os.MkdirTemp("", "sitestate-loader-*")
 	assert.Assert(t, err)
-	assert.Assert(t, siteState != nil)
-	assert.Assert(t, siteState.Site.Name != "")
-	//assert.Equal(t, len(siteState.Listeners), 2)
-	assert.Equal(t, len(siteState.Listeners), 1)
-	siteStateJson, _ := json.MarshalIndent(siteState, "", "  ")
-	fmt.Println(string(siteStateJson))
+	defer func() {
+		err = os.RemoveAll(outputPath)
+		assert.Assert(t, err)
+	}()
+	ss := fakeSiteState()
+	ss.CreateBridgeCertificates()
+	ss.CreateLinkAccessesCertificates()
+	assert.Assert(t, apis.MarshalSiteState(*ss, outputPath))
+
+	fsStateLoader := &FileSystemSiteStateLoader{
+		Path: path.Join(outputPath),
+	}
+	loadedSiteState, err := fsStateLoader.Load()
+	assert.Assert(t, err)
+	assert.Assert(t, loadedSiteState != nil)
 }

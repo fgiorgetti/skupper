@@ -399,7 +399,7 @@ func (s *SiteHandler) Create(ctx context.Context, site domain.Site) error {
 
 	// Creating startup scripts first
 	// TODO REMOVE pkd/domain/podman once V2 is stable - IT NO LONGER WORKS
-	scripts, _ := common.GetStartupScripts(v1alpha1.Site{}, "")
+	scripts, _ := common.GetStartupScripts(&v1alpha1.Site{}, "")
 	err = scripts.Create()
 	if err != nil {
 		return fmt.Errorf("error creating startup scripts: %w\n", err)
@@ -407,7 +407,7 @@ func (s *SiteHandler) Create(ctx context.Context, site domain.Site) error {
 
 	// Creating systemd user service
 	// TODO IT NO LONGER WORKS
-	systemd, err := common.NewSystemdServiceInfo(v1alpha1.Site{})
+	systemd, err := common.NewSystemdServiceInfo(&v1alpha1.Site{})
 	if err = systemd.Create(); err != nil {
 		fmt.Printf("Unable to create startup service - %v\n", err)
 		fmt.Printf("The startup scripts: %s and %s are available at %s\n,",
@@ -731,9 +731,9 @@ func (s *SiteHandler) removePodmanResources() error {
 
 	// Removing startup files and service
 	// TODO REMOVE IT - V1 podman wont work anymore
-	scripts, _ := common.GetStartupScripts(v1alpha1.Site{}, "")
+	scripts, _ := common.GetStartupScripts(&v1alpha1.Site{}, "")
 	scripts.Remove()
-	systemd, _ := common.NewSystemdServiceInfo(v1alpha1.Site{})
+	systemd, _ := common.NewSystemdServiceInfo(&v1alpha1.Site{})
 	if err = systemd.Remove(); err != nil {
 		fmt.Printf("Unable to remove systemd service - %v\n", err)
 	}

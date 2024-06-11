@@ -3,6 +3,7 @@ package common
 import (
 	"bytes"
 	_ "embed"
+	"fmt"
 	"os"
 	"path"
 	"text/template"
@@ -20,31 +21,37 @@ var (
 	StopScriptContainerTemplate string
 )
 
+type StartupScript interface {
+	Create() error
+	Remove()
+	GetPath() string
+	GetStartFileName() string
+	GetStopFileName() string
+}
+
 type startupScripts struct {
 	StartScript     string
 	StopScript      string
 	Site            *v1alpha1.Site
 	SiteId          string
 	SkupperPlatform string
-	ContainerEngine string
 	path            string
 }
 
-func GetStartupScripts(site *v1alpha1.Site, siteId string) (*startupScripts, error) {
+func GetStartupScripts(site *v1alpha1.Site, siteId string) (StartupScript, error) {
 	scripts := &startupScripts{
 		StartScript:     StartScriptContainerTemplate,
 		StopScript:      StopScriptContainerTemplate,
 		Site:            site,
 		SiteId:          siteId,
 		SkupperPlatform: "podman",
-		ContainerEngine: "podman",
 	}
 
 	platform := config.GetPlatform()
-	scripts.SkupperPlatform = string(platform)
-	if ce := os.Getenv("CONTAINER_ENGINE"); ce != "" {
-		scripts.ContainerEngine = ce
+	if platform.IsKubernetes() {
+		return nil, fmt.Errorf("startup scripts can only be used with podman or docker platforms")
 	}
+	scripts.SkupperPlatform = string(platform)
 	siteHome, err := apis.GetHostSiteHome(site)
 	if err != nil {
 		return nil, err
@@ -61,14 +68,18 @@ func (s *startupScripts) Create() error {
 	var stopBuf bytes.Buffer
 
 	startTemplate := template.Must(template.New("start").Parse(s.StartScript))
-	startTemplate.Execute(&startBuf, s)
+	if err := startTemplate.Execute(&startBuf, s); err != nil {
+		return fmt.Errorf("failed to create start script: %w", err)
+	}
 	startFileName := path.Join(s.path, s.GetStartFileName())
 	err := os.WriteFile(startFileName, startBuf.Bytes(), 0755)
 	if err != nil {
 		return err
 	}
 	stopTemplate := template.Must(template.New("stop").Parse(s.StopScript))
-	stopTemplate.Execute(&stopBuf, s)
+	if err := stopTemplate.Execute(&stopBuf, s); err != nil {
+		return fmt.Errorf("failed to create stop script: %w", err)
+	}
 	stopFileName := path.Join(s.path, s.GetStopFileName())
 	err = os.WriteFile(stopFileName, stopBuf.Bytes(), 0755)
 	if err != nil {

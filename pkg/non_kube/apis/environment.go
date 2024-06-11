@@ -9,8 +9,12 @@ import (
 	"github.com/skupperproject/skupper/pkg/apis/skupper/v1alpha1"
 )
 
+type IdGetter func() int
+
+var getUid IdGetter = os.Getuid
+
 func GetDataHome() string {
-	if os.Getuid() == 0 {
+	if getUid() == 0 {
 		return "/usr/local/share/skupper"
 	}
 	dataHome, ok := os.LookupEnv("XDG_DATA_HOME")
@@ -32,12 +36,12 @@ func GetConfigHome() string {
 }
 
 func GetRuntimeDir() string {
-	if os.Getuid() == 0 {
+	if getUid() == 0 {
 		return "/run"
 	}
 	runtimeDir, ok := os.LookupEnv("XDG_RUNTIME_DIR")
 	if !ok {
-		runtimeDir = fmt.Sprintf("/run/user/%d", os.Getuid())
+		runtimeDir = fmt.Sprintf("/run/user/%d", getUid())
 	}
 	return runtimeDir
 }
