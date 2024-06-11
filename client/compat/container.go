@@ -315,13 +315,6 @@ func (c *CompatClient) ToSpecGenerator(newContainer *container.Container) *model
 		if mount.Source == "" || mount.Destination == "" {
 			continue
 		}
-		//spec.HostConfig.Mounts = append(spec.HostConfig.Mounts, &models.Mount{
-		//	Options:  mount.Options,
-		//	ReadOnly: false,
-		//	Source:   mount.Source,
-		//	Target:   mount.Destination,
-		//	Type:     "bind",
-		//})
 		mode := ""
 		if len(mount.Options) > 0 {
 			mode = ":" + strings.Join(mount.Options, "")

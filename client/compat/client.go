@@ -18,14 +18,13 @@ import (
 	runtimeclient "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
 	"github.com/skupperproject/skupper/api/types"
-	"github.com/skupperproject/skupper/pkg/non_kube/apis"
 	"github.com/skupperproject/skupper/pkg/utils"
 )
 
 const (
-	ENV_CONTAINER_ENDPOINT = "CONTAINER_ENDPOINT"
-	DEFAULT_BASE_PATH      = ""
-	DefaultNetworkDriver   = "bridge"
+	EnvContainerEndpoint = "CONTAINER_ENDPOINT"
+	DefaultBasePath      = ""
+	DefaultNetworkDriver = "bridge"
 )
 
 var (
@@ -34,6 +33,9 @@ var (
 )
 
 type ContainerEngine string
+type IdGetter func() int
+
+var getUid IdGetter = os.Getuid
 
 var (
 	ContainerEnginePodman ContainerEngine = "podman"
@@ -51,7 +53,7 @@ func NewCompatClient(endpoint, basePath string) (*CompatClient, error) {
 
 	if endpoint == "" {
 		defaultEndpoint := GetDefaultContainerEndpoint()
-		endpoint = utils.DefaultStr(os.Getenv(ENV_CONTAINER_ENDPOINT), defaultEndpoint)
+		endpoint = utils.DefaultStr(os.Getenv(EnvContainerEndpoint), defaultEndpoint)
 	}
 
 	var u *url.URL
@@ -99,7 +101,7 @@ func NewCompatClient(endpoint, basePath string) (*CompatClient, error) {
 		hostPort = net.JoinHostPort(u.Hostname(), u.Port())
 	}
 	if basePath == "" {
-		basePath = DEFAULT_BASE_PATH
+		basePath = DefaultBasePath
 	}
 	c := runtimeclient.New(hostPort, basePath, []string{u.Scheme})
 	// Initializing transport like the http.DefaultTransport
@@ -157,7 +159,18 @@ func GetDefaultContainerEndpoint() string {
 	if os.Getenv(types.ENV_PLATFORM) == "docker" {
 		return "unix:///run/docker.sock"
 	}
-	return fmt.Sprintf("unix://%s/podman/podman.sock", apis.GetRuntimeDir())
+	return fmt.Sprintf("unix://%s/podman/podman.sock", getRuntimeDir())
+}
+
+func getRuntimeDir() string {
+	if getUid() == 0 {
+		return "/run"
+	}
+	runtimeDir, ok := os.LookupEnv("XDG_RUNTIME_DIR")
+	if !ok {
+		runtimeDir = fmt.Sprintf("/run/user/%d", getUid())
+	}
+	return runtimeDir
 }
 
 func (c *CompatClient) IsSockEndpoint() bool {
