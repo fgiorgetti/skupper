@@ -61,6 +61,13 @@ container_env() {
 }
 
 create_service() {
+    # if systemd is not available, skip it
+    if [[ ${UID} -eq 0 ]]; then
+        systemctl list-units > /dev/null 2>&1 || return
+    else
+        systemctl --user list-units > /dev/null 2>&1 || return
+    fi
+
     # generated service file
     site_name="$(grep -E 'Site ".*" has been created' "${LOG_FILE}" | awk -F'"' '{print $2}')"
     if [[ -z "${site_name}" ]]; then
@@ -128,9 +135,7 @@ main() {
         ${ENV_VARS[@]} \
         ${IMAGE} 2>&1 | tee "${LOG_FILE}"
 
-    if [[ $? -eq 0 ]]; then
-        create_service
-    fi
+    [[ $? -eq 0 ]] && create_service
 }
 
 main $@
