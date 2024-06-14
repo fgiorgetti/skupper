@@ -27,7 +27,7 @@ type SiteState struct {
 	Site            *v1alpha1.Site
 	Listeners       map[string]*v1alpha1.Listener
 	Connectors      map[string]*v1alpha1.Connector
-	LinkAccesses    map[string]*v1alpha1.LinkAccess
+	RouterAccesses  map[string]*v1alpha1.RouterAccess
 	Grants          map[string]*v1alpha1.Grant
 	Links           map[string]*v1alpha1.Link
 	Secrets         map[string]*corev1.Secret
@@ -41,7 +41,7 @@ func NewSiteState() *SiteState {
 		Site:            &v1alpha1.Site{},
 		Listeners:       make(map[string]*v1alpha1.Listener),
 		Connectors:      make(map[string]*v1alpha1.Connector),
-		LinkAccesses:    map[string]*v1alpha1.LinkAccess{},
+		RouterAccesses:  map[string]*v1alpha1.RouterAccess{},
 		Grants:          make(map[string]*v1alpha1.Grant),
 		Links:           make(map[string]*v1alpha1.Link),
 		Secrets:         make(map[string]*corev1.Secret),
@@ -52,16 +52,14 @@ func NewSiteState() *SiteState {
 }
 
 func (s *SiteState) IsInterior() bool {
-	// TODO Site.Spec.Settings is not working
-	// TODO Define how router mode will be defined
-	return s.Site.Spec.Settings == nil || s.Site.Spec.Settings["mode"] != "edge"
+	return s.Site.Spec.RouterMode != "edge"
 }
 
 func (s *SiteState) HasRouterAccess() bool {
 	// TODO switch to RouterAccess once new type if defined
-	for _, la := range s.LinkAccesses {
+	for _, la := range s.RouterAccesses {
 		for _, role := range la.Spec.Roles {
-			if role.Role == "normal" {
+			if role.Name == "normal" {
 				return true
 			}
 		}
@@ -74,7 +72,7 @@ func (s *SiteState) CreateRouterAccess(name string, port int) {
 	tlsServerName := fmt.Sprintf("%s-server", name)
 	tlsClientName := fmt.Sprintf("%s-client", name)
 	// TODO RouterAccess instead (once available)
-	s.LinkAccesses[name] = &v1alpha1.LinkAccess{
+	s.RouterAccesses[name] = &v1alpha1.RouterAccess{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "skupper.io/v1alpha1",
 			Kind:       "LinkAccess",
@@ -82,15 +80,15 @@ func (s *SiteState) CreateRouterAccess(name string, port int) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: v1alpha1.LinkAccessSpec{
-			Roles: []v1alpha1.LinkAccessRole{
+		Spec: v1alpha1.RouterAccessSpec{
+			Roles: []v1alpha1.RouterAccessRole{
 				{
-					Role: "normal",
+					Name: "normal",
 					Port: port,
 				},
 			},
 			TlsCredentials: tlsServerName,
-			Ca:             tlsCaName,
+			Issuer:         tlsCaName,
 		},
 	}
 	// TODO Validate if CA Certificate (CR) is properly described
@@ -122,10 +120,10 @@ func (s *SiteState) CreateLinkAccessesCertificates() {
 		Signing: true,
 	})
 
-	for name, linkAccess := range s.LinkAccesses {
+	for name, linkAccess := range s.RouterAccesses {
 		create := false
 		for _, role := range linkAccess.Spec.Roles {
-			if utils.StringSliceContains([]string{"edge", "inter-router"}, role.Role) {
+			if utils.StringSliceContains([]string{"edge", "inter-router"}, role.Name) {
 				create = true
 				break
 			}
@@ -138,8 +136,8 @@ func (s *SiteState) CreateLinkAccessesCertificates() {
 			hosts = append(hosts, linkAccess.Spec.BindHost)
 		}
 		linkAccessCaName := caName
-		if linkAccess.Spec.Ca != "" {
-			linkAccessCaName = linkAccess.Spec.Ca
+		if linkAccess.Spec.Issuer != "" {
+			linkAccessCaName = linkAccess.Spec.Issuer
 		}
 		s.Certificates[name] = s.newCertificate(name, &v1alpha1.CertificateSpec{
 			Ca:      linkAccessCaName,
@@ -200,17 +198,17 @@ func (s *SiteState) newCertificate(name string, spec *v1alpha1.CertificateSpec) 
 	}
 }
 
-func (s *SiteState) linkAccessMap() site.LinkAccessMap {
-	linkAccessMap := site.LinkAccessMap{}
-	for name, linkAccess := range s.LinkAccesses {
+func (s *SiteState) linkAccessMap() site.RouterAccessMap {
+	linkAccessMap := site.RouterAccessMap{}
+	for name, linkAccess := range s.RouterAccesses {
 		linkAccessMap[name] = linkAccess
 	}
 	return linkAccessMap
 }
-func (s *SiteState) linkMap() site.LinkMap {
+func (s *SiteState) linkMap(sslProfileBasePath string) site.LinkMap {
 	linkMap := site.LinkMap{}
 	for name, link := range s.Links {
-		siteLink := site.NewLink(name)
+		siteLink := site.NewLink(name, path.Join(sslProfileBasePath, "certificates/link"))
 		siteLink.Update(link)
 		linkMap[name] = siteLink
 	}
@@ -235,9 +233,9 @@ func (s *SiteState) ToRouterConfig(sslProfileBasePath string) qdr.RouterConfig {
 	routerConfig := qdr.InitialConfig(s.Site.Name, s.SiteId, version.Version, !s.IsInterior(), 3)
 
 	// LinkAccess
-	s.linkAccessMap().ApplyWithSslProfilePath(&routerConfig, path.Join(sslProfileBasePath, "certificates/server"))
+	s.linkAccessMap().DesiredConfig(nil, path.Join(sslProfileBasePath, "certificates/server")).Apply(&routerConfig)
 	// Link
-	s.linkMap().ApplyWithSslProfile(&routerConfig, path.Join(sslProfileBasePath, "certificates/link"))
+	s.linkMap(sslProfileBasePath).Apply(&routerConfig)
 	// Bindings
 	s.bindings().Apply(&routerConfig)
 	// Log (static for now) TODO use site specific options to configure logging
@@ -287,7 +285,7 @@ func MarshalSiteState(siteState SiteState, outputDirectory string) error {
 	if err = marshalMap(outputDirectory, "connectors", siteState.Connectors); err != nil {
 		return err
 	}
-	if err = marshalMap(outputDirectory, "linkAccesses", siteState.LinkAccesses); err != nil {
+	if err = marshalMap(outputDirectory, "linkAccesses", siteState.RouterAccesses); err != nil {
 		return err
 	}
 	if err = marshalMap(outputDirectory, "links", siteState.Links); err != nil {

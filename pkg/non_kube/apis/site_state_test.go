@@ -45,7 +45,7 @@ func TestSiteState_CreateBridgeCertificates(t *testing.T) {
 func TestSiteState_CreateLinkAccessesCertificates(t *testing.T) {
 	ss := fakeSiteState()
 	ss.CreateLinkAccessesCertificates()
-	assert.Assert(t, len(ss.LinkAccesses) == 1)
+	assert.Assert(t, len(ss.RouterAccesses) == 1)
 	assert.Equal(t, len(ss.Certificates), 3)
 	_, hasSiteCA := ss.Certificates["skupper-site-ca"]
 	assert.Assert(t, hasSiteCA)
@@ -65,9 +65,9 @@ func TestSiteState_CreateRouterAccess(t *testing.T) {
 	assert.Assert(t, !ss.HasRouterAccess())
 	ss.CreateRouterAccess(name, 5671)
 	assert.Assert(t, ss.HasRouterAccess())
-	_, routerAccessFound := ss.LinkAccesses[name]
+	_, routerAccessFound := ss.RouterAccesses[name]
 	assert.Assert(t, routerAccessFound)
-	assert.Equal(t, len(ss.LinkAccesses), 1)
+	assert.Equal(t, len(ss.RouterAccesses), 1)
 	assert.Equal(t, len(ss.Certificates), 3)
 	for _, certName := range []string{"skupper-local-ca", "skupper-local-client", "skupper-local-server"} {
 		_, certFound := ss.Certificates[certName]
@@ -77,7 +77,7 @@ func TestSiteState_CreateRouterAccess(t *testing.T) {
 
 func TestSiteState_ToRouterConfig(t *testing.T) {
 	ss := fakeSiteState()
-	sslProfileBasePath := "/etc/skupper-router/certificates"
+	sslProfileBasePath := "${SSL_PROFILE_BASE_PATH}"
 	routerConfig := ss.ToRouterConfig(sslProfileBasePath)
 	assert.Equal(t, len(routerConfig.Listeners), 2)
 	assert.Equal(t, len(routerConfig.Connectors), 1)
@@ -171,19 +171,19 @@ func fakeSiteState() *SiteState {
 				},
 			},
 		},
-		LinkAccesses: map[string]*v1alpha1.LinkAccess{
+		RouterAccesses: map[string]*v1alpha1.RouterAccess{
 			"link-access-one": {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "link-access-one",
 				},
-				Spec: v1alpha1.LinkAccessSpec{
-					Roles: []v1alpha1.LinkAccessRole{
+				Spec: v1alpha1.RouterAccessSpec{
+					Roles: []v1alpha1.RouterAccessRole{
 						{
-							Role: "inter-router",
+							Name: "inter-router",
 							Port: 55671,
 						},
 						{
-							Role: "edge",
+							Name: "edge",
 							Port: 45671,
 						},
 					},
@@ -202,15 +202,21 @@ func fakeSiteState() *SiteState {
 					Name: "link-one",
 				},
 				Spec: v1alpha1.LinkSpec{
-					InterRouter: v1alpha1.HostPort{
-						Host: "127.0.0.1",
-						Port: 55671,
+					Endpoints: []v1alpha1.Endpoint{
+						{
+							Name:  "inter-router",
+							Host:  "127.0.0.1",
+							Port:  "55671",
+							Group: "", // TODO What should I use here?
+						},
+						{
+							Name:  "edge",
+							Host:  "127.0.0.1",
+							Port:  "45671",
+							Group: "", // TODO What should I use here?
+						},
 					},
-					Edge: v1alpha1.HostPort{
-						Host: "127.0.0.1",
-						Port: 45671,
-					},
-					TlsCredentials: "link-one-profile",
+					TlsCredentials: "link-one",
 					Cost:           1,
 				},
 			},

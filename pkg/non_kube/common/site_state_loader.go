@@ -76,10 +76,10 @@ func LoadIntoSiteState(reader *bufio.Reader, siteState *apis.SiteState) error {
 				var connector v1alpha1.Connector
 				runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &connector)
 				siteState.Connectors[connector.Name] = &connector
-			case "LinkAccess":
-				var linkAccess v1alpha1.LinkAccess
-				runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &linkAccess)
-				siteState.LinkAccesses[linkAccess.Name] = &linkAccess
+			case "RouterAccess":
+				var routerAccess v1alpha1.RouterAccess
+				runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &routerAccess)
+				siteState.RouterAccesses[routerAccess.Name] = &routerAccess
 			case "Grant":
 				var grant v1alpha1.Grant
 				runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &grant)

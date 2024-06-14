@@ -15,7 +15,7 @@ func CopySiteState(siteState *apis.SiteState) *apis.SiteState {
 	activeSiteState.SiteId = siteState.SiteId
 	activeSiteState.Listeners = maps.Clone(siteState.Listeners)
 	activeSiteState.Connectors = maps.Clone(siteState.Connectors)
-	activeSiteState.LinkAccesses = maps.Clone(siteState.LinkAccesses)
+	activeSiteState.RouterAccesses = maps.Clone(siteState.RouterAccesses)
 	activeSiteState.Claims = maps.Clone(siteState.Claims)
 	activeSiteState.Links = maps.Clone(siteState.Links)
 	activeSiteState.Grants = maps.Clone(siteState.Grants)

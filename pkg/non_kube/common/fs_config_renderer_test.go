@@ -132,7 +132,7 @@ func fakeSiteState() *apis.SiteState {
 				},
 			},
 		},
-		LinkAccesses: map[string]*v1alpha1.LinkAccess{
+		RouterAccesses: map[string]*v1alpha1.RouterAccess{
 			"link-access-one": {
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "LinkAccess",
@@ -141,14 +141,14 @@ func fakeSiteState() *apis.SiteState {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "link-access-one",
 				},
-				Spec: v1alpha1.LinkAccessSpec{
-					Roles: []v1alpha1.LinkAccessRole{
+				Spec: v1alpha1.RouterAccessSpec{
+					Roles: []v1alpha1.RouterAccessRole{
 						{
-							Role: "inter-router",
+							Name: "inter-router",
 							Port: 55671,
 						},
 						{
-							Role: "edge",
+							Name: "edge",
 							Port: 45671,
 						},
 					},
@@ -171,27 +171,33 @@ func fakeSiteState() *apis.SiteState {
 					Name: "link-one",
 				},
 				Spec: v1alpha1.LinkSpec{
-					InterRouter: v1alpha1.HostPort{
-						Host: "127.0.0.1",
-						Port: 55671,
+					Endpoints: []v1alpha1.Endpoint{
+						{
+							Name:  "inter-router",
+							Host:  "127.0.0.1",
+							Port:  "55671",
+							Group: "", // TODO ?
+						},
+						{
+							Name:  "edge",
+							Host:  "127.0.0.1",
+							Port:  "45671",
+							Group: "", // TODO ?
+						},
 					},
-					Edge: v1alpha1.HostPort{
-						Host: "127.0.0.1",
-						Port: 45671,
-					},
-					TlsCredentials: "link-one-profile",
+					TlsCredentials: "link-one",
 					Cost:           1,
 				},
 			},
 		},
 		Secrets: map[string]*corev1.Secret{
-			"link-one-profile": {
+			"link-one": {
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Secret",
 					APIVersion: "v1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "link-one-profile",
+					Name: "link-one",
 				},
 				Data: map[string][]byte{
 					"ca.crt":  []byte("ca.crt"),

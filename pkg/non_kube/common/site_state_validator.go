@@ -34,7 +34,7 @@ func (s *SiteStateValidator) Validate(siteState *apis.SiteState) error {
 	if err = s.validateSite(siteState.Site); err != nil {
 		return err
 	}
-	if err = s.validateLinkAccesses(siteState.LinkAccesses); err != nil {
+	if err = s.validateRouterAccesses(siteState.RouterAccesses); err != nil {
 		return err
 	}
 	if err = s.validateLinks(siteState.Links, siteState.Secrets); err != nil {
@@ -63,21 +63,21 @@ func (s *SiteStateValidator) validateSite(site *v1alpha1.Site) error {
 	return nil
 }
 
-func (s *SiteStateValidator) validateLinkAccesses(linkAccesses map[string]*v1alpha1.LinkAccess) error {
-	for _, linkAccess := range linkAccesses {
-		if err := ValidateName(linkAccess.Name); err != nil {
-			return fmt.Errorf("invalid link access name: %w", err)
+func (s *SiteStateValidator) validateRouterAccesses(routerAccesses map[string]*v1alpha1.RouterAccess) error {
+	for _, routerAccess := range routerAccesses {
+		if err := ValidateName(routerAccess.Name); err != nil {
+			return fmt.Errorf("invalid router access name: %w", err)
 		}
-		if linkAccess.Spec.TlsCredentials == "" {
-			return fmt.Errorf("invalid link access tls credentials: empty")
+		if routerAccess.Spec.TlsCredentials == "" {
+			return fmt.Errorf("invalid router access tls credentials: empty")
 		}
-		if len(linkAccess.Spec.Roles) == 0 {
-			return fmt.Errorf("invalid link access: roles are required")
+		if len(routerAccess.Spec.Roles) == 0 {
+			return fmt.Errorf("invalid router access: roles are required")
 		}
-		for _, role := range linkAccess.Spec.Roles {
-			if !utils.StringSliceContains(validLinkAccessRoles, role.Role) {
-				return fmt.Errorf("invalid link access: %s - invalid role: %s (valid roles: %s)",
-					linkAccess.Name, role.Role, validLinkAccessRoles)
+		for _, role := range routerAccess.Spec.Roles {
+			if !utils.StringSliceContains(validLinkAccessRoles, role.Name) {
+				return fmt.Errorf("invalid router access: %s - invalid role: %s (valid roles: %s)",
+					routerAccess.Name, role.Name, validLinkAccessRoles)
 			}
 		}
 	}

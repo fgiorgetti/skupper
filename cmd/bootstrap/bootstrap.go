@@ -42,6 +42,11 @@ func main() {
 	var inputPath string
 	var outputPath string
 	inputPath = flag.Arg(0)
+
+	if platform.IsKubernetes() {
+		// Bootstrap uses podman as the default platform
+		_ = os.Setenv(types.ENV_PLATFORM, "podman")
+	}
 	if apis.IsRunningInContainer() {
 		//
 		inputPath = "/input"

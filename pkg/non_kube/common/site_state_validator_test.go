@@ -28,41 +28,41 @@ func TestSiteStateValidator_Validate(t *testing.T) {
 		{
 			info: "invalid-link-access-name",
 			siteState: customize(func(siteState *apis.SiteState) {
-				for _, la := range siteState.LinkAccesses {
+				for _, la := range siteState.RouterAccesses {
 					la.Name = "bad_name"
 					break
 				}
 			}),
 			valid:         false,
-			errorContains: "invalid link access name:",
+			errorContains: "invalid router access name:",
 		},
 		{
 			info: "invalid-link-access-tlsCredentials-required",
 			siteState: customize(func(siteState *apis.SiteState) {
-				for _, la := range siteState.LinkAccesses {
+				for _, la := range siteState.RouterAccesses {
 					la.Spec.TlsCredentials = ""
 					break
 				}
 			}),
 			valid:         false,
-			errorContains: "invalid link access tls credentials: empty",
+			errorContains: "invalid router access tls credentials: empty",
 		},
 		{
 			info: "invalid-link-access-roles-required",
 			siteState: customize(func(siteState *apis.SiteState) {
-				for _, la := range siteState.LinkAccesses {
-					la.Spec.Roles = make([]v1alpha1.LinkAccessRole, 0)
+				for _, la := range siteState.RouterAccesses {
+					la.Spec.Roles = make([]v1alpha1.RouterAccessRole, 0)
 					break
 				}
 			}),
 			valid:         false,
-			errorContains: "invalid link access: roles are required",
+			errorContains: "invalid router access: roles are required",
 		},
 		{
 			info: "invalid-link-access-roles-invalid-role",
 			siteState: customize(func(siteState *apis.SiteState) {
-				for _, la := range siteState.LinkAccesses {
-					la.Spec.Roles[0].Role = "bad-role"
+				for _, la := range siteState.RouterAccesses {
+					la.Spec.Roles[0].Name = "bad-role"
 					break
 				}
 			}),

@@ -39,6 +39,7 @@ type systemdServiceInfo struct {
 	Site                *v1alpha1.Site
 	SiteScriptPath      string
 	SiteConfigPath      string
+	SiteHomePath        string
 	RuntimeDir          string
 	getUid              apis.IdGetter
 	command             CommandExecutor
@@ -46,12 +47,12 @@ type systemdServiceInfo struct {
 }
 
 func NewSystemdServiceInfo(site *v1alpha1.Site) (SystemdService, error) {
-	siteHomeDir, err := apis.GetHostSiteHome(site)
+	siteHomePath, err := apis.GetHostSiteHome(site)
 	if err != nil {
 		return nil, err
 	}
-	siteScriptPath := path.Join(siteHomeDir, RuntimeScriptsPath)
-	siteConfigPath := path.Join(siteHomeDir, ConfigRouterPath)
+	siteScriptPath := path.Join(siteHomePath, RuntimeScriptsPath)
+	siteConfigPath := path.Join(siteHomePath, ConfigRouterPath)
 	return &systemdServiceInfo{
 		Site:                site,
 		SiteScriptPath:      siteScriptPath,

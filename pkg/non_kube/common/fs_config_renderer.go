@@ -10,12 +10,10 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/skupperproject/skupper/pkg/apis/skupper/v1alpha1"
 	"github.com/skupperproject/skupper/pkg/certs"
 	"github.com/skupperproject/skupper/pkg/config"
 	"github.com/skupperproject/skupper/pkg/non_kube/apis"
 	"github.com/skupperproject/skupper/pkg/qdr"
-	"github.com/skupperproject/skupper/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -158,61 +156,21 @@ func (c *FileSystemConfigurationRenderer) MarshalSiteStates(loadedSiteState, run
 
 func (c *FileSystemConfigurationRenderer) createTokens(siteState *apis.SiteState) error {
 	tokens := make([]apis.Token, 0)
-	for name, linkAccess := range siteState.LinkAccesses {
-		interRouter := 0
-		edge := 0
-		for _, role := range linkAccess.Spec.Roles {
-			switch role.Role {
-			case "inter-router":
-				interRouter = role.Port
-			case "edge":
-				edge = role.Port
-			}
-		}
-		if interRouter == 0 && edge == 0 {
-			continue
-		}
-		linkName := fmt.Sprintf("link-%s", name)
+	for name, linkAccess := range siteState.RouterAccesses {
 		secretName := fmt.Sprintf("client-%s", name)
 		secret, err := c.loadClientSecret(secretName)
 		if err != nil {
 			return fmt.Errorf("unable to load client secret %s: %v", secretName, err)
 		}
-		// adjusting name to match the standard used by pkg/site/link.go
-		secret.Name = fmt.Sprintf("link-%s-profile", name)
-		token := apis.Token{
-			Link: &v1alpha1.Link{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "skupper.io/v1alpha1",
-					Kind:       "Link",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: linkName,
-				},
-				Spec: v1alpha1.LinkSpec{
-					TlsCredentials: secret.Name,
-					Cost:           1,
-				},
-			},
-			Secret: secret,
+		token := apis.CreateToken(linkAccess, secret)
+		// routerAccess is not valid (no inter-router or edge endpoints)
+		if token == nil {
+			continue
 		}
-		linkHost := utils.DefaultStr(linkAccess.Spec.BindHost, "127.0.0.1")
-		if interRouter > 0 {
-			token.Link.Spec.InterRouter = v1alpha1.HostPort{
-				Host: linkHost,
-				Port: interRouter,
-			}
-		}
-		if edge > 0 {
-			token.Link.Spec.Edge = v1alpha1.HostPort{
-				Host: linkHost,
-				Port: edge,
-			}
-		}
-		tokens = append(tokens, token)
+		tokens = append(tokens, *token)
 	}
 	for _, token := range tokens {
-		tokenPath := path.Join(c.OutputPath, RuntimeTokenPath, fmt.Sprintf("%s.yaml", token.Link.Name))
+		tokenPath := path.Join(c.OutputPath, RuntimeTokenPath, fmt.Sprintf("%s.yaml", token.Links[0].Name))
 		tokenYaml, err := token.Marshal()
 		if err != nil {
 			return fmt.Errorf("unable to marshal token: %v", err)
@@ -326,7 +284,7 @@ func (c *FileSystemConfigurationRenderer) createTlsCertificates(siteState *apis.
 		if !ok {
 			return fmt.Errorf("secret %s not found", secretName)
 		}
-		certPath := path.Join(c.OutputPath, "certificates", "link", secretName)
+		certPath := path.Join(c.OutputPath, "certificates", "link", secretName+"-profile")
 		err = writeSecretFiles(certPath, secret)
 		if err != nil {
 			return err
@@ -338,9 +296,9 @@ func (c *FileSystemConfigurationRenderer) createTlsCertificates(siteState *apis.
 func (c *FileSystemConfigurationRenderer) connectJson(siteState *apis.SiteState) *string {
 	var host string
 	port := 0
-	for _, la := range siteState.LinkAccesses {
+	for _, la := range siteState.RouterAccesses {
 		for _, role := range la.Spec.Roles {
-			if role.Role == "normal" {
+			if role.Name == "normal" {
 				port = role.Port
 				// TODO adjust once model is refined
 				host = getOption(la.Spec.Options, "bindIp", "127.0.0.1")
