@@ -194,7 +194,7 @@ func TestSiteStateValidator_Validate(t *testing.T) {
 		{
 			info: "invalid-claim-name",
 			siteState: customize(func(siteState *apis.SiteState) {
-				siteState.Claims["bad_name"] = &v1alpha1.Claim{
+				siteState.Claims["bad_name"] = &v1alpha1.AccessToken{
 					TypeMeta: metav1.TypeMeta{
 						Kind:       "Claim",
 						APIVersion: v1alpha1.SchemeGroupVersion.String(),
@@ -205,12 +205,12 @@ func TestSiteStateValidator_Validate(t *testing.T) {
 				}
 			}),
 			valid:         false,
-			errorContains: "invalid claim name: ",
+			errorContains: "invalid access token name: ",
 		},
 		{
 			info: "invalid-grant-name",
 			siteState: customize(func(siteState *apis.SiteState) {
-				siteState.Grants["bad_name"] = &v1alpha1.Grant{
+				siteState.Grants["bad_name"] = &v1alpha1.AccessGrant{
 					TypeMeta: metav1.TypeMeta{
 						Kind:       "Grant",
 						APIVersion: v1alpha1.SchemeGroupVersion.String(),

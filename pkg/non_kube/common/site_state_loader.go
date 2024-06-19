@@ -81,7 +81,7 @@ func LoadIntoSiteState(reader *bufio.Reader, siteState *apis.SiteState) error {
 				runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &routerAccess)
 				siteState.RouterAccesses[routerAccess.Name] = &routerAccess
 			case "Grant":
-				var grant v1alpha1.Grant
+				var grant v1alpha1.AccessGrant
 				runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &grant)
 				siteState.Grants[grant.Name] = &grant
 			case "Link":
@@ -89,7 +89,7 @@ func LoadIntoSiteState(reader *bufio.Reader, siteState *apis.SiteState) error {
 				runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &link)
 				siteState.Links[link.Name] = &link
 			case "Claim":
-				var claim v1alpha1.Claim
+				var claim v1alpha1.AccessToken
 				runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(runtime.Unstructured).UnstructuredContent(), &claim)
 				siteState.Claims[claim.Name] = &claim
 			case "Certificate":

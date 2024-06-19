@@ -20,7 +20,7 @@ type Token struct {
 }
 
 func (t *Token) Marshal() ([]byte, error) {
-	s := json.NewYAMLSerializer(json.DefaultMetaFactory, scheme.Scheme, scheme.Scheme)
+	s := json.NewSerializerWithOptions(json.DefaultMetaFactory, scheme.Scheme, scheme.Scheme, json.SerializerOptions{Yaml: true})
 	buffer := new(bytes.Buffer)
 	writer := bufio.NewWriter(buffer)
 	_, _ = writer.Write([]byte("---\n"))
@@ -34,7 +34,9 @@ func (t *Token) Marshal() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		writer.Flush()
+		if err = writer.Flush(); err != nil {
+			return nil, err
+		}
 	}
 	return buffer.Bytes(), nil
 }

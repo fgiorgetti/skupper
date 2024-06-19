@@ -28,10 +28,10 @@ type SiteState struct {
 	Listeners       map[string]*v1alpha1.Listener
 	Connectors      map[string]*v1alpha1.Connector
 	RouterAccesses  map[string]*v1alpha1.RouterAccess
-	Grants          map[string]*v1alpha1.Grant
+	Grants          map[string]*v1alpha1.AccessGrant
 	Links           map[string]*v1alpha1.Link
 	Secrets         map[string]*corev1.Secret
-	Claims          map[string]*v1alpha1.Claim
+	Claims          map[string]*v1alpha1.AccessToken
 	Certificates    map[string]*v1alpha1.Certificate
 	SecuredAccesses map[string]*v1alpha1.SecuredAccess
 }
@@ -42,10 +42,10 @@ func NewSiteState() *SiteState {
 		Listeners:       make(map[string]*v1alpha1.Listener),
 		Connectors:      make(map[string]*v1alpha1.Connector),
 		RouterAccesses:  map[string]*v1alpha1.RouterAccess{},
-		Grants:          make(map[string]*v1alpha1.Grant),
+		Grants:          make(map[string]*v1alpha1.AccessGrant),
 		Links:           make(map[string]*v1alpha1.Link),
 		Secrets:         make(map[string]*corev1.Secret),
-		Claims:          make(map[string]*v1alpha1.Claim),
+		Claims:          make(map[string]*v1alpha1.AccessToken),
 		Certificates:    map[string]*v1alpha1.Certificate{},
 		SecuredAccesses: map[string]*v1alpha1.SecuredAccess{},
 	}

@@ -1,7 +1,7 @@
 set -Ceu
 
 IMAGE="quay.io/fgiorgetti/bootstrap"
-INPUT_PATH="${1:-}"
+INPUT_PATH="${1:-${PWD}}"
 OUTPUT_PATH="${XDG_DATA_HOME:-${HOME}/.local/share}/skupper"
 SERVICE_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user"
 LOG_FILE="$(mktemp /tmp/skupper-bootstrap.XXXXX.log)"

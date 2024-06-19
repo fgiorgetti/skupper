@@ -34,6 +34,10 @@ remove_service() {
 }
 
 main () {
+    if [[ ! "${site}" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]]; then
+        echo "Invalid site name"
+        exit 0
+    fi
     if [[ ! -d "${sites_path}/${site}" ]]; then
         echo "Site does not exist"
         exit 0

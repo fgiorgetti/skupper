@@ -103,16 +103,16 @@ func (s *SiteStateValidator) validateLinks(links map[string]*v1alpha1.Link, secr
 	return nil
 }
 
-func (s *SiteStateValidator) validateClaims(claims map[string]*v1alpha1.Claim) error {
+func (s *SiteStateValidator) validateClaims(claims map[string]*v1alpha1.AccessToken) error {
 	for _, claim := range claims {
 		if err := ValidateName(claim.Name); err != nil {
-			return fmt.Errorf("invalid claim name: %w", err)
+			return fmt.Errorf("invalid access token name: %w", err)
 		}
 	}
 	return nil
 }
 
-func (s *SiteStateValidator) validateGrants(grants map[string]*v1alpha1.Grant) error {
+func (s *SiteStateValidator) validateGrants(grants map[string]*v1alpha1.AccessGrant) error {
 	for _, grant := range grants {
 		if err := ValidateName(grant.Name); err != nil {
 			return fmt.Errorf("invalid grant name: %w", err)

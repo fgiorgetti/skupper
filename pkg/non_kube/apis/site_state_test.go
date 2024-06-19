@@ -195,7 +195,7 @@ func fakeSiteState() *SiteState {
 				},
 			},
 		},
-		Grants: make(map[string]*v1alpha1.Grant),
+		Grants: make(map[string]*v1alpha1.AccessGrant),
 		Links: map[string]*v1alpha1.Link{
 			"link-one": {
 				ObjectMeta: metav1.ObjectMeta{
@@ -233,7 +233,7 @@ func fakeSiteState() *SiteState {
 				},
 			},
 		},
-		Claims:          make(map[string]*v1alpha1.Claim),
+		Claims:          make(map[string]*v1alpha1.AccessToken),
 		Certificates:    make(map[string]*v1alpha1.Certificate),
 		SecuredAccesses: make(map[string]*v1alpha1.SecuredAccess),
 	}
