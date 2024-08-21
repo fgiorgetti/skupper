@@ -117,10 +117,10 @@ parse_opts() {
 create_service() {
     # if systemd is not available, skip it
     ${SYSTEMCTL} list-units > /dev/null 2>&1 || return
-    service_name="skupper.service"
+    service_name="skupper-${NAMESPACE}.service"
     service_file_suffix="container"
     [ "${SKUPPER_PLATFORM}" = "systemd" ] && service_file_suffix="systemd"
-    service_file="${SKUPPER_OUTPUT_PATH}/namespaces/${NAMESPACE}/runtime/scripts/${service_name}.${service_file_suffix}"
+    service_file="${SKUPPER_OUTPUT_PATH}/namespaces/${NAMESPACE}/runtime/scripts/skupper.service.${service_file_suffix}"
 
     if [ ! -f "${service_file}" ]; then
         echo "SystemD service has not been defined"
@@ -174,14 +174,14 @@ remove_site() {
 }
 
 dump_tokens() {
-    tokens="$(ls "./${SITE_NAME}/runtime/token/")"
+    tokens="$(ls "./${SOURCE_NAMESPACE}/runtime/token/")"
     if [ -z "${tokens}" ]; then
         echo "No tokens defined in this site bundle"
         return
     fi
     token_out_dir="${SKUPPER_TOKEN_OUTPUT_PATH:?}/${SITE_NAME:?}"
     mkdir -p "${token_out_dir}"
-    cp "./${SITE_NAME}/runtime/token/"*.yaml "${token_out_dir}"
+    cp "./${SOURCE_NAMESPACE}/runtime/token/"*.yaml "${token_out_dir}"
     echo "Tokens for site \"${SITE_NAME}\" have been saved into ${token_out_dir}"
 }
 

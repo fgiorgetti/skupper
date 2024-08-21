@@ -33,7 +33,7 @@ func CreateSystemdServices(siteState *api.SiteState) error {
 		if err != nil {
 			return fmt.Errorf("failed to execute %s service template: %w", platform, err)
 		}
-		serviceFile := path.Join(scriptsPath, fmt.Sprintf("skupper-%s.service.%s", siteState.Site.Name, platform))
+		serviceFile := path.Join(scriptsPath, fmt.Sprintf("skupper.service.%s", platform))
 		err = os.WriteFile(serviceFile, buf.Bytes(), 0644)
 		if err != nil {
 			return fmt.Errorf("failed to write %s service file: %w", platform, err)

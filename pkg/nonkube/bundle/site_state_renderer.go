@@ -108,12 +108,12 @@ func (s *SiteStateRenderer) prepareContainers() error {
 		},
 		FileMounts: []container.FileMount{
 			{
-				Source:      path.Join("{{.NamespacesPath}}", s.siteState.Site.Namespace, "config/router"),
+				Source:      path.Join("{{.NamespacesPath}}", "{{.Namespace}}", "config/router"),
 				Destination: "/etc/skupper-router/config",
 				Options:     []string{"z"},
 			},
 			{
-				Source:      path.Join("{{.NamespacesPath}}", s.siteState.Site.Namespace, "certificates"),
+				Source:      path.Join("{{.NamespacesPath}}", "{{.Namespace}}", "certificates"),
 				Destination: "/etc/skupper-router/certificates",
 				Options:     []string{"z"},
 			},
