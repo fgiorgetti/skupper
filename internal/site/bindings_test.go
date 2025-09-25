@@ -496,7 +496,7 @@ func TestBindings_Apply(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b := NewBindings(tt.fields.path)
+			b := NewBindings(tt.fields.path, true)
 			b.SetSiteId(tt.fields.SiteId)
 			if tt.fields.listenerConfiguration != nil {
 				b.SetListenerConfiguration(tt.fields.listenerConfiguration)
@@ -728,7 +728,7 @@ func TestBindings_UpdateListener(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b := NewBindings("")
+			b := NewBindings("", false)
 			b.SetSiteId(tt.fields.SiteId)
 			for _, listener := range tt.fields.listeners {
 				b.UpdateListener(listener.Name, listener)
@@ -927,7 +927,7 @@ func TestBindings_UpdateConnector(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b := NewBindings("")
+			b := NewBindings("", false)
 			b.SetSiteId(tt.fields.SiteId)
 			for _, listener := range tt.fields.listeners {
 				b.UpdateListener(listener.Name, listener)

@@ -10,6 +10,9 @@ import (
 func UpdateBridgeConfigForListener(siteId string, listener *skupperv2alpha1.Listener, config *qdr.BridgeConfig) {
 	UpdateBridgeConfigForListenerWithHostAndPort(siteId, listener, listener.Spec.Host, listener.Spec.Port, config)
 }
+func UpdateBridgeConfigForListenerEmptyHost(siteId string, listener *skupperv2alpha1.Listener, config *qdr.BridgeConfig) {
+	UpdateBridgeConfigForListenerWithHostAndPort(siteId, listener, "", listener.Spec.Port, config)
+}
 
 func UpdateBridgeConfigForListenerWithHostAndPort(siteId string, listener *skupperv2alpha1.Listener, host string, port int, config *qdr.BridgeConfig) {
 	name := listener.Name

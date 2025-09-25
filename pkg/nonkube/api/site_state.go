@@ -265,7 +265,7 @@ func (s *SiteState) linkMap(sslProfileBasePath string) site.LinkMap {
 }
 
 func (s *SiteState) bindings(sslProfileBasePath string) *site.Bindings {
-	b := site.NewBindings(path.Join(sslProfileBasePath, string(CertificatesPath)))
+	b := site.NewBindings(path.Join(sslProfileBasePath, string(CertificatesPath)), true)
 	for name, connector := range s.Connectors {
 		connector.SetConfigured(nil)
 		_ = b.UpdateConnector(name, connector)

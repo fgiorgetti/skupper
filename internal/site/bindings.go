@@ -32,13 +32,17 @@ type Bindings struct {
 	}
 }
 
-func NewBindings(profilePath string) *Bindings {
+func NewBindings(profilePath string, useListenerHost bool) *Bindings {
 	bindings := &Bindings{
 		ProfilePath: profilePath,
 		connectors:  map[string]*skupperv2alpha1.Connector{},
 		listeners:   map[string]*skupperv2alpha1.Listener{},
 	}
-	bindings.configure.listener = UpdateBridgeConfigForListener
+	if useListenerHost {
+		bindings.configure.listener = UpdateBridgeConfigForListener
+	} else {
+		bindings.configure.listener = UpdateBridgeConfigForListenerEmptyHost
+	}
 	bindings.configure.connector = UpdateBridgeConfigForConnector
 	return bindings
 }

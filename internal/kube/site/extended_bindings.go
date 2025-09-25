@@ -26,7 +26,7 @@ type ExtendedBindings struct {
 
 func NewExtendedBindings(controller *watchers.EventProcessor, profilePath string) *ExtendedBindings {
 	eb := &ExtendedBindings{
-		bindings:           site.NewBindings(profilePath),
+		bindings:           site.NewBindings(profilePath, false),
 		connectors:         map[string]*AttachedConnector{},
 		perTargetListeners: map[string]*PerTargetListener{},
 		listenerHosts:      map[string]string{},
