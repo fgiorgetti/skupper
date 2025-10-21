@@ -549,6 +549,33 @@ func (c *EventProcessor) WatchAttachedConnectors(namespace string, handler Attac
 	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
 }
 
+func (c *EventProcessor) WatchManagedSite(namespace string, handler ManagedSiteHandler) *ManagedSiteWatcher {
+	informer := skupperv2alpha1informer.NewManagedSiteInformer(
+		c.skupperClient,
+		namespace,
+		time.Second*30,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
+}
+
+func (c *EventProcessor) WatchManagementLink(namespace string, handler ManagementLinkHandler) *ManagementLinkWatcher {
+	informer := skupperv2alpha1informer.NewManagementLinkInformer(
+		c.skupperClient,
+		namespace,
+		time.Second*30,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
+}
+
+func (c *EventProcessor) WatchInterNetworkIngress(namespace string, handler InterNetworkIngressHandler) *InterNetworkIngressWatcher {
+	informer := skupperv2alpha1informer.NewInterNetworkIngressInformer(
+		c.skupperClient,
+		namespace,
+		time.Second*30,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
+}
+
 func FilterByNamespace[V any](match func(string) bool, handler func(string, V) error) func(string, V) error {
 	if match == nil {
 		return handler

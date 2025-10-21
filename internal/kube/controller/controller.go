@@ -62,6 +62,7 @@ func skupperRouterConfig() internalinterfaces.TweakListOptionsFunc {
 		options.LabelSelector = "internal.skupper.io/router-config"
 	}
 }
+
 func skupperNetworkStatus() internalinterfaces.TweakListOptionsFunc {
 	return func(options *metav1.ListOptions) {
 		options.FieldSelector = "metadata.name=skupper-network-status"
@@ -137,6 +138,9 @@ func NewController(cli internalclient.Clients, config *Config, options ...watche
 	controller.eventProcessor.WatchAttachedConnectors(config.WatchNamespace, filter(controller, controller.checkAttachedConnector))
 	controller.eventProcessor.WatchAttachedConnectorBindings(config.WatchNamespace, filter(controller, controller.checkAttachedConnectorBinding))
 	controller.eventProcessor.WatchLinks(config.WatchNamespace, filter(controller, controller.checkLink))
+	controller.eventProcessor.WatchManagedSite(config.WatchNamespace, filter(controller, controller.checkManagedSite))
+	controller.eventProcessor.WatchManagementLink(config.WatchNamespace, filter(controller, controller.checkManagementLink))
+	controller.eventProcessor.WatchInterNetworkIngress(config.WatchNamespace, filter(controller, controller.checkInterNetworkIngress))
 	controller.eventProcessor.WatchConfigMaps(skupperNetworkStatus(), config.WatchNamespace, filter(controller, controller.networkStatusUpdate))
 	controller.eventProcessor.WatchConfigMaps(skupperRouterConfig(), config.WatchNamespace, filter(controller, controller.routerConfigUpdate))
 	controller.eventProcessor.WatchAccessTokens(config.WatchNamespace, filter(controller, controller.checkAccessToken))
@@ -539,6 +543,30 @@ func (c *Controller) networkStatusUpdate(key string, cm *corev1.ConfigMap) error
 	}
 	c.log.Debug("Updating network status", slog.String("site", key))
 	return c.getSite(cm.ObjectMeta.Namespace).NetworkStatusUpdated(network.ExtractSiteRecords(status))
+}
+
+func (c *Controller) checkManagedSite(key string, managedSite *skupperv2alpha1.ManagedSite) error {
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return err
+	}
+	return c.getSite(namespace).CheckManagedSite(name, managedSite)
+}
+
+func (c *Controller) checkManagementLink(key string, managementLink *skupperv2alpha1.ManagementLink) error {
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return err
+	}
+	return c.getSite(namespace).CheckManagementLink(name, managementLink)
+}
+
+func (c *Controller) checkInterNetworkIngress(key string, ingress *skupperv2alpha1.InterNetworkIngress) error {
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return err
+	}
+	return c.getSite(namespace).CheckInterNetworkIngress(name, ingress)
 }
 
 func filter[V any](controller *Controller, handler func(string, V) error) func(string, V) error {

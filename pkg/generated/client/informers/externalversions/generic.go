@@ -65,10 +65,16 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().Certificates().Informer()}, nil
 	case v2alpha1.SchemeGroupVersion.WithResource("connectors"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().Connectors().Informer()}, nil
+	case v2alpha1.SchemeGroupVersion.WithResource("internetworkingresses"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().InterNetworkIngresses().Informer()}, nil
 	case v2alpha1.SchemeGroupVersion.WithResource("links"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().Links().Informer()}, nil
 	case v2alpha1.SchemeGroupVersion.WithResource("listeners"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().Listeners().Informer()}, nil
+	case v2alpha1.SchemeGroupVersion.WithResource("managedsites"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().ManagedSites().Informer()}, nil
+	case v2alpha1.SchemeGroupVersion.WithResource("managementlinks"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().ManagementLinks().Informer()}, nil
 	case v2alpha1.SchemeGroupVersion.WithResource("routeraccesses"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().RouterAccesses().Informer()}, nil
 	case v2alpha1.SchemeGroupVersion.WithResource("securedaccesses"):

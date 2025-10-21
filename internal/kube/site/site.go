@@ -9,13 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	internalnetwork "github.com/skupperproject/skupper/internal/network"
-	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-
 	"github.com/skupperproject/skupper/api/types"
 	"github.com/skupperproject/skupper/internal/kube/certificates"
 	internalclient "github.com/skupperproject/skupper/internal/kube/client"
@@ -24,10 +17,16 @@ import (
 	"github.com/skupperproject/skupper/internal/kube/site/resources"
 	"github.com/skupperproject/skupper/internal/kube/site/sizing"
 	"github.com/skupperproject/skupper/internal/kube/watchers"
+	internalnetwork "github.com/skupperproject/skupper/internal/network"
 	"github.com/skupperproject/skupper/internal/qdr"
 	"github.com/skupperproject/skupper/internal/site"
 	"github.com/skupperproject/skupper/internal/version"
 	skupperv2alpha1 "github.com/skupperproject/skupper/pkg/apis/skupper/v2alpha1"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 type SecuredAccessFactory interface {
@@ -45,11 +44,14 @@ type Labelling interface {
 type Site struct {
 	initialised   bool
 	site          *skupperv2alpha1.Site
+	managedSite   ManagedSite
 	name          string
 	namespace     string
 	clients       *watchers.EventProcessor
 	bindings      *ExtendedBindings
 	links         map[string]*site.Link
+	mgmtLinks     map[string]*ManagementLink
+	inetIngress   map[string]*InterNetworkIngress
 	errors        map[string]string
 	linkAccess    site.RouterAccessMap
 	certs         certificates.CertificateManager
@@ -71,6 +73,8 @@ func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs ce
 		namespace:     namespace,
 		clients:       eventProcessor,
 		links:         map[string]*site.Link{},
+		mgmtLinks:     map[string]*ManagementLink{},
+		inetIngress:   map[string]*InterNetworkIngress{},
 		linkAccess:    site.RouterAccessMap{},
 		certs:         certs,
 		access:        access,
@@ -83,6 +87,7 @@ func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs ce
 		labelling:     labelling,
 		disableSecCtx: disableSecCtx,
 	}
+
 	site.profiles = secrets.NewProfilesWatcher(
 		sslSecretsWatcher(namespace, eventProcessor),
 		eventProcessor.GetKubeClient(),
@@ -172,6 +177,7 @@ func (s *Site) reconcile(siteDef *skupperv2alpha1.Site, inRecovery bool) error {
 		s.bindings.init(s, routerConfig)
 		s.setBindingsConfiguredStatus(nil)
 		s.checkSecuredAccess()
+		s.managedSite.init(routerConfig)
 	} else if len(s.currentGroups) != len(s.groups()) {
 		s.logger.Info("EnableHA setting changed for site",
 			slog.String("namespace", siteDef.Namespace),
@@ -671,6 +677,9 @@ func isOwned(service *corev1.Service) bool {
 }
 
 func (s *Site) ownerReferences() []metav1.OwnerReference {
+	if s.site == nil {
+		return []metav1.OwnerReference{}
+	}
 	return []metav1.OwnerReference{
 		{
 			Kind:       "Site",
@@ -827,6 +836,10 @@ func (s *Site) createRouterConfigForGroup(group string, config *qdr.RouterConfig
 func (s *Site) updateRouterConfig(update qdr.ConfigUpdate) error {
 	for _, group := range s.groups() {
 		if err := s.updateRouterConfigForGroup(update, group); err != nil {
+			s.logger.Error("Error updating router config for site",
+				slog.String("namespace", s.namespace),
+				slog.String("name", s.name),
+				slog.Any("error", err))
 			return err
 		}
 	}
@@ -1410,6 +1423,170 @@ func (s *Site) TLSPriorValidRevisions() uint64 {
 		}
 	}
 	return revisions
+}
+
+func (s *Site) CheckManagedSite(name string, managedSite *skupperv2alpha1.ManagedSite) error {
+	const expectedName = "network"
+	var err error
+	cli := s.clients.GetSkupperClient().SkupperV2alpha1().ManagedSites(s.namespace)
+
+	if name != expectedName {
+		if managedSite != nil {
+			if managedSite.SetError(expectedName) {
+				s.logger.Info("ManagedSites are handled as a singleton and it must be named: network",
+					slog.String("namespace", s.namespace),
+					slog.String("name", name))
+				_, err = cli.UpdateStatus(context.Background(), managedSite, metav1.UpdateOptions{})
+			}
+		}
+		return err
+	}
+
+	if !s.IsInitialised() {
+		if managedSite == nil {
+			return nil
+		}
+		if managedSite.SetConfigured(false) {
+			s.logger.Info("ManagedSite set to pending as site is not initialised", slog.String("namespace", s.namespace), slog.String("name", name))
+			_, err = cli.UpdateStatus(context.Background(), managedSite, metav1.UpdateOptions{})
+		}
+		return err
+	}
+	if s.managedSite.Update(s.namespace, name, managedSite) {
+		err = s.updateRouterConfig(&s.managedSite)
+	}
+	if managedSite == nil {
+		return err
+	}
+	if managedSite.SetConfigured(true) {
+		_, updErr := cli.UpdateStatus(context.Background(), managedSite, metav1.UpdateOptions{})
+		if updErr != nil {
+			err = stderrors.Join(err, updErr)
+			s.logger.Error("unable to set ManagedSite status to Ready",
+				slog.String("namespace", s.namespace),
+				slog.String("name", name),
+				slog.Any("error", err))
+		}
+	}
+	return err
+}
+
+func (s *Site) CheckManagementLink(name string, link *skupperv2alpha1.ManagementLink) error {
+	var err error
+	cli := s.clients.GetSkupperClient().SkupperV2alpha1().ManagementLinks(s.namespace)
+	logger := s.logger.With(
+		slog.String("namespace", s.namespace),
+		slog.String("name", name),
+	)
+	if !s.IsInitialised() {
+		if link == nil {
+			return nil
+		}
+		if link.SetConfigured(false) && link.Status.SetStatusMessage("Site is not initialized") {
+			logger.Info("ManagementLink set to pending as site is not initialised")
+			_, err = cli.UpdateStatus(context.Background(), link, metav1.UpdateOptions{})
+		}
+		return err
+	}
+	var update qdr.ConfigUpdate
+	if existing, ok := s.mgmtLinks[name]; ok {
+		if existing.Update(s.managedSite.NetworkId, link) {
+			update = existing
+		}
+	} else {
+		newLink := &ManagementLink{
+			Name:      name,
+			Link:      link,
+			NetworkId: s.managedSite.NetworkId,
+		}
+		s.mgmtLinks[name] = newLink
+		if s.managedSite.NetworkId != "" {
+			update = newLink
+		}
+	}
+	if update == nil {
+		return nil
+	}
+	logger.Info("ManagementLink has changed, updating router config")
+	err = s.updateRouterConfig(update)
+	if link == nil {
+		delete(s.mgmtLinks, name)
+		return err
+	}
+	if err != nil {
+		link.SetError(err)
+	} else {
+		if s.managedSite.NetworkId != "" {
+			link.SetConfigured(true)
+		} else {
+			link.SetConfigured(false)
+			link.Status.SetStatusMessage("Network Id is not yet defined")
+		}
+	}
+	if _, updErr := cli.UpdateStatus(context.Background(), link, metav1.UpdateOptions{}); updErr != nil {
+		logger.Error("error updating ManagementLink status",
+			slog.Any("error", err),
+		)
+	}
+	return err
+}
+
+func (s *Site) CheckInterNetworkIngress(name string, ingress *skupperv2alpha1.InterNetworkIngress) error {
+	var err error
+	cli := s.clients.GetSkupperClient().SkupperV2alpha1().InterNetworkIngresses(s.namespace)
+	logger := s.logger.With(
+		slog.String("namespace", s.namespace),
+		slog.String("name", name),
+	)
+	if !s.IsInitialised() {
+		if ingress == nil {
+			return nil
+		}
+		if ingress.SetConfigured(false) && ingress.Status.SetStatusMessage("Site is not initialized") {
+			logger.Info("InterNetworkIngress set to pending as site is not initialised")
+			_, err = cli.UpdateStatus(context.Background(), ingress, metav1.UpdateOptions{})
+		}
+		return err
+	}
+	var update qdr.ConfigUpdate
+	var existingLink *ManagementLink
+	if existing, ok := s.inetIngress[name]; ok {
+		var mgmtLink *ManagementLink
+		if ingress != nil {
+			mgmtLink = s.mgmtLinks[ingress.Spec.ManagementLink]
+		}
+		if existing.Update(ingress, mgmtLink) {
+			update = existing
+		}
+		existingLink = existing.Link
+	} else if ingress != nil {
+		newIngress := NewInterNetworkIngress(ingress, s.mgmtLinks[ingress.Spec.ManagementLink])
+		s.inetIngress[name] = newIngress
+		existingLink = newIngress.Link
+		if newIngress.Link != nil {
+			update = newIngress
+		}
+	}
+	if update == nil {
+		if ingress != nil && existingLink == nil && ingress.SetError(fmt.Errorf("invalid management link")) {
+			_, err = cli.UpdateStatus(context.Background(), ingress, metav1.UpdateOptions{})
+			return err
+		}
+		return nil
+	}
+	logger.Info("InterNetworkIngress has changed, updating router config")
+	err = s.updateRouterConfig(update)
+	if ingress == nil {
+		delete(s.inetIngress, name)
+		return err
+	}
+	ingress.SetError(err)
+	if _, updErr := cli.UpdateStatus(context.Background(), ingress, metav1.UpdateOptions{}); updErr != nil {
+		logger.Error("error updating InterNetworkIngress status",
+			slog.Any("error", err),
+		)
+	}
+	return err
 }
 
 func podState(pod *corev1.Pod) skupperv2alpha1.ConditionState {

@@ -146,6 +146,12 @@ rules:
       - securedaccesses/status
       - certificates
       - certificates/status
+      - managedsites
+      - managedsites/status
+      - managementlinks
+      - managementlinks/status
+      - internetworkingresses
+      - internetworkingresses/status
     verbs:
       - get
       - list
