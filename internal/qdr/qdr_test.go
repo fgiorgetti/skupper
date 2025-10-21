@@ -1,14 +1,17 @@
 package qdr
 
 import (
+	"context"
 	"encoding/json"
 	"reflect"
 	"testing"
 
 	"github.com/skupperproject/skupper/api/types"
+	"github.com/skupperproject/skupper/internal/kube/client"
 	"github.com/skupperproject/skupper/internal/utils"
 	"gotest.tools/v3/assert"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -667,4 +670,45 @@ func TestRecordTypes_GH2081(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGenerateSampleNormalConnector(t *testing.T) {
+	namespace := "west"
+	cli, err := client.NewClient("", "", "")
+	assert.Assert(t, err)
+	config := &RouterConfig{
+		Connectors: map[string]Connector{},
+	}
+	config.AddConnector(Connector{
+		Name: "sample",
+		Role: "normal",
+		Host: "localhost",
+		Port: "12345",
+	})
+	data, err := MarshalRouterConfig(*config)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+	cm := &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "skupper-central-management",
+			Namespace: namespace,
+			Labels: map[string]string{
+				"internal.skupper.io/central-management-config": "",
+			},
+			Annotations: map[string]string{},
+		},
+		Data: AsConfigMapData(data),
+	}
+	_, err = cli.GetKubeClient().CoreV1().ConfigMaps(namespace).Create(context.Background(), cm, metav1.CreateOptions{})
+	if err != nil {
+		if !errors.IsAlreadyExists(err) {
+			t.Fatalf("Failed to create configmap: %v", err)
+		}
+	}
+	t.Logf("Created configmap %s/%s", namespace, cm.Name)
 }

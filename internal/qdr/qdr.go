@@ -714,11 +714,13 @@ func UnmarshalRouterConfig(config string) (RouterConfig, error) {
 
 func MarshalRouterConfig(config RouterConfig) (string, error) {
 	elements := [][]interface{}{}
-	tuple := []interface{}{
-		"router",
-		config.Metadata,
+	if config.Metadata.Id != "" {
+		tuple := []interface{}{
+			"router",
+			config.Metadata,
+		}
+		elements = append(elements, tuple)
 	}
-	elements = append(elements, tuple)
 	for _, e := range config.SslProfiles {
 		tuple := []interface{}{
 			"sslProfile",

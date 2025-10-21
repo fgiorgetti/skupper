@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 
 	internalnetwork "github.com/skupperproject/skupper/internal/network"
 	corev1 "k8s.io/api/core/v1"
@@ -60,6 +61,7 @@ type Site struct {
 	currentGroups []string
 	labelling     Labelling
 	profiles      *secrets.ProfilesWatcher
+	centralConfig *CentralManagementUpdate
 }
 
 func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs certificates.CertificateManager, access SecuredAccessFactory, sizes *sizing.Registry, labelling Labelling) *Site {
@@ -78,7 +80,8 @@ func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs ce
 		logger: logger.With(
 			slog.String("component", "kube.site.site"),
 		),
-		labelling: labelling,
+		labelling:     labelling,
+		centralConfig: NewCentralManagementUpdate(namespace),
 	}
 	site.profiles = secrets.NewProfilesWatcher(
 		sslSecretsWatcher(namespace, eventProcessor),
@@ -1380,6 +1383,18 @@ func (s *Site) TLSPriorValidRevisions() uint64 {
 	return revisions
 }
 
+func (s *Site) SetCentralManagementConfig(key string, config *corev1.ConfigMap) error {
+	err := s.centralConfig.SetFromConfigMap(key, config)
+	if err != nil {
+		return fmt.Errorf("error setting CentralManagementConfig: %w", err)
+	}
+	err = s.updateRouterConfig(s.centralConfig)
+	if err != nil {
+		return fmt.Errorf("error updating router config for CentralManagement: %w", err)
+	}
+	return nil
+}
+
 func podState(pod *corev1.Pod) skupperv2alpha1.ConditionState {
 	for _, c := range pod.Status.Conditions {
 		if c.Status == corev1.ConditionFalse {
@@ -1502,4 +1517,100 @@ func routerAccessOwner(ra *skupperv2alpha1.RouterAccess) []metav1.OwnerReference
 			UID:        ra.ObjectMeta.UID,
 		},
 	}
+}
+
+type CentralManagementUpdate struct {
+	configuration map[string]*qdr.RouterConfig
+	actions       []func(config *qdr.RouterConfig) bool
+	mux           sync.Mutex
+	logger        *slog.Logger
+}
+
+func NewCentralManagementUpdate(namespace string) *CentralManagementUpdate {
+	return &CentralManagementUpdate{
+		configuration: map[string]*qdr.RouterConfig{},
+		logger: slog.New(slog.Default().Handler()).With(
+			slog.String("component", "kube.site.central-management"),
+			slog.String("namespace", namespace),
+		),
+	}
+}
+
+func (c *CentralManagementUpdate) SetFromConfigMap(key string, cm *corev1.ConfigMap) error {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	if cm == nil {
+		if _, ok := c.configuration[key]; ok {
+			return c.delete(key)
+		}
+		return nil
+	}
+	return c.add(key, cm)
+}
+
+func (c *CentralManagementUpdate) Apply(config *qdr.RouterConfig) bool {
+	update := false
+	for len(c.actions) > 0 {
+		var action func(config *qdr.RouterConfig) bool
+		action, c.actions = c.actions[0], c.actions[1:]
+		if action(config) {
+			update = true
+		}
+	}
+	return update
+}
+
+func (c *CentralManagementUpdate) add(key string, cm *corev1.ConfigMap) error {
+	configuration, err := qdr.GetRouterConfigFromConfigMap(cm)
+	if err != nil {
+		return err
+	}
+	c.configuration[key] = configuration
+	c.actions = append(c.actions, func(config *qdr.RouterConfig) bool {
+		update := false
+		// Add connectors
+		for _, connector := range c.configuration[key].Connectors {
+			if config.AddConnector(connector) {
+				update = true
+			}
+		}
+		// Add sslProfiles
+		for _, sslProfile := range c.configuration[key].SslProfiles {
+			if config.AddSslProfile(sslProfile) {
+				update = true
+			}
+		}
+		if update {
+			c.logger.Info("Central management configuration added")
+		}
+		return update
+	})
+	return nil
+}
+
+func (c *CentralManagementUpdate) delete(key string) error {
+	c.actions = append(c.actions, func(config *qdr.RouterConfig) bool {
+		if _, ok := c.configuration[key]; !ok {
+			return false
+		}
+		update := false
+		// Del connectors
+		for name, _ := range c.configuration[key].Connectors {
+			if removed, _ := config.RemoveConnector(name); removed {
+				update = true
+			}
+		}
+		// Del sslProfiles
+		for name, _ := range c.configuration[key].SslProfiles {
+			if config.RemoveSslProfile(name) {
+				update = true
+			}
+		}
+		if update {
+			delete(c.configuration, key)
+			c.logger.Info("Central management configuration deleted")
+		}
+		return update
+	})
+	return nil
 }
