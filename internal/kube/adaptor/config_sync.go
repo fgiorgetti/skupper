@@ -96,6 +96,9 @@ func (c *ConfigSync) configEvent(key string, configmap *corev1.ConfigMap) error 
 	if err != nil {
 		return err
 	}
+	if err := c.syncNetworkConfig(desired.Network); err != nil {
+		return err
+	}
 	if err := c.syncSslProfileCredentialsToDisk(desired.SslProfiles); err != nil {
 		return err
 	}
@@ -108,6 +111,10 @@ func (c *ConfigSync) configEvent(key string, configmap *corev1.ConfigMap) error 
 	}
 	if err := c.syncRouterConfig(desired); err != nil {
 		c.logger.Error("sync failed", slog.Any("error", err))
+		return err
+	}
+	if err := c.syncAutoLinks(desired); err != nil {
+		log.Printf("sync failed: %s", err)
 		return err
 	}
 	return nil
@@ -202,6 +209,33 @@ func syncListeners(agent *qdr.Agent, desired *qdr.RouterConfig) error {
 	return nil
 }
 
+func (c *ConfigSync) syncAutoLinks(desired *qdr.RouterConfig) error {
+	agent, err := c.agentPool.Get()
+	if err != nil {
+		return fmt.Errorf("Could not get management agent : %s", err)
+	}
+	err = syncAutoLinks(agent, desired)
+	if err != nil {
+		return fmt.Errorf("error while syncing auto-links: %w", err)
+	}
+	c.agentPool.Put(agent)
+	return nil
+}
+
+func syncAutoLinks(agent *qdr.Agent, desired *qdr.RouterConfig) error {
+	actual, err := agent.GetAutoLinks()
+	if err != nil {
+		return fmt.Errorf("Error retrieving autoLinks: %s", err)
+	}
+
+	if differences := qdr.AutoLinksDifference(actual, desired); !differences.Empty() {
+		if err = agent.UpdateAutoLinkConfig(differences); err != nil {
+			return fmt.Errorf("Error syncing autoLinks: %s", err)
+		}
+	}
+	return nil
+}
+
 func (c *ConfigSync) syncSslProfilesToRouter(desired map[string]qdr.SslProfile) error {
 	agent, err := c.agentPool.Get()
 	if err != nil {
@@ -254,6 +288,32 @@ func (c *ConfigSync) recoverTracking() error {
 		return err
 	}
 	c.profileSyncer.Recover()
+	return nil
+}
+
+func (c *ConfigSync) syncNetworkConfig(desired qdr.Network) error {
+	agent, err := c.agentPool.Get()
+	if err != nil {
+		return fmt.Errorf("Could not get management agent : %s", err)
+	}
+	err = syncNetwork(agent, desired)
+	if err != nil {
+		return fmt.Errorf("error while syncing network: %w", err)
+	}
+	c.agentPool.Put(agent)
+	return nil
+}
+
+func syncNetwork(agent *qdr.Agent, desired qdr.Network) error {
+	actual, err := agent.GetNetwork()
+	if err != nil {
+		return fmt.Errorf("error retrieving network: %s", err)
+	}
+	if !actual.Equals(desired) {
+		if err = agent.UpdateNetworkConfig(desired); err != nil {
+			return fmt.Errorf("error updating network config: %s", err)
+		}
+	}
 	return nil
 }
 

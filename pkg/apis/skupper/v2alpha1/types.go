@@ -1092,3 +1092,144 @@ type AttachedConnectorBindingSpec struct {
 	ExposePodsByName   bool              `json:"exposePodsByName,omitempty"`
 	Settings           map[string]string `json:"settings,omitempty"`
 }
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+type ManagedSite struct {
+	v1.TypeMeta   `json:",inline"`
+	v1.ObjectMeta `json:"metadata,omitempty"`
+	Spec          ManagedSiteSpec   `json:"spec,omitempty"`
+	Status        ManagedSiteStatus `json:"status,omitempty"`
+}
+
+type ManagedSiteStatus struct {
+	Status `json:",inline"`
+}
+
+func (m *ManagedSite) SetConfigured(ready bool) bool {
+	if m.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ReadyOrPendingCondition(ready), m.ObjectMeta.Generation) {
+		m.Status.setReady([]string{CONDITION_TYPE_CONFIGURED}, m.ObjectMeta.Generation)
+		return true
+	}
+	return false
+}
+
+func (m *ManagedSite) SetError(expectedName string) bool {
+	if m.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ErrorCondition(fmt.Errorf("name must be '%s'", expectedName)), m.ObjectMeta.Generation) {
+		m.Status.setReady([]string{CONDITION_TYPE_CONFIGURED}, m.ObjectMeta.Generation)
+		return true
+	}
+	return false
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ManagedSiteList contains a List of ManagedSite instances
+type ManagedSiteList struct {
+	v1.TypeMeta `json:",inline"`
+	v1.ListMeta `json:"metadata,omitempty"`
+	Items       []ManagedSite `json:"items"`
+}
+
+type ManagedSiteSpec struct {
+	NetworkId string            `json:"networkId"`
+	Image     string            `json:"image,omitempty"`
+	Settings  map[string]string `json:"settings,omitempty"`
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+type ManagementLink struct {
+	v1.TypeMeta   `json:",inline"`
+	v1.ObjectMeta `json:"metadata,omitempty"`
+	Spec          ManagementLinkSpec   `json:"spec,omitempty"`
+	Status        ManagementLinkStatus `json:"status,omitempty"`
+}
+
+type ManagementLinkStatus struct {
+	Status `json:",inline"`
+}
+
+func (m *ManagementLink) SetConfigured(ready bool) bool {
+	if m.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ReadyOrPendingCondition(ready), m.ObjectMeta.Generation) {
+		m.Status.setReady([]string{CONDITION_TYPE_CONFIGURED}, m.ObjectMeta.Generation)
+		return true
+	}
+	return false
+}
+
+func (m *ManagementLink) SetError(err error) bool {
+	if m.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ErrorOrReadyCondition(err), m.ObjectMeta.Generation) {
+		m.Status.setReady([]string{CONDITION_TYPE_CONFIGURED}, m.ObjectMeta.Generation)
+		return true
+	}
+	return false
+}
+
+func (m *ManagementLink) IsReady() bool {
+	return meta.IsStatusConditionTrue(m.Status.Conditions, CONDITION_TYPE_CONFIGURED) &&
+		meta.IsStatusConditionTrue(m.Status.Conditions, CONDITION_TYPE_READY)
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ManagementLinkList contains a List of ManagementLink instances
+type ManagementLinkList struct {
+	v1.TypeMeta `json:",inline"`
+	v1.ListMeta `json:"metadata,omitempty"`
+	Items       []ManagementLink `json:"items"`
+}
+
+type ManagementLinkSpec struct {
+	Hostname       string            `json:"hostname"`
+	Port           int               `json:"port"`
+	TlsCredentials string            `json:"tlsCredentials"`
+	Settings       map[string]string `json:"settings,omitempty"`
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+type InterNetworkIngress struct {
+	v1.TypeMeta   `json:",inline"`
+	v1.ObjectMeta `json:"metadata,omitempty"`
+	Spec          InterNetworkIngressSpec   `json:"spec,omitempty"`
+	Status        InterNetworkIngressStatus `json:"status,omitempty"`
+}
+
+type InterNetworkIngressStatus struct {
+	Status `json:",inline"`
+}
+
+func (i *InterNetworkIngress) SetConfigured(ready bool) bool {
+	if i.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ReadyOrPendingCondition(ready), i.ObjectMeta.Generation) {
+		i.Status.setReady([]string{CONDITION_TYPE_CONFIGURED}, i.ObjectMeta.Generation)
+		return true
+	}
+	return false
+}
+
+func (i *InterNetworkIngress) SetError(err error) bool {
+	if i.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ErrorOrReadyCondition(err), i.ObjectMeta.Generation) {
+		i.Status.setReady([]string{CONDITION_TYPE_CONFIGURED}, i.ObjectMeta.Generation)
+		return true
+	}
+	return false
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// InterNetworkIngressList contains a List of InterNetworkIngress instances
+type InterNetworkIngressList struct {
+	v1.TypeMeta `json:",inline"`
+	v1.ListMeta `json:"metadata,omitempty"`
+	Items       []InterNetworkIngress `json:"items"`
+}
+
+type InterNetworkIngressSpec struct {
+	Address        string            `json:"address"`
+	ManagementLink string            `json:"managementLink"`
+	Settings       map[string]string `json:"settings,omitempty"`
+}

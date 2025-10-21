@@ -175,6 +175,9 @@ func TestMarshalUnmarshalRouterConfig(t *testing.T) {
 			Metadata:           "MySiteId",
 			HelloMaxAgeSeconds: "5",
 		},
+		Network: Network{
+			NetworkId: "my-van",
+		},
 		SslProfiles: map[string]SslProfile{
 			"one": SslProfile{
 				Name:           "one",
@@ -202,6 +205,20 @@ func TestMarshalUnmarshalRouterConfig(t *testing.T) {
 				Port:       "5678",
 				SslProfile: "two",
 			},
+			"c3": Connector{
+				Name:       "c3",
+				Host:       "elsewhere.com",
+				Port:       "4321",
+				SslProfile: "three",
+				Role:       "route-container",
+			},
+			"c4": Connector{
+				Name:       "c4",
+				Host:       "elsewhere.com",
+				Port:       "9876",
+				SslProfile: "four",
+				Role:       "inter-network",
+			},
 		},
 		Listeners: map[string]Listener{
 			"l1": Listener{
@@ -217,6 +234,20 @@ func TestMarshalUnmarshalRouterConfig(t *testing.T) {
 				Port:       5678,
 				SslProfile: "two",
 				Cost:       101,
+			},
+			"l3": Listener{
+				Name:       "l3",
+				Host:       "127.0.0.1",
+				Port:       4321,
+				SslProfile: "three",
+				Role:       "route-container",
+			},
+			"l4": Listener{
+				Name:       "l4",
+				Host:       "127.0.0.1",
+				Port:       9876,
+				SslProfile: "four",
+				Role:       "inter-network",
 			},
 		},
 		Bridges: BridgeConfig{
@@ -268,6 +299,15 @@ func TestMarshalUnmarshalRouterConfig(t *testing.T) {
 				Distribution: "balanced",
 			},
 		},
+		AutoLinks: map[string]AutoLink{
+			"awake": AutoLink{
+				Name:            "awake",
+				Address:         "my-address",
+				ExternalAddress: "my-external-address",
+				Direction:       "in",
+				Connection:      "three",
+			},
+		},
 		SiteConfig: &SiteConfig{
 			Name:      "razzle",
 			Namespace: "dazzle",
@@ -286,6 +326,9 @@ func TestMarshalUnmarshalRouterConfig(t *testing.T) {
 	if !reflect.DeepEqual(input.Metadata, output.Metadata) {
 		t.Errorf("Incorrect metadata. Expected %#v got %#v", input.Metadata, output.Metadata)
 	}
+	if !reflect.DeepEqual(input.Network, output.Network) {
+		t.Errorf("Incorrect network. Expected %#v got %#v", input.Network, output.Network)
+	}
 	if !reflect.DeepEqual(input.SslProfiles, output.SslProfiles) {
 		t.Errorf("Incorrect sslprofiles. Expected %#v got %#v", input.SslProfiles, output.SslProfiles)
 	}
@@ -297,6 +340,9 @@ func TestMarshalUnmarshalRouterConfig(t *testing.T) {
 	}
 	if !reflect.DeepEqual(input.Addresses, output.Addresses) {
 		t.Errorf("Incorrect addresses. Expected %#v got %#v", input.Addresses, output.Addresses)
+	}
+	if !reflect.DeepEqual(input.AutoLinks, output.AutoLinks) {
+		t.Errorf("Incorrect autoLinks. Expected %#v got %#v", input.AutoLinks, output.AutoLinks)
 	}
 	if !reflect.DeepEqual(input.Bridges, output.Bridges) {
 		t.Errorf("Incorrect bridges. Expected %#v got %#v", input.Bridges, output.Bridges)

@@ -36,12 +36,18 @@ type Interface interface {
 	Certificates() CertificateInformer
 	// Connectors returns a ConnectorInformer.
 	Connectors() ConnectorInformer
+	// InterNetworkIngresses returns a InterNetworkIngressInformer.
+	InterNetworkIngresses() InterNetworkIngressInformer
 	// Links returns a LinkInformer.
 	Links() LinkInformer
 	// Listeners returns a ListenerInformer.
 	Listeners() ListenerInformer
 	// MultiKeyListeners returns a MultiKeyListenerInformer.
 	MultiKeyListeners() MultiKeyListenerInformer
+	// ManagedSites returns a ManagedSiteInformer.
+	ManagedSites() ManagedSiteInformer
+	// ManagementLinks returns a ManagementLinkInformer.
+	ManagementLinks() ManagementLinkInformer
 	// RouterAccesses returns a RouterAccessInformer.
 	RouterAccesses() RouterAccessInformer
 	// SecuredAccesses returns a SecuredAccessInformer.
@@ -91,6 +97,11 @@ func (v *version) Connectors() ConnectorInformer {
 	return &connectorInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
+// InterNetworkIngresses returns a InterNetworkIngressInformer.
+func (v *version) InterNetworkIngresses() InterNetworkIngressInformer {
+	return &interNetworkIngressInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
 // Links returns a LinkInformer.
 func (v *version) Links() LinkInformer {
 	return &linkInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
@@ -104,6 +115,15 @@ func (v *version) Listeners() ListenerInformer {
 // MultiKeyListeners returns a MultiKeyListenerInformer.
 func (v *version) MultiKeyListeners() MultiKeyListenerInformer {
 	return &multiKeyListenerInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+
+// ManagedSites returns a ManagedSiteInformer.
+func (v *version) ManagedSites() ManagedSiteInformer {
+	return &managedSiteInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// ManagementLinks returns a ManagementLinkInformer.
+func (v *version) ManagementLinks() ManagementLinkInformer {
+	return &managementLinkInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // RouterAccesses returns a RouterAccessInformer.
