@@ -66,6 +66,12 @@ type (
 	SecuredAccessWatcher            = ResourceWatcher[*v2alpha1.SecuredAccess]
 	SiteHandler                     = Handler[*v2alpha1.Site]
 	SiteWatcher                     = ResourceWatcher[*v2alpha1.Site]
+	ManagedSiteHandler              = Handler[*v2alpha1.ManagedSite]
+	ManagedSiteWatcher              = ResourceWatcher[*v2alpha1.ManagedSite]
+	ManagementLinkHandler           = Handler[*v2alpha1.ManagementLink]
+	ManagementLinkWatcher           = ResourceWatcher[*v2alpha1.ManagementLink]
+	InterNetworkIngressHandler      = Handler[*v2alpha1.InterNetworkIngress]
+	InterNetworkIngressWatcher      = ResourceWatcher[*v2alpha1.InterNetworkIngress]
 )
 
 // Handler function the EventProcessor will use as a callback for a work item

@@ -16,11 +16,13 @@ import (
 
 type RouterConfig struct {
 	Metadata      RouterMetadata
+	Network       Network
 	SslProfiles   map[string]SslProfile
 	ProxyProfiles map[string]ProxyProfile
 	Listeners     map[string]Listener
 	Connectors    map[string]Connector
 	Addresses     map[string]Address
+	AutoLinks     map[string]AutoLink
 	LogConfig     map[string]LogConfig
 	SiteConfig    *SiteConfig
 	Bridges       BridgeConfig
@@ -132,6 +134,9 @@ func (r *RouterConfig) AddConnector(c Connector) bool {
 	if original, ok := r.Connectors[c.Name]; ok && original == c {
 		return false
 	}
+	if r.Connectors == nil {
+		r.Connectors = map[string]Connector{}
+	}
 	r.Connectors[c.Name] = c
 	return true
 }
@@ -167,6 +172,9 @@ func ConfigureSslProfile(name string, path string, clientAuth bool) SslProfile {
 func (r *RouterConfig) AddSslProfile(s SslProfile) bool {
 	if original, ok := r.SslProfiles[s.Name]; ok && original == s {
 		return false
+	}
+	if r.SslProfiles == nil {
+		r.SslProfiles = map[string]SslProfile{}
 	}
 	r.SslProfiles[s.Name] = s
 	return true
@@ -273,6 +281,28 @@ func (r *RouterConfig) UnreferencedProxyProfiles() map[string]ProxyProfile {
 
 func (r *RouterConfig) AddAddress(a Address) {
 	r.Addresses[a.Prefix] = a
+}
+
+func (r *RouterConfig) AddAutoLink(a AutoLink) bool {
+	if r.AutoLinks == nil {
+		r.AutoLinks = map[string]AutoLink{}
+	}
+	if existing, ok := r.AutoLinks[a.Name]; ok && existing == a {
+		return false
+	}
+	r.AutoLinks[a.Name] = a
+	return true
+}
+
+func (r *RouterConfig) RemoveAutoLink(name string) bool {
+	if r.AutoLinks == nil {
+		return false
+	}
+	if _, ok := r.AutoLinks[name]; ok {
+		delete(r.AutoLinks, name)
+		return true
+	}
+	return false
 }
 
 func (r *RouterConfig) AddTcpConnector(e TcpEndpoint) {
@@ -430,10 +460,12 @@ func (r *RouterConfig) SetLogLevels(levels map[string]string) bool {
 type Role string
 
 const (
-	RoleInterRouter Role = "inter-router"
-	RoleEdge             = "edge"
-	RoleNormal           = "normal"
-	RoleDefault          = ""
+	RoleInterRouter    Role = "inter-router"
+	RoleEdge                = "edge"
+	RoleNormal              = "normal"
+	RoleRouteContainer      = "route-container"
+	RoleInterNetwork        = "inter-network"
+	RoleDefault             = ""
 )
 
 func asRole(name string) Role {
@@ -446,6 +478,12 @@ func asRole(name string) Role {
 	if name == "normal" {
 		return RoleNormal
 	}
+	if name == "route-container" {
+		return RoleRouteContainer
+	}
+	if name == "inter-network" {
+		return RoleInterNetwork
+	}
 	return RoleDefault
 }
 
@@ -454,6 +492,10 @@ func GetRole(name string) Role {
 		return RoleEdge
 	} else if name == "normal" {
 		return RoleNormal
+	} else if name == "route-container" {
+		return RoleRouteContainer
+	} else if name == "inter-network" {
+		return RoleInterNetwork
 	}
 	return RoleInterRouter
 }
@@ -471,6 +513,29 @@ type RouterMetadata struct {
 	HelloMaxAgeSeconds  string `json:"helloMaxAgeSeconds,omitempty"`
 	DataConnectionCount string `json:"dataConnectionCount,omitempty"`
 	Metadata            string `json:"metadata,omitempty"`
+}
+
+type Network struct {
+	NetworkId string `json:"networkId,omitempty"`
+	TenantId  string `json:"tenantId,omitempty"`
+}
+
+func (n Network) toRecord() Record {
+	result := make(map[string]any)
+	result["name"] = "network/0"
+	result["networkId"] = n.NetworkId
+	if n.TenantId != "" {
+		result["tenantId"] = n.TenantId
+	}
+	return result
+}
+
+func (n Network) IsSet() bool {
+	return n.TenantId != "" || n.NetworkId != ""
+}
+
+func (n Network) Equals(other Network) bool {
+	return n == other
 }
 
 type SslProfile struct {
@@ -674,6 +739,103 @@ type Address struct {
 	Distribution string `json:"distribution,omitempty"`
 }
 
+type OperStatus string
+
+const (
+	OperStatusInactive  OperStatus = "inactive"
+	OperStatusAttaching OperStatus = "attaching"
+	OperStatusFailed    OperStatus = "failed"
+	OperStatusActive    OperStatus = "active"
+	OperStatusQuiescing OperStatus = "quiescing"
+	OperStatusIdle      OperStatus = "idle"
+)
+
+// AutoLink fields information:
+//   - Address is required when direction is out
+//   - Direction is required
+type AutoLink struct {
+	Name            string     `json:"name,omitempty"`
+	Address         string     `json:"address,omitempty"`
+	ExternalAddress string     `json:"externalAddress,omitempty"`
+	Direction       string     `json:"direction,omitempty"`
+	Connection      string     `json:"connection,omitempty"`
+	ContainerId     string     `json:"containerId,omitempty"`
+	operStatus      OperStatus `json:"operStatus,omitempty"`
+}
+
+func (a *AutoLink) toRecord() Record {
+	result := make(map[string]any)
+	if a.Name != "" {
+		result["name"] = a.Name
+	}
+	if a.Address != "" {
+		result["address"] = a.Address
+	}
+	if a.ExternalAddress != "" {
+		result["externalAddress"] = a.ExternalAddress
+	}
+	if a.Direction != "" {
+		result["direction"] = a.Direction
+	}
+	if a.Connection != "" {
+		result["connection"] = a.Connection
+	}
+	if a.ContainerId != "" {
+		result["containerId"] = a.ContainerId
+	}
+	if a.operStatus != "" {
+		result["operStatus"] = a.operStatus
+	}
+	return result
+}
+
+func (a *AutoLink) GetOperStatus() OperStatus {
+	return a.operStatus
+}
+
+func (a *AutoLink) Equivalent(other *AutoLink) bool {
+	if other == nil {
+		return false
+	}
+	return a.Address == other.Address &&
+		a.ExternalAddress == other.ExternalAddress &&
+		a.Direction == other.Direction &&
+		a.Connection == other.Connection &&
+		a.ContainerId == other.ContainerId
+}
+
+type AutoLinkDifference struct {
+	Deleted []AutoLink
+	Added   []AutoLink
+}
+
+func AutoLinksDifference(actual map[string]AutoLink, desired *RouterConfig) *AutoLinkDifference {
+	result := AutoLinkDifference{}
+	for key, v1 := range desired.AutoLinks {
+		actualValue, ok := actual[key]
+		if !ok {
+			result.Added = append(result.Added, v1)
+		}
+
+		//in case the autoLink exists but has changed some of its values, it needs to be recreated again
+		if ok && !v1.Equivalent(&actualValue) {
+			result.Deleted = append(result.Deleted, v1)
+			result.Added = append(result.Added, v1)
+		}
+	}
+	for key, v1 := range actual {
+		_, ok := desired.AutoLinks[key]
+		if !ok {
+			result.Deleted = append(result.Deleted, v1)
+		}
+	}
+	return &result
+}
+
+func (a *AutoLinkDifference) Empty() bool {
+	return len(a.Deleted) == 0 && len(a.Added) == 0
+}
+
 type TcpEndpoint struct {
 	Name                 string `json:"name,omitempty"`
 	Host                 string `json:"host,omitempty"`
@@ -784,7 +946,9 @@ func RouterConfigEquals(actual, desired string) bool {
 func UnmarshalRouterConfig(config string) (RouterConfig, error) {
 	result := RouterConfig{
 		Metadata:      RouterMetadata{},
+		Network:       Network{},
 		Addresses:     map[string]Address{},
+		AutoLinks:     map[string]AutoLink{},
 		SslProfiles:   map[string]SslProfile{},
 		ProxyProfiles: map[string]ProxyProfile{},
 		Listeners:     map[string]Listener{},
@@ -822,6 +986,13 @@ func UnmarshalRouterConfig(config string) (RouterConfig, error) {
 				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
 			}
 			result.Metadata = metadata
+		case "network":
+			network := Network{}
+			err = convert(element[1], &network)
+			if err != nil {
+				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
+			}
+			result.Network = network
 		case "address":
 			address := Address{}
 			err = convert(element[1], &address)
@@ -829,6 +1000,13 @@ func UnmarshalRouterConfig(config string) (RouterConfig, error) {
 				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
 			}
 			result.Addresses[address.Prefix] = address
+		case "autoLink":
+			autoLink := AutoLink{}
+			err = convert(element[1], &autoLink)
+			if err != nil {
+				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
+			}
+			result.AutoLinks[autoLink.Name] = autoLink
 		case "connector":
 			connector := Connector{}
 			err = convert(element[1], &connector)
@@ -900,11 +1078,20 @@ func UnmarshalRouterConfig(config string) (RouterConfig, error) {
 
 func MarshalRouterConfig(config RouterConfig) (string, error) {
 	elements := [][]interface{}{}
-	tuple := []interface{}{
-		"router",
-		config.Metadata,
+	if config.Metadata.Id != "" {
+		tuple := []interface{}{
+			"router",
+			config.Metadata,
+		}
+		elements = append(elements, tuple)
 	}
-	elements = append(elements, tuple)
+	if config.Network.IsSet() {
+		tuple := []interface{}{
+			"network",
+			config.Network,
+		}
+		elements = append(elements, tuple)
+	}
 	for _, e := range config.SslProfiles {
 		tuple := []interface{}{
 			"sslProfile",
@@ -936,6 +1123,13 @@ func MarshalRouterConfig(config RouterConfig) (string, error) {
 	for _, e := range config.Addresses {
 		tuple := []interface{}{
 			"address",
+			e,
+		}
+		elements = append(elements, tuple)
+	}
+	for _, e := range config.AutoLinks {
+		tuple := []interface{}{
+			"autoLink",
 			e,
 		}
 		elements = append(elements, tuple)
@@ -1348,6 +1542,10 @@ func (a *ConnectorDifference) Empty() bool {
 
 func (desired Connector) IsLinkConnector() bool {
 	return desired.Role == "inter-router" || desired.Role == "edge"
+}
+
+func (desired Connector) IsInterNetworkConnector() bool {
+	return desired.Role == "inter-network"
 }
 
 func (desired Connector) Equivalent(actual Connector) bool {

@@ -1,11 +1,10 @@
 package qdr
 
 import (
+	"encoding/json"
 	"flag"
 	"reflect"
 	"testing"
-
-	"encoding/json"
 
 	"gotest.tools/v3/assert"
 )
@@ -102,8 +101,8 @@ func TestQDR(t *testing.T) {
 	assert.Assert(t, router2.Id == router_node.Id && router2.Edge == false, "RouterNode.AsRouter failure: Id |%s|  Edge: %t.", router2.Id, router2.Edge)
 
 	// NewAgentPool ------------------------------------
-	agentPool := NewAgentPool("my_url", nil)
-	assert.Assert(t, agentPool.url == "my_url", "NewAgentPool failure")
+	agentPool := NewAgentPool("my_url:5672", nil)
+	assert.Assert(t, agentPool.url == "my_url:5672", "NewAgentPool failure")
 
 	// Get ------------------------------------
 	agent, err := agentPool.Get()

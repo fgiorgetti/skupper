@@ -52,6 +52,10 @@ func (c *FakeSkupperV2alpha1) Connectors(namespace string) v2alpha1.ConnectorInt
 	return newFakeConnectors(c, namespace)
 }
 
+func (c *FakeSkupperV2alpha1) InterNetworkIngresses(namespace string) v2alpha1.InterNetworkIngressInterface {
+	return newFakeInterNetworkIngresses(c, namespace)
+}
+
 func (c *FakeSkupperV2alpha1) Links(namespace string) v2alpha1.LinkInterface {
 	return newFakeLinks(c, namespace)
 }
@@ -62,6 +66,13 @@ func (c *FakeSkupperV2alpha1) Listeners(namespace string) v2alpha1.ListenerInter
 
 func (c *FakeSkupperV2alpha1) MultiKeyListeners(namespace string) v2alpha1.MultiKeyListenerInterface {
 	return newFakeMultiKeyListeners(c, namespace)
+
+func (c *FakeSkupperV2alpha1) ManagedSites(namespace string) v2alpha1.ManagedSiteInterface {
+	return newFakeManagedSites(c, namespace)
+}
+
+func (c *FakeSkupperV2alpha1) ManagementLinks(namespace string) v2alpha1.ManagementLinkInterface {
+	return newFakeManagementLinks(c, namespace)
 }
 
 func (c *FakeSkupperV2alpha1) RouterAccesses(namespace string) v2alpha1.RouterAccessInterface {
