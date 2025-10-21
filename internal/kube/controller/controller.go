@@ -64,6 +64,11 @@ func skupperNetworkStatus() internalinterfaces.TweakListOptionsFunc {
 		options.FieldSelector = "metadata.name=skupper-network-status"
 	}
 }
+func skupperCentralManagementConfig() internalinterfaces.TweakListOptionsFunc {
+	return func(options *metav1.ListOptions) {
+		options.LabelSelector = "internal.skupper.io/central-management-config"
+	}
+}
 
 func listenerServices() internalinterfaces.TweakListOptionsFunc {
 	return func(options *metav1.ListOptions) {
@@ -127,6 +132,7 @@ func NewController(cli internalclient.Clients, config *Config) (*Controller, err
 	controller.eventProcessor.WatchLinks(config.WatchNamespace, filter(controller, controller.checkLink))
 	controller.eventProcessor.WatchConfigMaps(skupperNetworkStatus(), config.WatchNamespace, filter(controller, controller.networkStatusUpdate))
 	controller.eventProcessor.WatchConfigMaps(skupperRouterConfig(), config.WatchNamespace, filter(controller, controller.routerConfigUpdate))
+	controller.eventProcessor.WatchConfigMaps(skupperCentralManagementConfig(), config.WatchNamespace, filter(controller, controller.centralManagementConfigUpdate))
 	controller.eventProcessor.WatchAccessTokens(config.WatchNamespace, filter(controller, controller.checkAccessToken))
 	controller.eventProcessor.WatchPods("skupper.io/component=router,skupper.io/type=site", config.WatchNamespace, filter(controller, controller.routerPodEvent))
 	controller.siteSizingWatcher = controller.eventProcessor.WatchConfigMaps(skupperSiteSizingConfig(), config.Namespace, filter(controller, controller.siteSizing.Update))
@@ -467,6 +473,18 @@ func (c *Controller) routerConfigUpdate(_ string, cm *corev1.ConfigMap) error {
 	}
 	c.getSite(cm.Namespace).CheckSslProfiles(config)
 	return nil
+}
+
+func (c *Controller) centralManagementConfigUpdate(key string, cm *corev1.ConfigMap) error {
+	if cm == nil {
+		namespace, _, err := cache.SplitMetaNamespaceKey(key)
+		if err != nil {
+			c.log.Error("error getting namespace from key", slog.String("key", key))
+			return nil
+		}
+		return c.getSite(namespace).SetCentralManagementConfig(key, nil)
+	}
+	return c.getSite(cm.Namespace).SetCentralManagementConfig(key, cm)
 }
 
 func (c *Controller) networkStatusUpdate(key string, cm *corev1.ConfigMap) error {
