@@ -476,15 +476,12 @@ func (c *Controller) routerConfigUpdate(_ string, cm *corev1.ConfigMap) error {
 }
 
 func (c *Controller) centralManagementConfigUpdate(key string, cm *corev1.ConfigMap) error {
-	if cm == nil {
-		namespace, _, err := cache.SplitMetaNamespaceKey(key)
-		if err != nil {
-			c.log.Error("error getting namespace from key", slog.String("key", key))
-			return nil
-		}
-		return c.getSite(namespace).SetCentralManagementConfig(key, nil)
+	namespace, _, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		c.log.Error("error getting namespace from key", slog.String("key", key))
+		return nil
 	}
-	return c.getSite(cm.Namespace).SetCentralManagementConfig(key, cm)
+	return c.getSite(namespace).SetCentralManagementConfig(key, cm)
 }
 
 func (c *Controller) networkStatusUpdate(key string, cm *corev1.ConfigMap) error {
