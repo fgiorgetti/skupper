@@ -11,15 +11,14 @@ import (
 	"strings"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/skupperproject/skupper/internal/certs"
+	"github.com/skupperproject/skupper/internal/kube/client"
 	"github.com/skupperproject/skupper/internal/kube/watchers"
 	skupperv2alpha1 "github.com/skupperproject/skupper/pkg/apis/skupper/v2alpha1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // The ControllerContext interface defines the invocations the
@@ -142,7 +141,7 @@ func (m *CertificateManagerImpl) ensure(namespace string, name string, spec skup
 		if !ownerMap.IsControlled {
 			return fmt.Errorf("certificate %q exists but is not controlled by skupper", name)
 		}
-		if mergeOwnerReferences(&current.ObjectMeta, refs) {
+		if client.MergeOwnerReferences(&current.ObjectMeta, refs) {
 			changed = true
 		}
 		for _, ref := range refs {
@@ -488,23 +487,4 @@ func ownerReferences(cert *skupperv2alpha1.Certificate) []metav1.OwnerReference 
 			UID:        cert.ObjectMeta.UID,
 		},
 	}
-}
-
-func mergeOwnerReferences(obj *metav1.ObjectMeta, added []metav1.OwnerReference) bool {
-	changed := false
-	byUid := map[types.UID]metav1.OwnerReference{}
-	original := obj.OwnerReferences
-	for _, ref := range original {
-		byUid[ref.UID] = ref
-	}
-	for _, ref := range added {
-		if actual, ok := byUid[ref.UID]; !ok || actual != ref {
-			original = append(original, ref)
-			changed = true
-		}
-	}
-	if changed {
-		obj.OwnerReferences = original
-	}
-	return changed
 }

@@ -10,13 +10,6 @@ import (
 	"strings"
 	"sync"
 
-	internalnetwork "github.com/skupperproject/skupper/internal/network"
-	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-
 	"github.com/skupperproject/skupper/api/types"
 	"github.com/skupperproject/skupper/internal/kube/certificates"
 	internalclient "github.com/skupperproject/skupper/internal/kube/client"
@@ -25,10 +18,18 @@ import (
 	"github.com/skupperproject/skupper/internal/kube/site/resources"
 	"github.com/skupperproject/skupper/internal/kube/site/sizing"
 	"github.com/skupperproject/skupper/internal/kube/watchers"
+	internalnetwork "github.com/skupperproject/skupper/internal/network"
 	"github.com/skupperproject/skupper/internal/qdr"
 	"github.com/skupperproject/skupper/internal/site"
 	"github.com/skupperproject/skupper/internal/version"
 	skupperv2alpha1 "github.com/skupperproject/skupper/pkg/apis/skupper/v2alpha1"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 type SecuredAccessFactory interface {
@@ -43,25 +44,25 @@ type Labelling interface {
 }
 
 type Site struct {
-	initialised   bool
-	site          *skupperv2alpha1.Site
-	name          string
-	namespace     string
-	clients       *watchers.EventProcessor
-	bindings      *ExtendedBindings
-	links         map[string]*site.Link
-	errors        map[string]string
-	linkAccess    site.RouterAccessMap
-	certs         certificates.CertificateManager
-	access        SecuredAccessFactory
-	accessMapping securedAccessMap
-	sizes         *sizing.Registry
-	routerPods    map[string]*corev1.Pod
-	logger        *slog.Logger
-	currentGroups []string
-	labelling     Labelling
-	profiles      *secrets.ProfilesWatcher
-	centralConfig *CentralManagementUpdate
+	initialised    bool
+	site           *skupperv2alpha1.Site
+	name           string
+	namespace      string
+	clients        *watchers.EventProcessor
+	bindings       *ExtendedBindings
+	links          map[string]*site.Link
+	errors         map[string]string
+	linkAccess     site.RouterAccessMap
+	certs          certificates.CertificateManager
+	access         SecuredAccessFactory
+	accessMapping  securedAccessMap
+	sizes          *sizing.Registry
+	routerPods     map[string]*corev1.Pod
+	logger         *slog.Logger
+	currentGroups  []string
+	labelling      Labelling
+	profiles       *secrets.ProfilesWatcher
+	externalConfig *ExternalConfigHook
 }
 
 func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs certificates.CertificateManager, access SecuredAccessFactory, sizes *sizing.Registry, labelling Labelling) *Site {
@@ -80,9 +81,10 @@ func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs ce
 		logger: logger.With(
 			slog.String("component", "kube.site.site"),
 		),
-		labelling:     labelling,
-		centralConfig: NewCentralManagementUpdate(namespace),
+		labelling: labelling,
 	}
+	site.externalConfig = NewExternalConfigHook(namespace, eventProcessor, site.ownerReferences)
+
 	site.profiles = secrets.NewProfilesWatcher(
 		sslSecretsWatcher(namespace, eventProcessor),
 		eventProcessor.GetKubeClient(),
@@ -658,6 +660,9 @@ func isOwned(service *corev1.Service) bool {
 }
 
 func (s *Site) ownerReferences() []metav1.OwnerReference {
+	if s.site == nil {
+		return []metav1.OwnerReference{}
+	}
 	return []metav1.OwnerReference{
 		{
 			Kind:       "Site",
@@ -693,7 +698,7 @@ func (s *Site) recoverRouterConfig(update bool) ([]*qdr.RouterConfig, error) {
 	for i, group := range groups {
 		if config, ok := byName[group]; ok {
 			if update {
-				op := ConfigUpdateList{s.bindings, s, s.linkAccess.DesiredConfig(groups[:i], SSL_PROFILE_PATH)}
+				op := ConfigUpdateList{s.bindings, s, s.linkAccess.DesiredConfig(groups[:i], SSL_PROFILE_PATH), s.externalConfig}
 				if err := kubeqdr.UpdateRouterConfig(s.clients.GetKubeClient(), group, s.namespace, context.TODO(), op, s.labelling); err != nil {
 					s.logger.Error("Failed to update router config map",
 						slog.String("namespace", s.namespace),
@@ -1383,14 +1388,16 @@ func (s *Site) TLSPriorValidRevisions() uint64 {
 	return revisions
 }
 
-func (s *Site) SetCentralManagementConfig(key string, config *corev1.ConfigMap) error {
-	err := s.centralConfig.SetFromConfigMap(key, config)
+func (s *Site) CheckExternalConfig(key string, config *corev1.ConfigMap) error {
+	err := s.externalConfig.SetFromConfigMap(key, config)
 	if err != nil {
-		return fmt.Errorf("error setting CentralManagementConfig: %w", err)
+		return fmt.Errorf("error setting external router configuration for %q: %w", key, err)
 	}
-	err = s.updateRouterConfig(s.centralConfig)
-	if err != nil {
-		return fmt.Errorf("error updating router config for CentralManagement: %w", err)
+	if s.IsInitialised() {
+		err = s.updateRouterConfig(s.externalConfig)
+		if err != nil {
+			return fmt.Errorf("error updating router config for external configuration %q: %w", key, err)
+		}
 	}
 	return nil
 }
@@ -1519,98 +1526,216 @@ func routerAccessOwner(ra *skupperv2alpha1.RouterAccess) []metav1.OwnerReference
 	}
 }
 
-type CentralManagementUpdate struct {
-	configuration map[string]*qdr.RouterConfig
-	actions       []func(config *qdr.RouterConfig) bool
-	mux           sync.Mutex
-	logger        *slog.Logger
+type ExternalConfigHook struct {
+	configMapHooks  map[string]corev1.ConfigMap
+	namespace       string
+	clients         internalclient.Clients
+	ownerReferences func() []metav1.OwnerReference
+	mux             sync.Mutex
+	logger          *slog.Logger
 }
 
-func NewCentralManagementUpdate(namespace string) *CentralManagementUpdate {
-	return &CentralManagementUpdate{
-		configuration: map[string]*qdr.RouterConfig{},
+const ExternalConfigMapName string = "skupper-external-config"
+
+func NewExternalConfigHook(namespace string, clients internalclient.Clients, ownerReferences func() []metav1.OwnerReference) *ExternalConfigHook {
+	externalConfigHook := &ExternalConfigHook{
+		namespace:       namespace,
+		clients:         clients,
+		ownerReferences: ownerReferences,
+		configMapHooks:  map[string]corev1.ConfigMap{},
 		logger: slog.New(slog.Default().Handler()).With(
-			slog.String("component", "kube.site.central-management"),
+			slog.String("component", "kube.site.external-config-hook"),
 			slog.String("namespace", namespace),
 		),
 	}
+	return externalConfigHook
 }
 
-func (c *CentralManagementUpdate) SetFromConfigMap(key string, cm *corev1.ConfigMap) error {
+func (c *ExternalConfigHook) ensureConfig() (*corev1.ConfigMap, error) {
+	cmClient := c.cmClient()
+	cm, err := cmClient.Get(context.Background(), ExternalConfigMapName, metav1.GetOptions{})
+	if err == nil {
+		return cm, nil
+	} else if !errors.IsNotFound(err) {
+		return nil, err
+	}
+	cm = &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   ExternalConfigMapName,
+			Labels: map[string]string{},
+			Annotations: map[string]string{
+				"internal.skupper.io/controlled": "true",
+			},
+		},
+		Data: map[string]string{},
+	}
+	return cmClient.Create(context.Background(), cm, metav1.CreateOptions{})
+}
+
+func (c *ExternalConfigHook) cmClient() v1.ConfigMapInterface {
+	cmClient := c.clients.GetKubeClient().CoreV1().ConfigMaps(c.namespace)
+	return cmClient
+}
+
+func (c *ExternalConfigHook) SetFromConfigMap(key string, cm *corev1.ConfigMap) error {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 	if cm == nil {
-		if _, ok := c.configuration[key]; ok {
-			return c.delete(key)
-		}
+		_, name, _ := cache.SplitMetaNamespaceKey(key)
+		delete(c.configMapHooks, name)
+		c.logger.Info("External configuration has been removed", slog.String("source", name))
 		return nil
 	}
 	return c.add(key, cm)
 }
 
-func (c *CentralManagementUpdate) Apply(config *qdr.RouterConfig) bool {
+func (c *ExternalConfigHook) Apply(config *qdr.RouterConfig) bool {
+	updateSources := map[string]bool{}
 	update := false
-	for len(c.actions) > 0 {
-		var action func(config *qdr.RouterConfig) bool
-		action, c.actions = c.actions[0], c.actions[1:]
-		if action(config) {
-			update = true
+	updateCm := false
+	externalConfig, err := c.ensureConfig()
+	if err != nil {
+		c.logger.Error("could not retrieve skupper-external-config",
+			slog.Any("error", err))
+		return false
+	}
+	// Note that the tools responsible for creating the router config hooks
+	// should remove and add a new configmap if something needs to change
+	for source, configurationStr := range externalConfig.Data {
+		configuration, err := qdr.UnmarshalRouterConfig(configurationStr)
+		if err != nil {
+			c.logger.Error("could not unmarshal configuration",
+				slog.String("source", source),
+				slog.Any("error", err))
+			continue
 		}
+		if _, ok := c.configMapHooks[source]; ok {
+			// Ensure configuration is defined
+			for _, listener := range configuration.Listeners {
+				if config.AddListener(listener) {
+					c.logger.Debug("Added listener",
+						slog.Any("source", source),
+						slog.Any("listener", listener),
+					)
+					updateSources[source] = true
+					update = true
+				}
+			}
+			for _, connector := range configuration.Connectors {
+				if config.AddConnector(connector) {
+					c.logger.Debug("Added connector",
+						slog.Any("source", source),
+						slog.Any("connector", connector),
+					)
+					updateSources[source] = true
+					update = true
+				}
+			}
+			for _, sslProfile := range configuration.SslProfiles {
+				if config.AddSslProfile(sslProfile) {
+					c.logger.Debug("Added sslProfile",
+						slog.Any("source", source),
+						slog.Any("sslProfile", sslProfile),
+					)
+					updateSources[source] = true
+					update = true
+				}
+			}
+		} else {
+			for name, _ := range configuration.Listeners {
+				if ok, listener := config.RemoveListener(name); ok {
+					c.logger.Debug("Removed listener",
+						slog.Any("source", source),
+						slog.Any("listener", listener),
+					)
+					updateSources[source] = true
+					update = true
+				}
+			}
+			for name, _ := range configuration.Connectors {
+				if ok, connector := config.RemoveConnector(name); ok {
+					c.logger.Debug("Removed connector",
+						slog.Any("source", source),
+						slog.Any("connector", connector),
+					)
+					updateSources[source] = true
+					update = true
+				}
+			}
+			for name, sslProfile := range configuration.SslProfiles {
+				if ok = config.RemoveSslProfile(name); ok {
+					c.logger.Debug("Removed sslProfile",
+						slog.Any("source", source),
+						slog.Any("sslProfile", sslProfile),
+					)
+					updateSources[source] = true
+					update = true
+				}
+			}
+			delete(externalConfig.Data, source)
+			updateCm = true
+		}
+	}
+	if updateCm {
+		c.logger.Info("Updating configmap", slog.String("name", externalConfig.Name))
+		_, err = c.cmClient().Update(context.Background(), externalConfig, metav1.UpdateOptions{})
+		if err != nil {
+			c.logger.Error("could not update configmap",
+				slog.String("name", externalConfig.Name),
+				slog.Any("error", err),
+			)
+		}
+	}
+	if update {
+		var sources []string
+		for source := range updateSources {
+			sources = append(sources, source)
+		}
+		c.logger.Info("External router configuration has been applied",
+			slog.String("sources", strings.Join(sources, ",")))
 	}
 	return update
 }
 
-func (c *CentralManagementUpdate) add(key string, cm *corev1.ConfigMap) error {
-	configuration, err := qdr.GetRouterConfigFromConfigMap(cm)
+func (c *ExternalConfigHook) add(_ string, cm *corev1.ConfigMap) error {
+	_, err := qdr.GetRouterConfigFromConfigMap(cm)
 	if err != nil {
 		return err
 	}
-	c.configuration[key] = configuration
-	c.actions = append(c.actions, func(config *qdr.RouterConfig) bool {
-		update := false
-		// Add connectors
-		for _, connector := range c.configuration[key].Connectors {
-			if config.AddConnector(connector) {
-				update = true
-			}
-		}
-		// Add sslProfiles
-		for _, sslProfile := range c.configuration[key].SslProfiles {
-			if config.AddSslProfile(sslProfile) {
-				update = true
-			}
-		}
-		if update {
-			c.logger.Info("Central management configuration added")
-		}
-		return update
-	})
-	return nil
-}
-
-func (c *CentralManagementUpdate) delete(key string) error {
-	c.actions = append(c.actions, func(config *qdr.RouterConfig) bool {
-		if _, ok := c.configuration[key]; !ok {
-			return false
-		}
-		update := false
-		// Del connectors
-		for name, _ := range c.configuration[key].Connectors {
-			if removed, _ := config.RemoveConnector(name); removed {
-				update = true
-			}
-		}
-		// Del sslProfiles
-		for name, _ := range c.configuration[key].SslProfiles {
-			if config.RemoveSslProfile(name) {
-				update = true
-			}
-		}
-		if update {
-			delete(c.configuration, key)
-			c.logger.Info("Central management configuration deleted")
-		}
-		return update
-	})
-	return nil
+	c.configMapHooks[cm.Name] = *cm
+	externalCM, err := c.ensureConfig()
+	if err != nil {
+		return err
+	}
+	updated := false
+	if internalclient.MergeOwnerReferences(&externalCM.ObjectMeta, c.ownerReferences()) {
+		updated = true
+	}
+	cmOwnerReferences := []metav1.OwnerReference{{
+		APIVersion: "v1",
+		Kind:       "ConfigMap",
+		Name:       cm.Name,
+		UID:        cm.UID,
+	}}
+	if internalclient.MergeOwnerReferences(&externalCM.ObjectMeta, cmOwnerReferences) {
+		updated = true
+	}
+	if externalCM.Data == nil {
+		externalCM.Data = make(map[string]string)
+	}
+	currentValue := externalCM.Data[cm.Name]
+	desiredValue := cm.Data[types.TransportConfigFile]
+	if currentValue != desiredValue {
+		externalCM.Data[cm.Name] = cm.Data[types.TransportConfigFile]
+		updated = true
+	}
+	if updated {
+		c.logger.Info("External configuration has been found", slog.String("source", cm.Name))
+		_, err = c.cmClient().Update(context.Background(), externalCM, metav1.UpdateOptions{})
+	}
+	return err
 }
