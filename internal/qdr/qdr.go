@@ -15,14 +15,16 @@ import (
 )
 
 type RouterConfig struct {
-	Metadata    RouterMetadata
-	SslProfiles map[string]SslProfile
-	Listeners   map[string]Listener
-	Connectors  map[string]Connector
-	Addresses   map[string]Address
-	LogConfig   map[string]LogConfig
-	SiteConfig  *SiteConfig
-	Bridges     BridgeConfig
+	Metadata      RouterMetadata
+	ManagedRouter ManagedRouter
+	SslProfiles   map[string]SslProfile
+	Listeners     map[string]Listener
+	Connectors    map[string]Connector
+	Addresses     map[string]Address
+	AutoLinks     map[string]AutoLink
+	LogConfig     map[string]LogConfig
+	SiteConfig    *SiteConfig
+	Bridges       BridgeConfig
 }
 
 type RouterConfigHandler interface {
@@ -118,6 +120,9 @@ func (r *RouterConfig) AddConnector(c Connector) bool {
 	if original, ok := r.Connectors[c.Name]; ok && original == c {
 		return false
 	}
+	if r.Connectors == nil {
+		r.Connectors = map[string]Connector{}
+	}
 	r.Connectors[c.Name] = c
 	return true
 }
@@ -153,6 +158,9 @@ func ConfigureSslProfile(name string, path string, clientAuth bool) SslProfile {
 func (r *RouterConfig) AddSslProfile(s SslProfile) bool {
 	if original, ok := r.SslProfiles[s.Name]; ok && original == s {
 		return false
+	}
+	if r.SslProfiles == nil {
+		r.SslProfiles = map[string]SslProfile{}
 	}
 	r.SslProfiles[s.Name] = s
 	return true
@@ -205,6 +213,13 @@ func (r *RouterConfig) AddAddress(a Address) {
 	r.Addresses[a.Prefix] = a
 }
 
+func (r *RouterConfig) AddAutoLink(a AutoLink) {
+	if r.AutoLinks == nil {
+		r.AutoLinks = map[string]AutoLink{}
+	}
+	r.AutoLinks[a.Name] = a
+}
+
 func (r *RouterConfig) AddTcpConnector(e TcpEndpoint) {
 	r.Bridges.AddTcpConnector(e)
 }
@@ -236,6 +251,31 @@ func (r *RouterConfig) GetSiteMetadata() SiteMetadata {
 
 func (r *RouterConfig) SetSiteMetadata(site *SiteMetadata) {
 	r.Metadata.Metadata = getSiteMetadataString(site.Id, site.Version)
+}
+
+func (r *RouterConfig) JoinVanId(vanId string, host string, port int, profilePath string) {
+	r.ManagedRouter.VanId = vanId
+
+	profileName := fmt.Sprintf("%s-profile", vanId)
+	r.AddSslProfile(ConfigureSslProfile(profileName, profilePath, true))
+
+	connectorName := fmt.Sprintf("%s-connector", vanId)
+	r.AddConnector(Connector{
+		Name:           connectorName,
+		Host:           host,
+		Port:           strconv.Itoa(port),
+		Role:           RoleRouteContainer,
+		SslProfile:     profileName,
+		VerifyHostname: true,
+	})
+
+	autoLinkName := fmt.Sprintf("%s-autoLink", vanId)
+	r.AddAutoLink(AutoLink{
+		Name:            autoLinkName,
+		ExternalAddress: fmt.Sprintf("_topo/%s/x", vanId),
+		Direction:       DirectionIn,
+		Connection:      connectorName,
+	})
 }
 
 func (bc *BridgeConfig) AddTcpConnector(e TcpEndpoint) {
@@ -326,10 +366,11 @@ func (r *RouterConfig) SetLogLevels(levels map[string]string) bool {
 type Role string
 
 const (
-	RoleInterRouter Role = "inter-router"
-	RoleEdge             = "edge"
-	RoleNormal           = "normal"
-	RoleDefault          = ""
+	RoleInterRouter    Role = "inter-router"
+	RoleEdge                = "edge"
+	RoleNormal              = "normal"
+	RoleRouteContainer      = "route-container"
+	RoleDefault             = ""
 )
 
 func asRole(name string) Role {
@@ -342,6 +383,9 @@ func asRole(name string) Role {
 	if name == "normal" {
 		return RoleNormal
 	}
+	if name == "route-container" {
+		return RoleRouteContainer
+	}
 	return RoleDefault
 }
 
@@ -350,6 +394,8 @@ func GetRole(name string) Role {
 		return RoleEdge
 	} else if name == "normal" {
 		return RoleNormal
+	} else if name == "route-container" {
+		return RoleRouteContainer
 	}
 	return RoleInterRouter
 }
@@ -367,6 +413,10 @@ type RouterMetadata struct {
 	HelloMaxAgeSeconds  string `json:"helloMaxAgeSeconds,omitempty"`
 	DataConnectionCount string `json:"dataConnectionCount,omitempty"`
 	Metadata            string `json:"metadata,omitempty"`
+}
+
+type ManagedRouter struct {
+	VanId string `json:"vanId,omitempty"`
 }
 
 type SslProfile struct {
@@ -538,6 +588,34 @@ type Address struct {
 	Distribution string `json:"distribution,omitempty"`
 }
 
+type OperStatus string
+
+const (
+	OperStatusInactive  OperStatus = "inactive"
+	OperStatusAttaching OperStatus = "attaching"
+	OperStatusFailed    OperStatus = "failed"
+	OperStatusActive    OperStatus = "active"
+	OperStatusQuiescing OperStatus = "quiescing"
+	OperStatusIdle      OperStatus = "idle"
+)
+
+// AutoLink fields information:
+//   - Address is required when direction is out
+//   - Direction is required
+type AutoLink struct {
+	Name            string     `json:"name,omitempty"`
+	Address         string     `json:"address,omitempty"`
+	ExternalAddress string     `json:"externalAddress,omitempty"`
+	Direction       string     `json:"direction,omitempty"`
+	Connection      string     `json:"connection,omitempty"`
+	ContainerId     string     `json:"containerId,omitempty"`
+	operStatus      OperStatus `json:"operStatus,omitempty"`
+}
+
+func (a *AutoLink) GetOperStatus() OperStatus {
+	return a.operStatus
+}
+
 type TcpEndpoint struct {
 	Name           string `json:"name,omitempty"`
 	Host           string `json:"host,omitempty"`
@@ -613,12 +691,14 @@ func RouterConfigEquals(actual, desired string) bool {
 
 func UnmarshalRouterConfig(config string) (RouterConfig, error) {
 	result := RouterConfig{
-		Metadata:    RouterMetadata{},
-		Addresses:   map[string]Address{},
-		SslProfiles: map[string]SslProfile{},
-		Listeners:   map[string]Listener{},
-		Connectors:  map[string]Connector{},
-		LogConfig:   map[string]LogConfig{},
+		Metadata:      RouterMetadata{},
+		ManagedRouter: ManagedRouter{},
+		Addresses:     map[string]Address{},
+		AutoLinks:     map[string]AutoLink{},
+		SslProfiles:   map[string]SslProfile{},
+		Listeners:     map[string]Listener{},
+		Connectors:    map[string]Connector{},
+		LogConfig:     map[string]LogConfig{},
 		Bridges: BridgeConfig{
 			TcpListeners:  map[string]TcpEndpoint{},
 			TcpConnectors: map[string]TcpEndpoint{},
@@ -650,6 +730,13 @@ func UnmarshalRouterConfig(config string) (RouterConfig, error) {
 				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
 			}
 			result.Metadata = metadata
+		case "managedRouter":
+			managedRouter := ManagedRouter{}
+			err = convert(element[1], &managedRouter)
+			if err != nil {
+				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
+			}
+			result.ManagedRouter = managedRouter
 		case "address":
 			address := Address{}
 			err = convert(element[1], &address)
@@ -657,6 +744,13 @@ func UnmarshalRouterConfig(config string) (RouterConfig, error) {
 				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
 			}
 			result.Addresses[address.Prefix] = address
+		case "autoLink":
+			autoLink := AutoLink{}
+			err = convert(element[1], &autoLink)
+			if err != nil {
+				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
+			}
+			result.AutoLinks[autoLink.Name] = autoLink
 		case "connector":
 			connector := Connector{}
 			err = convert(element[1], &connector)
@@ -721,6 +815,13 @@ func MarshalRouterConfig(config RouterConfig) (string, error) {
 		}
 		elements = append(elements, tuple)
 	}
+	if config.ManagedRouter.VanId != "" {
+		tuple := []interface{}{
+			"managedRouter",
+			config.ManagedRouter,
+		}
+		elements = append(elements, tuple)
+	}
 	for _, e := range config.SslProfiles {
 		tuple := []interface{}{
 			"sslProfile",
@@ -745,6 +846,13 @@ func MarshalRouterConfig(config RouterConfig) (string, error) {
 	for _, e := range config.Addresses {
 		tuple := []interface{}{
 			"address",
+			e,
+		}
+		elements = append(elements, tuple)
+	}
+	for _, e := range config.AutoLinks {
+		tuple := []interface{}{
+			"autoLink",
 			e,
 		}
 		elements = append(elements, tuple)

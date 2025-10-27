@@ -175,6 +175,9 @@ func TestMarshalUnmarshalRouterConfig(t *testing.T) {
 			Metadata:           "MySiteId",
 			HelloMaxAgeSeconds: "5",
 		},
+		ManagedRouter: ManagedRouter{
+			VanId: "my-van",
+		},
 		SslProfiles: map[string]SslProfile{
 			"one": SslProfile{
 				Name:           "one",
@@ -202,6 +205,13 @@ func TestMarshalUnmarshalRouterConfig(t *testing.T) {
 				Port:       "5678",
 				SslProfile: "two",
 			},
+			"c3": Connector{
+				Name:       "c3",
+				Host:       "elsewhere.com",
+				Port:       "4321",
+				SslProfile: "three",
+				Role:       "route-container",
+			},
 		},
 		Listeners: map[string]Listener{
 			"l1": Listener{
@@ -217,6 +227,13 @@ func TestMarshalUnmarshalRouterConfig(t *testing.T) {
 				Port:       5678,
 				SslProfile: "two",
 				Cost:       101,
+			},
+			"l3": Listener{
+				Name:       "l3",
+				Host:       "127.0.0.1",
+				Port:       4321,
+				SslProfile: "three",
+				Role:       "route-container",
 			},
 		},
 		Bridges: BridgeConfig{
@@ -267,6 +284,15 @@ func TestMarshalUnmarshalRouterConfig(t *testing.T) {
 				Distribution: "balanced",
 			},
 		},
+		AutoLinks: map[string]AutoLink{
+			"awake": AutoLink{
+				Name:            "awake",
+				Address:         "my-address",
+				ExternalAddress: "my-external-address",
+				Direction:       "in",
+				Connection:      "three",
+			},
+		},
 		SiteConfig: &SiteConfig{
 			Name:      "razzle",
 			Namespace: "dazzle",
@@ -285,6 +311,9 @@ func TestMarshalUnmarshalRouterConfig(t *testing.T) {
 	if !reflect.DeepEqual(input.Metadata, output.Metadata) {
 		t.Errorf("Incorrect metadata. Expected %#v got %#v", input.Metadata, output.Metadata)
 	}
+	if !reflect.DeepEqual(input.ManagedRouter, output.ManagedRouter) {
+		t.Errorf("Incorrect managedRouter. Expected %#v got %#v", input.ManagedRouter, output.ManagedRouter)
+	}
 	if !reflect.DeepEqual(input.SslProfiles, output.SslProfiles) {
 		t.Errorf("Incorrect sslprofiles. Expected %#v got %#v", input.SslProfiles, output.SslProfiles)
 	}
@@ -296,6 +325,9 @@ func TestMarshalUnmarshalRouterConfig(t *testing.T) {
 	}
 	if !reflect.DeepEqual(input.Addresses, output.Addresses) {
 		t.Errorf("Incorrect addresses. Expected %#v got %#v", input.Addresses, output.Addresses)
+	}
+	if !reflect.DeepEqual(input.AutoLinks, output.AutoLinks) {
+		t.Errorf("Incorrect autoLinks. Expected %#v got %#v", input.AutoLinks, output.AutoLinks)
 	}
 	if !reflect.DeepEqual(input.Bridges, output.Bridges) {
 		t.Errorf("Incorrect bridges. Expected %#v got %#v", input.Bridges, output.Bridges)
@@ -450,6 +482,73 @@ func TestMarshalUnmarshalRouterConfigWithLogging(t *testing.T) {
 	checkLevel(t, &input, "POLICY", "")
 	checkLevel(t, &input, "TCP_ADAPTOR", "notice+")
 	checkLevel(t, &input, "DEFAULT", "debug+")
+}
+
+func TestMarshalUnmarshalRouterConfigJoinVanId(t *testing.T) {
+	verifyHostName := new(bool)
+	*verifyHostName = false
+
+	input := RouterConfig{
+		Metadata: RouterMetadata{
+			Id:                 "${HOSTNAME}",
+			Mode:               ModeEdge,
+			Metadata:           "MySiteId",
+			HelloMaxAgeSeconds: "5",
+		},
+	}
+	input.JoinVanId("my-van", "backbone-host", 5671, "/profile/path")
+	data, err := MarshalRouterConfig(input)
+	if err != nil {
+		t.Errorf("Failed to marshal: %v", err)
+	}
+	output, err := UnmarshalRouterConfig(data)
+	if err != nil {
+		t.Errorf("Failed to unmarshal: %v", err)
+	}
+	if !reflect.DeepEqual(input.Metadata, output.Metadata) {
+		t.Errorf("Incorrect metadata. Expected %#v got %#v", input.Metadata, output.Metadata)
+	}
+	if input.ManagedRouter.VanId != "my-van" {
+		t.Errorf("Incorrect vanId. Expected %#v got %#v", "my-van", output.ManagedRouter.VanId)
+	}
+	expectedConnector := Connector{
+		Name:           "my-van-connector",
+		Role:           RoleRouteContainer,
+		Host:           "backbone-host",
+		Port:           "5671",
+		VerifyHostname: true,
+		SslProfile:     "my-van-profile",
+	}
+	if len(output.Connectors) != 1 {
+		t.Errorf("Incorrect number of connectors. Expected %d got %d", 1, len(output.Connectors))
+	}
+	if !reflect.DeepEqual(output.Connectors["my-van-connector"], expectedConnector) {
+		t.Errorf("Incorrect connector. Expected %#v got %#v", expectedConnector, output.Connectors["my-van-connector"])
+	}
+	expectedSslProfile := SslProfile{
+		Name:           "my-van-profile",
+		CertFile:       "/profile/path/my-van-profile/tls.crt",
+		PrivateKeyFile: "/profile/path/my-van-profile/tls.key",
+		CaCertFile:     "/profile/path/my-van-profile/ca.crt",
+	}
+	if len(output.SslProfiles) != 1 {
+		t.Errorf("Incorrect number of sslProfiles. Expected %d got %d", 1, len(output.SslProfiles))
+	}
+	if !reflect.DeepEqual(output.SslProfiles["my-van-profile"], expectedSslProfile) {
+		t.Errorf("Incorrect sslProfile. Expected %#v got %#v", expectedSslProfile, output.SslProfiles["my-van-profile"])
+	}
+	expectedAutoLink := AutoLink{
+		Name:            "my-van-autoLink",
+		ExternalAddress: "_topo/my-van/x",
+		Direction:       "in",
+		Connection:      "my-van-connector",
+	}
+	if len(output.AutoLinks) != 1 {
+		t.Errorf("Incorrect number of autoLinks. Expected %d got %d", 1, len(output.AutoLinks))
+	}
+	if !reflect.DeepEqual(output.AutoLinks["my-van-autoLink"], expectedAutoLink) {
+		t.Errorf("Incorrect autoLink. Expected %#v got %#v", expectedAutoLink, output.AutoLinks["my-van-autoLink"])
+	}
 }
 
 func TestUpdateConfigMap(t *testing.T) {
