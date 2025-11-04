@@ -262,13 +262,7 @@ func addEventProcessorWatcher[T runtime.Object](c *EventProcessor, handler Handl
 
 // Watches for ConfigMap related events matching options and invokes the handler function accordingly.
 func (c *EventProcessor) WatchConfigMaps(options internalinterfaces.TweakListOptionsFunc, namespace string, handler ConfigMapHandler) *ConfigMapWatcher {
-	informer := corev1informer.NewFilteredConfigMapInformer(
-		c.client,
-		namespace,
-		c.resync,
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		options)
-	return addEventProcessorWatcher(c, handler, corev1.SchemeGroupVersion, informer)
+	return c.WatchConfigMapsCustom(c.resync, options, namespace, handler)
 }
 
 func (c *EventProcessor) WatchSecrets(options internalinterfaces.TweakListOptionsFunc, namespace string, handler SecretHandler) *SecretWatcher {
@@ -499,6 +493,16 @@ func (c *EventProcessor) WatchAttachedConnectors(namespace string, handler Attac
 		time.Second*30,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
+}
+
+func (c *EventProcessor) WatchConfigMapsCustom(duration time.Duration, options internalinterfaces.TweakListOptionsFunc, namespace string, handler ConfigMapHandler) *ConfigMapWatcher {
+	informer := corev1informer.NewFilteredConfigMapInformer(
+		c.client,
+		namespace,
+		duration,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		options)
+	return addEventProcessorWatcher(c, handler, corev1.SchemeGroupVersion, informer)
 }
 
 func FilterByNamespace[V any](match func(string) bool, handler func(string, V) error) func(string, V) error {
