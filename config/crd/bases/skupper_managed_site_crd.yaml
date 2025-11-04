@@ -12,18 +12,18 @@ spec:
         openAPIV3Schema:
           description: |-
             A ManagedSite can be placed along with a Site resource and it is used to
-            indicate that the given Site is a member of the indicated VAN ID.
+            indicate that the given Site is a member of the indicated Network ID.
             
             A single ManagedSite can be associated to a Site.
             
             Once a ManagedSite is defined, all Sites that compose your network must
-            be part of the same VAN ID for your VAN to operate.
+            be part of the same Network ID for your VAN to operate.
           type: object
           properties:
             spec:
               type: object
               properties:
-                vanId:
+                networkId:
                   type: string
                   description: The ID of the Virtual Application Network to participate.
                 settings:
@@ -37,7 +37,7 @@ spec:
                   additionalProperties:
                     type: string
               required:
-                - vanId
+                - networkId
             status:
               type: object
               properties:
@@ -107,10 +107,10 @@ spec:
       subresources:
         status: {}
       additionalPrinterColumns:
-      - name: VAN ID
+      - name: Network ID
         type: string
-        description: The VAN ID to join
-        jsonPath: .spec.vanId
+        description: The Network ID to join
+        jsonPath: .spec.networkId
       - name: Status
         type: string
         description: The status of the VAN site

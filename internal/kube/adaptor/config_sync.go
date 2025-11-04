@@ -109,6 +109,10 @@ func (c *ConfigSync) configEvent(key string, configmap *corev1.ConfigMap) error 
 		log.Printf("sync failed: %s", err)
 		return err
 	}
+	if err := c.syncAutoLinks(desired); err != nil {
+		log.Printf("sync failed: %s", err)
+		return err
+	}
 	return nil
 }
 
@@ -196,6 +200,38 @@ func syncListeners(agent *qdr.Agent, desired *qdr.RouterConfig) error {
 	if differences := qdr.ListenersDifference(qdr.FilterListeners(actual, qdr.IsNotProtectedListener), desired.GetMatchingListeners(qdr.IsNotProtectedListener)); !differences.Empty() {
 		if err := agent.UpdateListenerConfig(differences); err != nil {
 			return fmt.Errorf("Error syncing listeners: %s", err)
+		}
+	}
+	return nil
+}
+
+func (c *ConfigSync) syncAutoLinks(desired *qdr.RouterConfig) error {
+	agent, err := c.agentPool.Get()
+	if err != nil {
+		return fmt.Errorf("Could not get management agent : %s", err)
+	}
+
+	err = syncAutoLinks(agent, desired)
+	if err != nil {
+		return fmt.Errorf("error while syncing auto-links: %w", err)
+	}
+
+	c.agentPool.Put(agent)
+	if err != nil {
+		return fmt.Errorf("Error while syncing router config : %s", err)
+	}
+	return nil
+}
+
+func syncAutoLinks(agent *qdr.Agent, desired *qdr.RouterConfig) error {
+	actual, err := agent.GetAutoLinks()
+	if err != nil {
+		return fmt.Errorf("Error retrieving autoLinks: %s", err)
+	}
+
+	if differences := qdr.AutoLinksDifference(actual, desired); !differences.Empty() {
+		if err = agent.UpdateAutoLinkConfig(differences); err != nil {
+			return fmt.Errorf("Error syncing autoLinks: %s", err)
 		}
 	}
 	return nil

@@ -1614,7 +1614,23 @@ func (c *ExternalConfigHook) Apply(config *qdr.RouterConfig) bool {
 			continue
 		}
 		if _, ok := c.configMapHooks[source]; ok {
+			// TODO improve how configuration gets merged into the main routerconfig
+			//      maybe introduce a PartialMerge and PartialRemove method that takes
+			//      the entities to be merged/removed.
 			// Ensure configuration is defined
+			if configuration.Network.IsSet() && !configuration.Network.Equals(config.Network) {
+				if configuration.Network.NetworkId != "" {
+					config.Network.NetworkId = configuration.Network.NetworkId
+					updateSources[source] = true
+					update = true
+				}
+				if configuration.Network.TenantId != "" {
+					config.Network.TenantId = configuration.Network.TenantId
+					updateSources[source] = true
+					update = true
+				}
+			}
+
 			for _, listener := range configuration.Listeners {
 				if config.AddListener(listener) {
 					c.logger.Debug("Added listener",
@@ -1645,7 +1661,26 @@ func (c *ExternalConfigHook) Apply(config *qdr.RouterConfig) bool {
 					update = true
 				}
 			}
+			for _, autoLink := range configuration.AutoLinks {
+				if config.AddAutoLink(autoLink) {
+					c.logger.Debug("Added autoLink",
+						slog.Any("source", source),
+						slog.Any("autoLink", autoLink))
+				}
+			}
 		} else {
+			if configuration.Network.IsSet() {
+				if configuration.Network.NetworkId != "" {
+					config.Network.NetworkId = ""
+					updateSources[source] = true
+					update = true
+				}
+				if configuration.Network.TenantId != "" {
+					config.Network.TenantId = ""
+					updateSources[source] = true
+					update = true
+				}
+			}
 			for name, _ := range configuration.Listeners {
 				if ok, listener := config.RemoveListener(name); ok {
 					c.logger.Debug("Removed listener",
@@ -1675,6 +1710,15 @@ func (c *ExternalConfigHook) Apply(config *qdr.RouterConfig) bool {
 					updateSources[source] = true
 					update = true
 				}
+			}
+			for name, autoLink := range configuration.AutoLinks {
+				if ok = config.RemoveAutoLink(name); ok {
+					c.logger.Debug("Removed autoLink",
+						slog.Any("source", source),
+						slog.Any("autoLink", autoLink))
+				}
+				updateSources[source] = true
+				update = true
 			}
 			delete(externalConfig.Data, source)
 			updateCm = true

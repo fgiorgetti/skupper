@@ -175,8 +175,8 @@ func TestMarshalUnmarshalRouterConfig(t *testing.T) {
 			Metadata:           "MySiteId",
 			HelloMaxAgeSeconds: "5",
 		},
-		ManagedRouter: ManagedRouter{
-			VanId: "my-van",
+		Network: Network{
+			NetworkId: "my-van",
 		},
 		SslProfiles: map[string]SslProfile{
 			"one": SslProfile{
@@ -212,6 +212,13 @@ func TestMarshalUnmarshalRouterConfig(t *testing.T) {
 				SslProfile: "three",
 				Role:       "route-container",
 			},
+			"c4": Connector{
+				Name:       "c4",
+				Host:       "elsewhere.com",
+				Port:       "9876",
+				SslProfile: "four",
+				Role:       "inter-network",
+			},
 		},
 		Listeners: map[string]Listener{
 			"l1": Listener{
@@ -234,6 +241,13 @@ func TestMarshalUnmarshalRouterConfig(t *testing.T) {
 				Port:       4321,
 				SslProfile: "three",
 				Role:       "route-container",
+			},
+			"l4": Listener{
+				Name:       "l4",
+				Host:       "127.0.0.1",
+				Port:       9876,
+				SslProfile: "four",
+				Role:       "inter-network",
 			},
 		},
 		Bridges: BridgeConfig{
@@ -311,8 +325,8 @@ func TestMarshalUnmarshalRouterConfig(t *testing.T) {
 	if !reflect.DeepEqual(input.Metadata, output.Metadata) {
 		t.Errorf("Incorrect metadata. Expected %#v got %#v", input.Metadata, output.Metadata)
 	}
-	if !reflect.DeepEqual(input.ManagedRouter, output.ManagedRouter) {
-		t.Errorf("Incorrect managedRouter. Expected %#v got %#v", input.ManagedRouter, output.ManagedRouter)
+	if !reflect.DeepEqual(input.Network, output.Network) {
+		t.Errorf("Incorrect network. Expected %#v got %#v", input.Network, output.Network)
 	}
 	if !reflect.DeepEqual(input.SslProfiles, output.SslProfiles) {
 		t.Errorf("Incorrect sslprofiles. Expected %#v got %#v", input.SslProfiles, output.SslProfiles)
@@ -484,7 +498,7 @@ func TestMarshalUnmarshalRouterConfigWithLogging(t *testing.T) {
 	checkLevel(t, &input, "DEFAULT", "debug+")
 }
 
-func TestMarshalUnmarshalRouterConfigJoinVanId(t *testing.T) {
+func TestMarshalUnmarshalRouterConfigJoinNetworkId(t *testing.T) {
 	verifyHostName := new(bool)
 	*verifyHostName = false
 
@@ -496,7 +510,7 @@ func TestMarshalUnmarshalRouterConfigJoinVanId(t *testing.T) {
 			HelloMaxAgeSeconds: "5",
 		},
 	}
-	input.JoinVanId("my-van", "backbone-host", 5671, "/profile/path")
+	input.JoinNetworkId("my-van", "backbone-host", 5671, "/profile/path")
 	data, err := MarshalRouterConfig(input)
 	if err != nil {
 		t.Errorf("Failed to marshal: %v", err)
@@ -508,12 +522,15 @@ func TestMarshalUnmarshalRouterConfigJoinVanId(t *testing.T) {
 	if !reflect.DeepEqual(input.Metadata, output.Metadata) {
 		t.Errorf("Incorrect metadata. Expected %#v got %#v", input.Metadata, output.Metadata)
 	}
-	if input.ManagedRouter.VanId != "my-van" {
-		t.Errorf("Incorrect vanId. Expected %#v got %#v", "my-van", output.ManagedRouter.VanId)
+	if !input.Network.IsSet() {
+		t.Errorf("Expected network to be set.")
+	}
+	if input.Network.NetworkId != "my-van" {
+		t.Errorf("Incorrect networkId. Expected %#v got %#v", "my-van", output.Network.NetworkId)
 	}
 	expectedConnector := Connector{
 		Name:           "my-van-connector",
-		Role:           RoleRouteContainer,
+		Role:           RoleInterNetwork,
 		Host:           "backbone-host",
 		Port:           "5671",
 		VerifyHostname: true,
@@ -539,7 +556,7 @@ func TestMarshalUnmarshalRouterConfigJoinVanId(t *testing.T) {
 	}
 	expectedAutoLink := AutoLink{
 		Name:            "my-van-autoLink",
-		ExternalAddress: "_topo/my-van/x",
+		ExternalAddress: "_xnet/my-van/x",
 		Direction:       "in",
 		Connection:      "my-van-connector",
 	}
