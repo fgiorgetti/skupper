@@ -505,6 +505,15 @@ func (c *EventProcessor) WatchConfigMapsCustom(duration time.Duration, options i
 	return addEventProcessorWatcher(c, handler, corev1.SchemeGroupVersion, informer)
 }
 
+func (c *EventProcessor) WatchManagedSite(namespace string, handler ManagedSiteHandler) *ManagedSiteWatcher {
+	informer := skupperv2alpha1informer.NewManagedSiteInformer(
+		c.skupperClient,
+		namespace,
+		time.Second*30,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
+}
+
 func FilterByNamespace[V any](match func(string) bool, handler func(string, V) error) func(string, V) error {
 	if match == nil {
 		return handler

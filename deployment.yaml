@@ -28,7 +28,7 @@ spec:
             - name: SKUPPER_KUBE_ADAPTOR_IMAGE_PULL_POLICY
               value: Never
             - name: SKUPPER_ROUTER_IMAGE
-              value: quay.io/skupper/skupper-router:main
+              value: docker.io/library/skupper-router:main
             - name: SKUPPER_ROUTER_IMAGE_PULL_POLICY
               value: Always
           image: docker.io/library/controller:v2-dev

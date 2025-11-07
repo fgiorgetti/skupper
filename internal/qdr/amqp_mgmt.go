@@ -1132,6 +1132,13 @@ func asAutoLink(record Record) AutoLink {
 	}
 }
 
+func asNetwork(record Record) Network {
+	return Network{
+		NetworkId: record.AsString("networkId"),
+		TenantId:  record.AsString("tenantId"),
+	}
+}
+
 func asInt32(s string) int32 {
 	ival, _ := strconv.Atoi(s)
 	return int32(ival)
@@ -1293,6 +1300,18 @@ func (a *Agent) GetAutoLinks() (map[string]AutoLink, error) {
 	return autoLinks, nil
 }
 
+func (a *Agent) GetNetwork() (Network, error) {
+	results, err := a.Query("io.skupper.router.network", []string{})
+	if err != nil {
+		return Network{}, err
+	}
+	var network Network
+	for _, record := range results {
+		network = asNetwork(record)
+	}
+	return network, nil
+}
+
 func (a *Agent) Request(request *Request) (*Response, error) {
 	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
 	defer cancel()
@@ -1413,6 +1432,13 @@ func (a *Agent) UpdateAutoLinkConfig(changes *AutoLinkDifference) error {
 		if err := a.Create("io.skupper.router.router.config.autoLink", added.Name, &added); err != nil {
 			return fmt.Errorf("error adding autoLink: %s - %w", added.Name, err)
 		}
+	}
+	return nil
+}
+
+func (a *Agent) UpdateNetworkConfig(desired Network) error {
+	if err := a.Update("io.skupper.router.network", "network/0", desired); err != nil {
+		return fmt.Errorf("error updating network config: %w", err)
 	}
 	return nil
 }

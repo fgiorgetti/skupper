@@ -1089,8 +1089,16 @@ type ManagedSiteStatus struct {
 	Status `json:",inline"`
 }
 
-func (m *ManagedSite) SetConfigured(err error) bool {
-	if m.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ErrorOrReadyCondition(err), m.ObjectMeta.Generation) {
+func (m *ManagedSite) SetConfigured(ready bool) bool {
+	if m.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ReadyOrPendingCondition(ready), m.ObjectMeta.Generation) {
+		m.Status.setReady([]string{CONDITION_TYPE_CONFIGURED}, m.ObjectMeta.Generation)
+		return true
+	}
+	return false
+}
+
+func (m *ManagedSite) SetError(expectedName string) bool {
+	if m.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ErrorCondition(fmt.Errorf("name must be '%s'", expectedName)), m.ObjectMeta.Generation) {
 		m.Status.setReady([]string{CONDITION_TYPE_CONFIGURED}, m.ObjectMeta.Generation)
 		return true
 	}

@@ -131,6 +131,7 @@ func NewController(cli internalclient.Clients, config *Config) (*Controller, err
 	controller.eventProcessor.WatchAttachedConnectors(config.WatchNamespace, filter(controller, controller.checkAttachedConnector))
 	controller.eventProcessor.WatchAttachedConnectorBindings(config.WatchNamespace, filter(controller, controller.checkAttachedConnectorBinding))
 	controller.eventProcessor.WatchLinks(config.WatchNamespace, filter(controller, controller.checkLink))
+	controller.eventProcessor.WatchManagedSite(config.WatchNamespace, filter(controller, controller.checkManagedSite))
 	controller.eventProcessor.WatchConfigMaps(skupperNetworkStatus(), config.WatchNamespace, filter(controller, controller.networkStatusUpdate))
 	controller.eventProcessor.WatchConfigMaps(skupperRouterConfig(), config.WatchNamespace, filter(controller, controller.routerConfigUpdate))
 	controller.eventProcessor.WatchConfigMapsCustom(time.Second*30, routerConfigHook(), config.WatchNamespace, filter(controller, controller.checkRouterConfigHook))
@@ -502,6 +503,14 @@ func (c *Controller) networkStatusUpdate(key string, cm *corev1.ConfigMap) error
 	}
 	c.log.Debug("Updating network status", slog.String("site", key))
 	return c.getSite(cm.ObjectMeta.Namespace).NetworkStatusUpdated(network.ExtractSiteRecords(status))
+}
+
+func (c *Controller) checkManagedSite(key string, managedSite *skupperv2alpha1.ManagedSite) error {
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return err
+	}
+	return c.getSite(namespace).CheckManagedSite(name, managedSite)
 }
 
 func filter[V any](controller *Controller, handler func(string, V) error) func(string, V) error {

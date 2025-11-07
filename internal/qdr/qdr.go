@@ -441,6 +441,16 @@ type Network struct {
 	TenantId  string `json:"tenantId,omitempty"`
 }
 
+func (n Network) toRecord() Record {
+	result := make(map[string]any)
+	result["name"] = "network/0"
+	result["networkId"] = n.NetworkId
+	if n.TenantId != "" {
+		result["tenantId"] = n.TenantId
+	}
+	return result
+}
+
 func (n Network) IsSet() bool {
 	return n.TenantId != "" || n.NetworkId != ""
 }
@@ -1351,6 +1361,10 @@ func (a *ConnectorDifference) Empty() bool {
 
 func (desired Connector) IsLinkConnector() bool {
 	return desired.Role == "inter-router" || desired.Role == "edge"
+}
+
+func (desired Connector) IsInterNetworkConnector() bool {
+	return desired.Role == "inter-network"
 }
 
 func (desired Connector) Equivalent(actual Connector) bool {

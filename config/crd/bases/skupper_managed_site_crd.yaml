@@ -15,7 +15,7 @@ spec:
             A ManagedSite can be placed along with a Site resource and it is used to
             indicate that the given Site is a member of the indicated Network ID.
             
-            A single ManagedSite can be associated to a Site.
+            A single ManagedSite can be associated to a Site and it must be named "network".
             
             Once a ManagedSite is defined, all Sites that compose your network must
             be part of the same Network ID for your VAN to operate.

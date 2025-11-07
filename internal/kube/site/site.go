@@ -46,6 +46,7 @@ type Labelling interface {
 type Site struct {
 	initialised    bool
 	site           *skupperv2alpha1.Site
+	managedSite    ManagedSite
 	name           string
 	namespace      string
 	clients        *watchers.EventProcessor
@@ -174,6 +175,7 @@ func (s *Site) reconcile(siteDef *skupperv2alpha1.Site, inRecovery bool) error {
 		s.bindings.init(s, routerConfig)
 		s.setBindingsConfiguredStatus(nil)
 		s.checkSecuredAccess()
+		s.managedSite.init(routerConfig)
 	} else if len(s.currentGroups) != len(s.groups()) {
 		s.logger.Info("EnableHA setting changed for site",
 			slog.String("namespace", siteDef.Namespace),
@@ -810,6 +812,10 @@ func (s *Site) createRouterConfigForGroup(group string, config *qdr.RouterConfig
 func (s *Site) updateRouterConfig(update qdr.ConfigUpdate) error {
 	for _, group := range s.groups() {
 		if err := s.updateRouterConfigForGroup(update, group); err != nil {
+			s.logger.Error("Error updating router config for site",
+				slog.String("namespace", s.namespace),
+				slog.String("name", s.name),
+				slog.Any("error", err))
 			return err
 		}
 	}
@@ -1400,6 +1406,52 @@ func (s *Site) CheckExternalConfig(key string, config *corev1.ConfigMap) error {
 		}
 	}
 	return nil
+}
+
+func (s *Site) CheckManagedSite(name string, managedSite *skupperv2alpha1.ManagedSite) error {
+	const expectedName = "network"
+	var err error
+	cli := s.clients.GetSkupperClient().SkupperV2alpha1().ManagedSites(s.namespace)
+
+	if name != expectedName {
+		if managedSite != nil {
+			if managedSite.SetError(expectedName) {
+				s.logger.Info("ManagedSites are handled as a singleton and it must be named: network",
+					slog.String("namespace", s.namespace),
+					slog.String("name", name))
+				_, err = cli.UpdateStatus(context.Background(), managedSite, metav1.UpdateOptions{})
+			}
+		}
+		return err
+	}
+
+	if !s.IsInitialised() {
+		if managedSite == nil {
+			return nil
+		}
+		if managedSite.SetConfigured(false) {
+			s.logger.Info("ManagedSite set to pending as site is not initialised", slog.String("namespace", s.namespace), slog.String("name", name))
+			_, err = cli.UpdateStatus(context.Background(), managedSite, metav1.UpdateOptions{})
+		}
+		return err
+	}
+	if s.managedSite.Update(s.namespace, name, managedSite) {
+		err = s.updateRouterConfig(&s.managedSite)
+	}
+	if managedSite == nil {
+		return err
+	}
+	if managedSite.SetConfigured(true) {
+		_, updErr := cli.UpdateStatus(context.Background(), managedSite, metav1.UpdateOptions{})
+		if updErr != nil {
+			err = stderrors.Join(err, updErr)
+			s.logger.Error("unable to set ManagedSite status to Ready",
+				slog.String("namespace", s.namespace),
+				slog.String("name", name),
+				slog.Any("error", err))
+		}
+	}
+	return err
 }
 
 func podState(pod *corev1.Pod) skupperv2alpha1.ConditionState {
