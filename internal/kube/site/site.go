@@ -1614,109 +1614,12 @@ func (c *ExternalConfigHook) Apply(config *qdr.RouterConfig) bool {
 			continue
 		}
 		if _, ok := c.configMapHooks[source]; ok {
-			// TODO improve how configuration gets merged into the main routerconfig
-			//      maybe introduce a PartialMerge and PartialRemove method that takes
-			//      the entities to be merged/removed.
-			// Ensure configuration is defined
-			if configuration.Network.IsSet() && !configuration.Network.Equals(config.Network) {
-				if configuration.Network.NetworkId != "" {
-					config.Network.NetworkId = configuration.Network.NetworkId
-					updateSources[source] = true
-					update = true
-				}
-				if configuration.Network.TenantId != "" {
-					config.Network.TenantId = configuration.Network.TenantId
-					updateSources[source] = true
-					update = true
-				}
-			}
-
-			for _, listener := range configuration.Listeners {
-				if config.AddListener(listener) {
-					c.logger.Debug("Added listener",
-						slog.Any("source", source),
-						slog.Any("listener", listener),
-					)
-					updateSources[source] = true
-					update = true
-				}
-			}
-			for _, connector := range configuration.Connectors {
-				if config.AddConnector(connector) {
-					c.logger.Debug("Added connector",
-						slog.Any("source", source),
-						slog.Any("connector", connector),
-					)
-					updateSources[source] = true
-					update = true
-				}
-			}
-			for _, sslProfile := range configuration.SslProfiles {
-				if config.AddSslProfile(sslProfile) {
-					c.logger.Debug("Added sslProfile",
-						slog.Any("source", source),
-						slog.Any("sslProfile", sslProfile),
-					)
-					updateSources[source] = true
-					update = true
-				}
-			}
-			for _, autoLink := range configuration.AutoLinks {
-				if config.AddAutoLink(autoLink) {
-					c.logger.Debug("Added autoLink",
-						slog.Any("source", source),
-						slog.Any("autoLink", autoLink))
-				}
+			if config.Merge(configuration) {
+				updateSources[source] = true
+				update = true
 			}
 		} else {
-			if configuration.Network.IsSet() {
-				if configuration.Network.NetworkId != "" {
-					config.Network.NetworkId = ""
-					updateSources[source] = true
-					update = true
-				}
-				if configuration.Network.TenantId != "" {
-					config.Network.TenantId = ""
-					updateSources[source] = true
-					update = true
-				}
-			}
-			for name, _ := range configuration.Listeners {
-				if ok, listener := config.RemoveListener(name); ok {
-					c.logger.Debug("Removed listener",
-						slog.Any("source", source),
-						slog.Any("listener", listener),
-					)
-					updateSources[source] = true
-					update = true
-				}
-			}
-			for name, _ := range configuration.Connectors {
-				if ok, connector := config.RemoveConnector(name); ok {
-					c.logger.Debug("Removed connector",
-						slog.Any("source", source),
-						slog.Any("connector", connector),
-					)
-					updateSources[source] = true
-					update = true
-				}
-			}
-			for name, sslProfile := range configuration.SslProfiles {
-				if ok = config.RemoveSslProfile(name); ok {
-					c.logger.Debug("Removed sslProfile",
-						slog.Any("source", source),
-						slog.Any("sslProfile", sslProfile),
-					)
-					updateSources[source] = true
-					update = true
-				}
-			}
-			for name, autoLink := range configuration.AutoLinks {
-				if ok = config.RemoveAutoLink(name); ok {
-					c.logger.Debug("Removed autoLink",
-						slog.Any("source", source),
-						slog.Any("autoLink", autoLink))
-				}
+			if config.Remove(configuration) {
 				updateSources[source] = true
 				update = true
 			}

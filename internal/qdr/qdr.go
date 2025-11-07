@@ -1056,6 +1056,76 @@ func (config *RouterConfig) GetMatchingListeners(predicate ListenerPredicate) ma
 	return FilterListeners(config.Listeners, predicate)
 }
 
+func (config *RouterConfig) Merge(configuration RouterConfig) bool {
+	var update bool
+	if configuration.Network.IsSet() && !configuration.Network.Equals(config.Network) {
+		if configuration.Network.NetworkId != "" {
+			config.Network.NetworkId = configuration.Network.NetworkId
+			update = true
+		}
+		if configuration.Network.TenantId != "" {
+			config.Network.TenantId = configuration.Network.TenantId
+			update = true
+		}
+	}
+	for _, listener := range configuration.Listeners {
+		if config.AddListener(listener) {
+			update = true
+		}
+	}
+	for _, connector := range configuration.Connectors {
+		if config.AddConnector(connector) {
+			update = true
+		}
+	}
+	for _, sslProfile := range configuration.SslProfiles {
+		if config.AddSslProfile(sslProfile) {
+			update = true
+		}
+	}
+	for _, autoLink := range configuration.AutoLinks {
+		if config.AddAutoLink(autoLink) {
+			update = true
+		}
+	}
+	return update
+}
+
+func (config *RouterConfig) Remove(configuration RouterConfig) bool {
+	var update bool
+	if configuration.Network.IsSet() {
+		if configuration.Network.NetworkId != "" {
+			config.Network.NetworkId = ""
+			update = true
+		}
+		if configuration.Network.TenantId != "" {
+			config.Network.TenantId = ""
+			update = true
+		}
+	}
+	for name, _ := range configuration.Listeners {
+		if ok, _ := config.RemoveListener(name); ok {
+			update = true
+		}
+	}
+	for name, _ := range configuration.Connectors {
+		if ok, _ := config.RemoveConnector(name); ok {
+			update = true
+		}
+	}
+	for name, _ := range configuration.SslProfiles {
+		if ok := config.RemoveSslProfile(name); ok {
+			update = true
+		}
+	}
+	for name, _ := range configuration.AutoLinks {
+		if ok := config.RemoveAutoLink(name); ok {
+			update = true
+		}
+	}
+	return update
+}
+
 func (b *BridgeConfig) UpdateConfigMap(configmap *corev1.ConfigMap) (bool, error) {
 	if configmap.Data != nil && configmap.Data[types.TransportConfigFile] != "" {
 		existing, err := UnmarshalRouterConfig(configmap.Data[types.TransportConfigFile])
