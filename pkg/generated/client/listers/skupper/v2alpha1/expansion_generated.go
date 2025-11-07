@@ -66,6 +66,14 @@ type ConnectorListerExpansion interface{}
 // ConnectorNamespaceLister.
 type ConnectorNamespaceListerExpansion interface{}
 
+// InterNetworkIngressListerExpansion allows custom methods to be added to
+// InterNetworkIngressLister.
+type InterNetworkIngressListerExpansion interface{}
+
+// InterNetworkIngressNamespaceListerExpansion allows custom methods to be added to
+// InterNetworkIngressNamespaceLister.
+type InterNetworkIngressNamespaceListerExpansion interface{}
+
 // LinkListerExpansion allows custom methods to be added to
 // LinkLister.
 type LinkListerExpansion interface{}
@@ -81,6 +89,22 @@ type ListenerListerExpansion interface{}
 // ListenerNamespaceListerExpansion allows custom methods to be added to
 // ListenerNamespaceLister.
 type ListenerNamespaceListerExpansion interface{}
+
+// ManagedSiteListerExpansion allows custom methods to be added to
+// ManagedSiteLister.
+type ManagedSiteListerExpansion interface{}
+
+// ManagedSiteNamespaceListerExpansion allows custom methods to be added to
+// ManagedSiteNamespaceLister.
+type ManagedSiteNamespaceListerExpansion interface{}
+
+// ManagementLinkListerExpansion allows custom methods to be added to
+// ManagementLinkLister.
+type ManagementLinkListerExpansion interface{}
+
+// ManagementLinkNamespaceListerExpansion allows custom methods to be added to
+// ManagementLinkNamespaceLister.
+type ManagementLinkNamespaceListerExpansion interface{}
 
 // RouterAccessListerExpansion allows custom methods to be added to
 // RouterAccessLister.

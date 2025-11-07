@@ -30,9 +30,15 @@ type CertificateExpansion interface{}
 
 type ConnectorExpansion interface{}
 
+type InterNetworkIngressExpansion interface{}
+
 type LinkExpansion interface{}
 
 type ListenerExpansion interface{}
+
+type ManagedSiteExpansion interface{}
+
+type ManagementLinkExpansion interface{}
 
 type RouterAccessExpansion interface{}
 
