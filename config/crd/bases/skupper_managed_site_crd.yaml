@@ -26,6 +26,11 @@ spec:
                 networkId:
                   type: string
                   description: The ID of the Virtual Application Network to participate.
+                image:
+                  type: string
+                  description: |-
+                    The Site Controller image to use. If not provided,
+                    the default one defined by the controller will be used.
                 settings:
                   description: |-
                     Advanced. A map containing additional settings. Each map

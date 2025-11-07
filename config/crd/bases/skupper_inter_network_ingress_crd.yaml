@@ -1,7 +1,7 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: managementlinks.skupper.io
+  name: internetworkingresses.skupper.io
 spec:
   group: skupper.io
   versions:
@@ -11,30 +11,21 @@ spec:
       schema:
         openAPIV3Schema:
           description: |-
-            A ManagementLink can be defined when you have a Managed Site that defines a network id.
-    
-            The ManagementLink is used to establish an inter-network communication link with another
-            Site that accepts such kind of incoming link, usually a central management backbone.
-    
-            The ManagedSite resource must be in ready state provided before a ManagementLink resource
-            can be configured.
+            An InterNetworkIngress can be defined alongside a ManagementLink, exposing
+            a local ingress address to be used by the remote router through an inter-network
+            mTLS connection.
+            The remote router can only send messages to the provided address.
           type: object
           properties:
             spec:
               type: object
               properties:
-                hostname:
+                address:
                   type: string
-                  description: >-
-                    The hostname used to establish an inter-network connection.
-                port:
-                  type: integer
-                  description: The port number to establish a connection using an inter-network link.
-                tlsCredentials:
+                  description: The local ingress address to be exposed through the inter-network connection.
+                managementLink:
                   type: string
-                  description: >-
-                    The name of the Secret that contains the TLS Credentials used to
-                    establish an mTLS connection.
+                  description: Name of the ManagementLink to expose the address through.
                 settings:
                   description: |-
                     Advanced. A map containing additional settings. Each map
@@ -46,9 +37,8 @@ spec:
                   additionalProperties:
                     type: string
               required:
-                - hostname
-                - port
-                - tlsCredentials
+                - address
+                - managementLink
             status:
               type: object
               properties:
@@ -118,21 +108,17 @@ spec:
       subresources:
         status: {}
       additionalPrinterColumns:
-      - name: Hostname
+      - name: Address
         type: string
-        description: The hostname used to establish an inter-network connection
-        jsonPath: .spec.hostname
-      - name: Port
-        type: integer
-        description: The port number to establish a connection using an inter-network link
-        jsonPath: .spec.port
-      - name: Credentials
+        description: The local ingress address
+        jsonPath: .spec.address
+      - name: Management Link
         type: string
-        description: The Secret name that contains the TLS Credentials used to establish an mTLS connection
-        jsonPath: .spec.tlsCredentials
+        description: The management link name to use
+        jsonPath: .spec.managementLink
       - name: Status
         type: string
-        description: The status of the ManagementLink
+        description: The status of the VAN site
         jsonPath: .status.status
       - name: Message
         type: string
@@ -140,8 +126,8 @@ spec:
         jsonPath: .status.message
   scope: Namespaced
   names:
-    plural: managementlinks
-    singular: managementlink
-    kind: ManagementLink
+    plural: internetworkingresses
+    singular: internetworkingress
+    kind: InterNetworkIngress
     shortNames:
-    - mln
+    - ini
