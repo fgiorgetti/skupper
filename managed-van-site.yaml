@@ -1,0 +1,8 @@
+apiVersion: skupper.io/v2alpha1
+kind: ManagedVANSite
+metadata:
+  name: my-van-backbone
+spec:
+  hostname: 127.0.0.1
+  port: 5671
+  tlsCredentials: my-van-profile

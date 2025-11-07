@@ -53,15 +53,6 @@ spec:
                   description: |-
                     A human-readable status message. Error messages are reported here.
                   type: string
-                controller:
-                  type: object
-                  properties:
-                    name:
-                      type: string
-                    namespace:
-                      type: string
-                    version:
-                      type: string
                 conditions:
                   type: array
                   description: |-
@@ -129,5 +120,6 @@ spec:
     plural: internetworkingresses
     singular: internetworkingress
     kind: InterNetworkIngress
+    listKind: InterNetworkIngressList
     shortNames:
     - ini

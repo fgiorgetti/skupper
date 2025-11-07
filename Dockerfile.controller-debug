@@ -1,0 +1,29 @@
+ARG GO_IMAGE_BASE_TAG=1.24
+FROM --platform=$BUILDPLATFORM golang:${GO_IMAGE_BASE_TAG} AS builder
+
+ARG TARGETARCH
+
+RUN apt update && apt install -y jq
+
+WORKDIR /app
+WORKDIR /go/src/app
+COPY go.mod .
+COPY go.sum .
+RUN go mod download
+COPY . .
+
+# Build statically linked binary
+ENV CGO_ENABLED=0
+
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+
+RUN go build -gcflags="-N -l" -a -o /app/controller ./cmd/controller
+
+LABEL   org.opencontainers.image.title="Skupper Controller"   org.opencontainers.image.description="Kubernetes controller for operating skupper networks"
+
+WORKDIR /app
+
+# Use numeric user ID (no need to create user in scratch)
+USER 10000
+
+CMD ["dlv", "--listen=:40000", "--headless=true", "--api-version=2", "--log", "exec", "/app/controller"]

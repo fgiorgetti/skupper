@@ -1,0 +1,20 @@
+apiVersion: v1
+data:
+  skrouterd.json: |-
+    [
+        [
+            "listener",
+            {
+                "name": "listener-sample",
+                "role": "normal",
+                "host": "0.0.0.0",
+                "port": 12345
+            }
+        ]
+    ]
+kind: ConfigMap
+metadata:
+  labels:
+    internal.skupper.io/router-config-hook: ""
+  name: sample-router-config
+  namespace: east
