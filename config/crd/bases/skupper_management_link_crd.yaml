@@ -16,8 +16,7 @@ spec:
             The ManagementLink is used to establish an inter-network communication link with another
             Site that accepts such kind of incoming link, usually a central management backbone.
     
-            The ManagedSite resource must be in ready state provided before a ManagementLink resource
-            can be configured.
+            The ManagedSite resource must be in ready state before a ManagementLink resource can be configured.
           type: object
           properties:
             spec:

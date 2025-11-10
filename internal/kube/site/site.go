@@ -52,6 +52,7 @@ type Site struct {
 	clients        *watchers.EventProcessor
 	bindings       *ExtendedBindings
 	links          map[string]*site.Link
+	mgmtLinks      map[string]*ManagementLink
 	errors         map[string]string
 	linkAccess     site.RouterAccessMap
 	certs          certificates.CertificateManager
@@ -73,6 +74,7 @@ func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs ce
 		namespace:     namespace,
 		clients:       eventProcessor,
 		links:         map[string]*site.Link{},
+		mgmtLinks:     map[string]*ManagementLink{},
 		linkAccess:    site.RouterAccessMap{},
 		certs:         certs,
 		access:        access,
@@ -1450,6 +1452,63 @@ func (s *Site) CheckManagedSite(name string, managedSite *skupperv2alpha1.Manage
 				slog.String("name", name),
 				slog.Any("error", err))
 		}
+	}
+	return err
+}
+
+func (s *Site) CheckManagementLink(name string, link *skupperv2alpha1.ManagementLink) error {
+	var err error
+	cli := s.clients.GetSkupperClient().SkupperV2alpha1().ManagementLinks(s.namespace)
+	logger := s.logger.With(
+		slog.String("namespace", s.namespace),
+		slog.String("name", name),
+	)
+	if !s.IsInitialised() {
+		if link == nil {
+			return nil
+		}
+		if link.SetConfigured(false) && link.Status.SetStatusMessage("Site is not initialized") {
+			logger.Info("ManagementLink set to pending as site is not initialised")
+			_, err = cli.UpdateStatus(context.Background(), link, metav1.UpdateOptions{})
+		}
+		return err
+	}
+	var update qdr.ConfigUpdate
+	if existing, ok := s.mgmtLinks[name]; ok {
+		if existing.Update(s.managedSite.NetworkId, link) {
+			update = existing
+		}
+	} else {
+		newLink := &ManagementLink{
+			Name:      name,
+			Link:      link,
+			NetworkId: s.managedSite.NetworkId,
+		}
+		s.mgmtLinks[name] = newLink
+		update = newLink
+	}
+	if update == nil {
+		return nil
+	}
+	logger.Info("configuration has changed, updating router config")
+	err = s.updateRouterConfig(update)
+	if link == nil {
+		return err
+	}
+	if err != nil {
+		link.SetError(err)
+	} else {
+		if s.managedSite.NetworkId != "" {
+			link.SetConfigured(true)
+		} else {
+			link.SetConfigured(false)
+			link.Status.SetStatusMessage("Network Id is not yet defined")
+		}
+	}
+	if _, updErr := cli.UpdateStatus(context.Background(), link, metav1.UpdateOptions{}); updErr != nil {
+		logger.Error("error updating ManagementLink status",
+			slog.Any("error", err),
+		)
 	}
 	return err
 }

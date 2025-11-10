@@ -1134,7 +1134,15 @@ type ManagementLinkStatus struct {
 	Status `json:",inline"`
 }
 
-func (m *ManagementLink) SetConfigured(err error) bool {
+func (m *ManagementLink) SetConfigured(ready bool) bool {
+	if m.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ReadyOrPendingCondition(ready), m.ObjectMeta.Generation) {
+		m.Status.setReady([]string{CONDITION_TYPE_CONFIGURED}, m.ObjectMeta.Generation)
+		return true
+	}
+	return false
+}
+
+func (m *ManagementLink) SetError(err error) bool {
 	if m.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ErrorOrReadyCondition(err), m.ObjectMeta.Generation) {
 		m.Status.setReady([]string{CONDITION_TYPE_CONFIGURED}, m.ObjectMeta.Generation)
 		return true
@@ -1153,7 +1161,7 @@ type ManagementLinkList struct {
 
 type ManagementLinkSpec struct {
 	Hostname       string            `json:"hostname"`
-	Port           string            `json:"port"`
+	Port           int               `json:"port"`
 	TlsCredentials string            `json:"tlsCredentials"`
 	Settings       map[string]string `json:"settings,omitempty"`
 }
