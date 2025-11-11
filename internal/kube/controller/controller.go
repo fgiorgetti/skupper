@@ -133,6 +133,7 @@ func NewController(cli internalclient.Clients, config *Config) (*Controller, err
 	controller.eventProcessor.WatchLinks(config.WatchNamespace, filter(controller, controller.checkLink))
 	controller.eventProcessor.WatchManagedSite(config.WatchNamespace, filter(controller, controller.checkManagedSite))
 	controller.eventProcessor.WatchManagementLink(config.WatchNamespace, filter(controller, controller.checkManagementLink))
+	controller.eventProcessor.WatchInterNetworkIngress(config.WatchNamespace, filter(controller, controller.checkInterNetworkIngress))
 	controller.eventProcessor.WatchConfigMaps(skupperNetworkStatus(), config.WatchNamespace, filter(controller, controller.networkStatusUpdate))
 	controller.eventProcessor.WatchConfigMaps(skupperRouterConfig(), config.WatchNamespace, filter(controller, controller.routerConfigUpdate))
 	controller.eventProcessor.WatchConfigMapsCustom(time.Second*30, routerConfigHook(), config.WatchNamespace, filter(controller, controller.checkRouterConfigHook))
@@ -520,6 +521,14 @@ func (c *Controller) checkManagementLink(key string, managementLink *skupperv2al
 		return err
 	}
 	return c.getSite(namespace).CheckManagementLink(name, managementLink)
+}
+
+func (c *Controller) checkInterNetworkIngress(key string, ingress *skupperv2alpha1.InterNetworkIngress) error {
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return err
+	}
+	return c.getSite(namespace).CheckInterNetworkIngress(name, ingress)
 }
 
 func filter[V any](controller *Controller, handler func(string, V) error) func(string, V) error {

@@ -1150,6 +1150,11 @@ func (m *ManagementLink) SetError(err error) bool {
 	return false
 }
 
+func (m *ManagementLink) IsReady() bool {
+	return meta.IsStatusConditionTrue(m.Status.Conditions, CONDITION_TYPE_CONFIGURED) &&
+		meta.IsStatusConditionTrue(m.Status.Conditions, CONDITION_TYPE_READY)
+}
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ManagementLinkList contains a List of ManagementLink instances
@@ -1180,7 +1185,15 @@ type InterNetworkIngressStatus struct {
 	Status `json:",inline"`
 }
 
-func (i *InterNetworkIngress) SetConfigured(err error) bool {
+func (i *InterNetworkIngress) SetConfigured(ready bool) bool {
+	if i.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ReadyOrPendingCondition(ready), i.ObjectMeta.Generation) {
+		i.Status.setReady([]string{CONDITION_TYPE_CONFIGURED}, i.ObjectMeta.Generation)
+		return true
+	}
+	return false
+}
+
+func (i *InterNetworkIngress) SetError(err error) bool {
 	if i.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ErrorOrReadyCondition(err), i.ObjectMeta.Generation) {
 		i.Status.setReady([]string{CONDITION_TYPE_CONFIGURED}, i.ObjectMeta.Generation)
 		return true

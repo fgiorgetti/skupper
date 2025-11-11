@@ -7,10 +7,10 @@ TESTFLAGS := -v -race -short
 GOOS ?= linux
 GOARCH ?= amd64
 
-REGISTRY := quay.io/skupper
-IMAGE_TAG := v2-dev
+REGISTRY := quay.io/fgiorgetti
+IMAGE_TAG := multi-van
 ROUTER_IMAGE_TAG := main
-PLATFORMS ?= linux/amd64,linux/arm64
+PLATFORMS ?= linux/amd64
 CONTAINERFILES := Dockerfile.cli Dockerfile.kube-adaptor Dockerfile.controller Dockerfile.network-observer Dockerfile.system-controller
 GO_IMAGE_BASE_TAG := 1.24.9
 SHARED_IMAGE_LABELS = \

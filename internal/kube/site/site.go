@@ -53,6 +53,7 @@ type Site struct {
 	bindings       *ExtendedBindings
 	links          map[string]*site.Link
 	mgmtLinks      map[string]*ManagementLink
+	inetIngress    map[string]*InterNetworkIngress
 	errors         map[string]string
 	linkAccess     site.RouterAccessMap
 	certs          certificates.CertificateManager
@@ -75,6 +76,7 @@ func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs ce
 		clients:       eventProcessor,
 		links:         map[string]*site.Link{},
 		mgmtLinks:     map[string]*ManagementLink{},
+		inetIngress:   map[string]*InterNetworkIngress{},
 		linkAccess:    site.RouterAccessMap{},
 		certs:         certs,
 		access:        access,
@@ -1495,6 +1497,7 @@ func (s *Site) CheckManagementLink(name string, link *skupperv2alpha1.Management
 	logger.Info("ManagementLink has changed, updating router config")
 	err = s.updateRouterConfig(update)
 	if link == nil {
+		delete(s.mgmtLinks, name)
 		return err
 	}
 	if err != nil {
@@ -1509,6 +1512,60 @@ func (s *Site) CheckManagementLink(name string, link *skupperv2alpha1.Management
 	}
 	if _, updErr := cli.UpdateStatus(context.Background(), link, metav1.UpdateOptions{}); updErr != nil {
 		logger.Error("error updating ManagementLink status",
+			slog.Any("error", err),
+		)
+	}
+	return err
+}
+
+func (s *Site) CheckInterNetworkIngress(name string, ingress *skupperv2alpha1.InterNetworkIngress) error {
+	var err error
+	cli := s.clients.GetSkupperClient().SkupperV2alpha1().InterNetworkIngresses(s.namespace)
+	logger := s.logger.With(
+		slog.String("namespace", s.namespace),
+		slog.String("name", name),
+	)
+	if !s.IsInitialised() {
+		if ingress == nil {
+			return nil
+		}
+		if ingress.SetConfigured(false) && ingress.Status.SetStatusMessage("Site is not initialized") {
+			logger.Info("InterNetworkIngress set to pending as site is not initialised")
+			_, err = cli.UpdateStatus(context.Background(), ingress, metav1.UpdateOptions{})
+		}
+		return err
+	}
+	var update qdr.ConfigUpdate
+	var existingLink *ManagementLink
+	if existing, ok := s.inetIngress[name]; ok {
+		if existing.Update(ingress, s.mgmtLinks) {
+			update = existing
+		}
+		existingLink = existing.Link
+	} else if ingress != nil {
+		newIngress := NewInterNetworkIngress(ingress, s.mgmtLinks)
+		s.inetIngress[name] = newIngress
+		existingLink = newIngress.Link
+		if newIngress.Link != nil {
+			update = newIngress
+		}
+	}
+	if update == nil {
+		if ingress != nil && existingLink == nil && ingress.SetError(fmt.Errorf("invalid management link")) {
+			_, err = cli.UpdateStatus(context.Background(), ingress, metav1.UpdateOptions{})
+			return err
+		}
+		return nil
+	}
+	logger.Info("InterNetworkIngress has changed, updating router config")
+	err = s.updateRouterConfig(update)
+	if ingress == nil {
+		delete(s.inetIngress, name)
+		return err
+	}
+	ingress.SetError(err)
+	if _, updErr := cli.UpdateStatus(context.Background(), ingress, metav1.UpdateOptions{}); updErr != nil {
+		logger.Error("error updating InterNetworkIngress status",
 			slog.Any("error", err),
 		)
 	}
