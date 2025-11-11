@@ -1485,12 +1485,14 @@ func (s *Site) CheckManagementLink(name string, link *skupperv2alpha1.Management
 			NetworkId: s.managedSite.NetworkId,
 		}
 		s.mgmtLinks[name] = newLink
-		update = newLink
+		if s.managedSite.NetworkId != "" {
+			update = newLink
+		}
 	}
 	if update == nil {
 		return nil
 	}
-	logger.Info("configuration has changed, updating router config")
+	logger.Info("ManagementLink has changed, updating router config")
 	err = s.updateRouterConfig(update)
 	if link == nil {
 		return err

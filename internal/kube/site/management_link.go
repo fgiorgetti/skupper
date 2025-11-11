@@ -24,7 +24,7 @@ func (m *ManagementLink) Update(networkId string, desired *v2alpha1.ManagementLi
 	if desired == nil {
 		update = true
 		m.Link = nil
-	} else if !reflect.DeepEqual(m.Link, desired) {
+	} else if !reflect.DeepEqual(m.Link.Spec, desired.Spec) {
 		update = true
 		m.Link = desired
 	}
