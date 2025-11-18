@@ -250,18 +250,31 @@ func (b *ExtendedBindings) MapOverAttachedConnectors(cf AttachedConnectorFunctio
 }
 
 func (b *ExtendedBindings) Apply(config *qdr.RouterConfig) bool {
+	var updated bool
 	desired := b.bindings.ToBridgeConfig()
 	for _, connector := range b.connectors {
-		connector.updateBridgeConfig(b.bindings.SiteId, &desired)
-		b.AddSslProfiles(config, connector.definitions)
+		if connector.updateBridgeConfig(b.bindings.SiteId, &desired) {
+			updated = true
+		}
+		if b.AddSslProfiles(config, connector.definitions) {
+			updated = true
+		}
 	}
 	for _, ptl := range b.perTargetListeners {
-		ptl.updateBridgeConfig(b.bindings.SiteId, &desired)
+		if ptl.updateBridgeConfig(b.bindings.SiteId, &desired) {
+			updated = true
+		}
 	}
-	b.bindings.AddSslProfiles(config)
-	config.UpdateBridgeConfig(desired)
-	config.RemoveUnreferencedSslProfiles()
-	return true //TODO: can optimise by indicating if no change was required
+	if b.bindings.AddSslProfiles(config) {
+		updated = true
+	}
+	if config.UpdateBridgeConfig(desired) {
+		updated = true
+	}
+	if config.RemoveUnreferencedSslProfiles() {
+		updated = true
+	}
+	return updated
 }
 
 func (b *ExtendedBindings) AddSslProfiles(config *qdr.RouterConfig, definitions map[string]*skupperv2alpha1.AttachedConnector) bool {

@@ -1307,7 +1307,7 @@ func (s *Site) AttachedConnectorUpdated(connector *skupperv2alpha1.AttachedConne
 }
 
 func (s *Site) AttachedConnectorDeleted(namespace string, name string) error {
-	return s.bindings.attachedConnectorDeleted(name, namespace)
+	return s.bindings.attachedConnectorDeleted(namespace, name)
 }
 
 func (s *Site) GetSite() *skupperv2alpha1.Site {

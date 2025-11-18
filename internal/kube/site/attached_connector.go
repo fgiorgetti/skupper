@@ -271,6 +271,7 @@ func (a *AttachedConnector) definitionDeleted(namespace string) bool {
 	if _, ok := a.definitions[namespace]; ok {
 		if a.watcher != nil {
 			a.watcher.Close()
+			a.watcher = nil
 		}
 		delete(a.definitions, namespace)
 		return true
@@ -286,10 +287,11 @@ func (a *AttachedConnector) bindingDeleted() bool {
 	return true
 }
 
-func (a *AttachedConnector) updateBridgeConfig(siteId string, config *qdr.BridgeConfig) {
+func (a *AttachedConnector) updateBridgeConfig(siteId string, config *qdr.BridgeConfig) bool {
+	var updated bool
 	definition := a.activeDefinition()
 	if definition == nil || a.watcher == nil {
-		return
+		return updated
 	}
 	connector := &skupperv2alpha1.Connector{
 		ObjectMeta: metav1.ObjectMeta{
@@ -303,6 +305,9 @@ func (a *AttachedConnector) updateBridgeConfig(siteId string, config *qdr.Bridge
 		},
 	}
 	for _, pod := range a.watcher.pods() {
-		site.UpdateBridgeConfigForConnectorToPod(siteId, connector, pod, a.binding.Spec.ExposePodsByName, config)
+		if site.UpdateBridgeConfigForConnectorToPod(siteId, connector, pod, a.binding.Spec.ExposePodsByName, config) {
+			updated = true
+		}
 	}
+	return updated
 }

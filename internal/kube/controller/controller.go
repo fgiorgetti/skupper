@@ -451,6 +451,7 @@ func (c *Controller) checkAttachedConnector(key string, connector *skupperv2alph
 			return nil
 		}
 	} else {
+		c.attachableConnectors[key] = connector
 		return c.getSite(connector.Spec.SiteNamespace).AttachedConnectorUpdated(connector)
 	}
 }
