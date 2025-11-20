@@ -2,6 +2,7 @@ package site
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/skupperproject/skupper/internal/kube/watchers"
@@ -54,6 +55,11 @@ func (a *ExtendedBindings) init(context BindingContext, config *qdr.RouterConfig
 func (a *ExtendedBindings) cleanup() {
 	for _, s := range a.selectors {
 		s.Close()
+	}
+	for _, connector := range a.connectors {
+		if connector.watcher != nil {
+			connector.watcher.Close()
+		}
 	}
 }
 
@@ -314,6 +320,17 @@ func (b *ExtendedBindings) checkAttachedConnectorBinding(namespace string, name 
 	if !ok {
 		connector = NewAttachedConnector(name, namespace, b)
 		b.connectors[name] = connector
+	} else if connector.binding != nil && binding != nil {
+		if connector.binding.Spec.ConnectorNamespace != binding.Spec.ConnectorNamespace {
+			b.logger.Info("AttachedConnectorBinding connector namespace has changed",
+				slog.String("key", fmt.Sprintf("%s/%s", namespace, name)),
+				slog.String("from", connector.binding.Spec.ConnectorNamespace),
+				slog.String("to", binding.Spec.ConnectorNamespace),
+			)
+			connector.unbind()
+			connector = NewAttachedConnector(name, namespace, b)
+			b.connectors[name] = connector
+		}
 	}
 	if (binding == nil && connector.bindingDeleted()) || (binding != nil && connector.bindingUpdated(binding)) {
 		if b.site != nil {
@@ -353,6 +370,16 @@ func (b *ExtendedBindings) attachedConnectorDeleted(namespace string, name strin
 			} else {
 				return connector.updateStatus()
 			}
+		}
+	}
+	return nil
+}
+
+func (b *ExtendedBindings) attachedConnectorUnreferenced(namespace string, name string) error {
+	if connector, ok := b.connectors[name]; ok && connector.definitionDeleted(namespace) {
+		delete(b.connectors, name)
+		if err := connector.Updated(nil); err != nil {
+			return err
 		}
 	}
 	return nil

@@ -144,6 +144,12 @@ func (a *AttachedConnector) Updated(pods []skupperv2alpha1.PodDetails) error {
 	if a.binding == nil {
 		return a.updateStatusNoBinding()
 	}
+	a.parent.logger.Debug("Updated AttachedConnector pods",
+		slog.String("Namespace", a.binding.Namespace),
+		slog.String("Name", a.binding.Name),
+		slog.String("siteId", a.parent.bindings.SiteId),
+		slog.String("memory", fmt.Sprintf("%p", a)),
+	)
 	definition := a.activeDefinition()
 	if definition == nil {
 		return a.updateStatusTo(fmt.Errorf("No matching AttachedConnector"), nil)
@@ -230,7 +236,8 @@ func (a *AttachedConnector) definitionUpdated(definition *skupperv2alpha1.Attach
 	}
 	a.definitions[definition.Namespace] = definition
 	if a.binding != nil && a.binding.Spec.ConnectorNamespace == definition.Namespace {
-		if selectorChanged || a.watcher == nil {
+		isSiteActive := a.parent.site != nil && a.parent.site.IsInitialised()
+		if isSiteActive && (selectorChanged || a.watcher == nil) {
 			a.parent.logger.Info("Watching pods for AttachedConnector",
 				slog.String("namespace", definition.Namespace),
 				slog.String("name", definition.Name))
@@ -284,6 +291,7 @@ func (a *AttachedConnector) bindingDeleted() bool {
 		return false
 	}
 	a.binding = nil
+
 	return true
 }
 
@@ -310,4 +318,13 @@ func (a *AttachedConnector) updateBridgeConfig(siteId string, config *qdr.Bridge
 		}
 	}
 	return updated
+}
+
+func (a *AttachedConnector) unbind() bool {
+	if a.watcher != nil {
+		a.watcher.Close()
+		a.watcher = nil
+		return true
+	}
+	return false
 }

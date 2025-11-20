@@ -240,10 +240,10 @@ func (r *RouterConfig) SetSiteMetadata(site *SiteMetadata) {
 }
 
 func (bc *BridgeConfig) AddTcpConnector(e TcpEndpoint) bool {
-	var updated bool
+	var updated = true
 	if existing, ok := bc.TcpConnectors[e.Name]; ok {
-		if e != existing {
-			updated = true
+		if e == existing {
+			updated = false
 		}
 	}
 	bc.TcpConnectors[e.Name] = e
@@ -261,10 +261,10 @@ func (bc *BridgeConfig) RemoveTcpConnector(name string) (bool, TcpEndpoint) {
 }
 
 func (bc *BridgeConfig) AddTcpListener(e TcpEndpoint) bool {
-	var updated bool
+	var updated = true
 	if existing, ok := bc.TcpListeners[e.Name]; ok {
-		if e != existing {
-			updated = true
+		if e == existing {
+			updated = false
 		}
 	}
 	bc.TcpListeners[e.Name] = e
