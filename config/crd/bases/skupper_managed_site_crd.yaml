@@ -123,4 +123,4 @@ spec:
     kind: ManagedSite
     listKind: ManagedSiteList
     shortNames:
-    - mst
+    - mgst
