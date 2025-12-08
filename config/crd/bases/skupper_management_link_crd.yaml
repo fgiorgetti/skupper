@@ -135,4 +135,4 @@ spec:
     kind: ManagementLink
     listKind: ManagementLinkList
     shortNames:
-    - mln
+    - mgln
