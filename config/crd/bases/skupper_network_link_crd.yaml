@@ -1,7 +1,7 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: managementlinks.skupper.io
+  name: networklinks.skupper.io
 spec:
   group: skupper.io
   versions:
@@ -11,12 +11,12 @@ spec:
       schema:
         openAPIV3Schema:
           description: |-
-            A ManagementLink can be defined when you have a Network that defines a network id.
+            A NetworkLink can be defined when you have a Network that defines a network id.
     
-            The ManagementLink is used to establish an inter-network communication link with another
+            The NetworkLink is used to establish an inter-network communication link with another
             Site that accepts such kind of incoming link, usually a central management backbone.
     
-            The Network resource must be in ready state before a ManagementLink resource can be configured.
+            The Network resource must be in ready state before a NetworkLink resource can be configured.
           type: object
           properties:
             spec:
@@ -122,7 +122,7 @@ spec:
         jsonPath: .spec.tlsCredentials
       - name: Status
         type: string
-        description: The status of the ManagementLink
+        description: The status of the NetworkLink
         jsonPath: .status.status
       - name: Message
         type: string
@@ -130,9 +130,9 @@ spec:
         jsonPath: .status.message
   scope: Namespaced
   names:
-    plural: managementlinks
-    singular: managementlink
-    kind: ManagementLink
-    listKind: ManagementLinkList
+    plural: networklinks
+    singular: networklink
+    kind: NetworkLink
+    listKind: NetworkLinkList
     shortNames:
-    - mgln
+    - nwln

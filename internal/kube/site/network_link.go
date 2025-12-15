@@ -9,13 +9,13 @@ import (
 	"github.com/skupperproject/skupper/pkg/apis/skupper/v2alpha1"
 )
 
-type ManagementLink struct {
+type NetworkLink struct {
 	Name      string
-	Link      *v2alpha1.ManagementLink
+	Link      *v2alpha1.NetworkLink
 	NetworkId string
 }
 
-func (m *ManagementLink) Update(networkId string, desired *v2alpha1.ManagementLink) bool {
+func (m *NetworkLink) Update(networkId string, desired *v2alpha1.NetworkLink) bool {
 	var update bool
 	if m.NetworkId != networkId {
 		m.NetworkId = networkId
@@ -33,7 +33,7 @@ func (m *ManagementLink) Update(networkId string, desired *v2alpha1.ManagementLi
 	return update
 }
 
-func (m *ManagementLink) Apply(config *qdr.RouterConfig) bool {
+func (m *NetworkLink) Apply(config *qdr.RouterConfig) bool {
 	if m.Link == nil || m.NetworkId == "" {
 		return m.delete(config)
 	}
@@ -64,7 +64,7 @@ func (m *ManagementLink) Apply(config *qdr.RouterConfig) bool {
 	return update
 }
 
-func (m *ManagementLink) delete(config *qdr.RouterConfig) bool {
+func (m *NetworkLink) delete(config *qdr.RouterConfig) bool {
 	var update bool
 	if ok, _ := config.RemoveConnector(m.connectorName()); ok {
 		update = true
@@ -83,7 +83,7 @@ func (m *ManagementLink) delete(config *qdr.RouterConfig) bool {
 	return update
 }
 
-func (m *ManagementLink) sslProfileName() string {
+func (m *NetworkLink) sslProfileName() string {
 	name := m.Name
 	if m.Link != nil && m.Link.Spec.TlsCredentials != "" {
 		name = m.Link.Spec.TlsCredentials
@@ -91,14 +91,14 @@ func (m *ManagementLink) sslProfileName() string {
 	return fmt.Sprintf("%s-profile", name)
 }
 
-func (m *ManagementLink) connectorName() string {
+func (m *NetworkLink) connectorName() string {
 	return fmt.Sprintf("%s-mgmt-connector", m.Name)
 }
 
-func (m *ManagementLink) autoLinkName() string {
+func (m *NetworkLink) autoLinkName() string {
 	return fmt.Sprintf("%s-mgmt-autoLink", m.Name)
 }
 
-func (m *ManagementLink) autoLinkExternalAddress() string {
+func (m *NetworkLink) autoLinkExternalAddress() string {
 	return fmt.Sprintf("_topo/%s", m.NetworkId)
 }

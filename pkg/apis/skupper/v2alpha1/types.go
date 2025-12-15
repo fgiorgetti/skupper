@@ -1141,18 +1141,18 @@ type NetworkSpec struct {
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-type ManagementLink struct {
+type NetworkLink struct {
 	v1.TypeMeta   `json:",inline"`
 	v1.ObjectMeta `json:"metadata,omitempty"`
-	Spec          ManagementLinkSpec   `json:"spec,omitempty"`
-	Status        ManagementLinkStatus `json:"status,omitempty"`
+	Spec          NetworkLinkSpec   `json:"spec,omitempty"`
+	Status        NetworkLinkStatus `json:"status,omitempty"`
 }
 
-type ManagementLinkStatus struct {
+type NetworkLinkStatus struct {
 	Status `json:",inline"`
 }
 
-func (m *ManagementLink) SetConfigured(ready bool) bool {
+func (m *NetworkLink) SetConfigured(ready bool) bool {
 	if m.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ReadyOrPendingCondition(ready), m.ObjectMeta.Generation) {
 		m.Status.setReady([]string{CONDITION_TYPE_CONFIGURED}, m.ObjectMeta.Generation)
 		return true
@@ -1160,7 +1160,7 @@ func (m *ManagementLink) SetConfigured(ready bool) bool {
 	return false
 }
 
-func (m *ManagementLink) SetError(err error) bool {
+func (m *NetworkLink) SetError(err error) bool {
 	if m.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ErrorOrReadyCondition(err), m.ObjectMeta.Generation) {
 		m.Status.setReady([]string{CONDITION_TYPE_CONFIGURED}, m.ObjectMeta.Generation)
 		return true
@@ -1168,21 +1168,21 @@ func (m *ManagementLink) SetError(err error) bool {
 	return false
 }
 
-func (m *ManagementLink) IsReady() bool {
+func (m *NetworkLink) IsReady() bool {
 	return meta.IsStatusConditionTrue(m.Status.Conditions, CONDITION_TYPE_CONFIGURED) &&
 		meta.IsStatusConditionTrue(m.Status.Conditions, CONDITION_TYPE_READY)
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ManagementLinkList contains a List of ManagementLink instances
-type ManagementLinkList struct {
+// NetworkLinkList contains a List of NetworkLink instances
+type NetworkLinkList struct {
 	v1.TypeMeta `json:",inline"`
 	v1.ListMeta `json:"metadata,omitempty"`
-	Items       []ManagementLink `json:"items"`
+	Items       []NetworkLink `json:"items"`
 }
 
-type ManagementLinkSpec struct {
+type NetworkLinkSpec struct {
 	Hostname       string            `json:"hostname"`
 	Port           int               `json:"port"`
 	TlsCredentials string            `json:"tlsCredentials"`
@@ -1229,7 +1229,7 @@ type InterNetworkIngressList struct {
 }
 
 type InterNetworkIngressSpec struct {
-	Address        string            `json:"address"`
-	ManagementLink string            `json:"managementLink"`
-	Settings       map[string]string `json:"settings,omitempty"`
+	Address     string            `json:"address"`
+	NetworkLink string            `json:"networkLink"`
+	Settings    map[string]string `json:"settings,omitempty"`
 }

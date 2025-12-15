@@ -39,7 +39,7 @@ spec:
             properties:
               address:
                 type: string
-              managementLink:
+              networkLink:
                 type: string
               settings:
                 additionalProperties:
@@ -47,7 +47,7 @@ spec:
                 type: object
             required:
             - address
-            - managementLink
+            - networkLink
             type: object
           status:
             properties:
