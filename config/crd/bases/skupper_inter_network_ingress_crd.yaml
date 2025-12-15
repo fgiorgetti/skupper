@@ -11,7 +11,7 @@ spec:
       schema:
         openAPIV3Schema:
           description: |-
-            An InterNetworkIngress can be defined alongside a ManagementLink, exposing
+            An InterNetworkIngress can be defined alongside a NetworkLink, exposing
             a local ingress address to be used by the remote router through an inter-network
             mTLS connection.
             The remote router can only send messages to the provided address.
@@ -23,9 +23,9 @@ spec:
                 address:
                   type: string
                   description: The local ingress address to be exposed through the inter-network connection.
-                managementLink:
+                networkLink:
                   type: string
-                  description: Name of the ManagementLink to expose the address through.
+                  description: Name of the NetworkLink to expose the address through.
                 settings:
                   description: |-
                     Advanced. A map containing additional settings. Each map
@@ -38,7 +38,7 @@ spec:
                     type: string
               required:
                 - address
-                - managementLink
+                - networkLink
             status:
               type: object
               properties:
@@ -105,8 +105,8 @@ spec:
         jsonPath: .spec.address
       - name: Management Link
         type: string
-        description: The management link name to use
-        jsonPath: .spec.managementLink
+        description: The network link name to use
+        jsonPath: .spec.networkLink
       - name: Status
         type: string
         description: The status of the VAN site

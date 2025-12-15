@@ -68,8 +68,8 @@ type (
 	SiteWatcher                     = ResourceWatcher[*v2alpha1.Site]
 	NetworkHandler                  = Handler[*v2alpha1.Network]
 	NetworkWatcher                  = ResourceWatcher[*v2alpha1.Network]
-	ManagementLinkHandler           = Handler[*v2alpha1.ManagementLink]
-	ManagementLinkWatcher           = ResourceWatcher[*v2alpha1.ManagementLink]
+	NetworkLinkHandler              = Handler[*v2alpha1.NetworkLink]
+	NetworkLinkWatcher              = ResourceWatcher[*v2alpha1.NetworkLink]
 	InterNetworkIngressHandler      = Handler[*v2alpha1.InterNetworkIngress]
 	InterNetworkIngressWatcher      = ResourceWatcher[*v2alpha1.InterNetworkIngress]
 )
