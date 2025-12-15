@@ -11,12 +11,12 @@ spec:
       schema:
         openAPIV3Schema:
           description: |-
-            A ManagementLink can be defined when you have a Managed Site that defines a network id.
+            A ManagementLink can be defined when you have a Network that defines a network id.
     
             The ManagementLink is used to establish an inter-network communication link with another
             Site that accepts such kind of incoming link, usually a central management backbone.
     
-            The ManagedSite resource must be in ready state before a ManagementLink resource can be configured.
+            The Network resource must be in ready state before a ManagementLink resource can be configured.
           type: object
           properties:
             spec:

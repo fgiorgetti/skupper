@@ -140,7 +140,7 @@ func NewController(cli internalclient.Clients, config *Config, options ...watche
 	controller.eventProcessor.WatchAttachedConnectors(config.WatchNamespace, filter(controller, controller.checkAttachedConnector))
 	controller.eventProcessor.WatchAttachedConnectorBindings(config.WatchNamespace, filter(controller, controller.checkAttachedConnectorBinding))
 	controller.eventProcessor.WatchLinks(config.WatchNamespace, filter(controller, controller.checkLink))
-	controller.eventProcessor.WatchManagedSite(config.WatchNamespace, filter(controller, controller.checkManagedSite))
+	controller.eventProcessor.WatchNetwork(config.WatchNamespace, filter(controller, controller.checkNetwork))
 	controller.eventProcessor.WatchManagementLink(config.WatchNamespace, filter(controller, controller.checkManagementLink))
 	controller.eventProcessor.WatchInterNetworkIngress(config.WatchNamespace, filter(controller, controller.checkInterNetworkIngress))
 	controller.eventProcessor.WatchConfigMaps(skupperNetworkStatus(), config.WatchNamespace, filter(controller, controller.networkStatusUpdate))
@@ -587,12 +587,12 @@ func (c *Controller) networkStatusUpdate(key string, cm *corev1.ConfigMap) error
 	return c.getSite(cm.ObjectMeta.Namespace).NetworkStatusUpdated(network.ExtractSiteRecords(status))
 }
 
-func (c *Controller) checkManagedSite(key string, managedSite *skupperv2alpha1.ManagedSite) error {
+func (c *Controller) checkNetwork(key string, network *skupperv2alpha1.Network) error {
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		return err
 	}
-	return c.getSite(namespace).CheckManagedSite(name, managedSite)
+	return c.getSite(namespace).CheckNetwork(name, network)
 }
 
 func (c *Controller) checkManagementLink(key string, managementLink *skupperv2alpha1.ManagementLink) error {

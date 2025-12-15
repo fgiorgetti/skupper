@@ -1096,18 +1096,18 @@ type AttachedConnectorBindingSpec struct {
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-type ManagedSite struct {
+type Network struct {
 	v1.TypeMeta   `json:",inline"`
 	v1.ObjectMeta `json:"metadata,omitempty"`
-	Spec          ManagedSiteSpec   `json:"spec,omitempty"`
-	Status        ManagedSiteStatus `json:"status,omitempty"`
+	Spec          NetworkSpec   `json:"spec,omitempty"`
+	Status        NetworkStatus `json:"status,omitempty"`
 }
 
-type ManagedSiteStatus struct {
+type NetworkStatus struct {
 	Status `json:",inline"`
 }
 
-func (m *ManagedSite) SetConfigured(ready bool) bool {
+func (m *Network) SetConfigured(ready bool) bool {
 	if m.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ReadyOrPendingCondition(ready), m.ObjectMeta.Generation) {
 		m.Status.setReady([]string{CONDITION_TYPE_CONFIGURED}, m.ObjectMeta.Generation)
 		return true
@@ -1115,7 +1115,7 @@ func (m *ManagedSite) SetConfigured(ready bool) bool {
 	return false
 }
 
-func (m *ManagedSite) SetError(expectedName string) bool {
+func (m *Network) SetError(expectedName string) bool {
 	if m.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ErrorCondition(fmt.Errorf("name must be '%s'", expectedName)), m.ObjectMeta.Generation) {
 		m.Status.setReady([]string{CONDITION_TYPE_CONFIGURED}, m.ObjectMeta.Generation)
 		return true
@@ -1125,14 +1125,14 @@ func (m *ManagedSite) SetError(expectedName string) bool {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ManagedSiteList contains a List of ManagedSite instances
-type ManagedSiteList struct {
+// NetworkList contains a List of Network instances
+type NetworkList struct {
 	v1.TypeMeta `json:",inline"`
 	v1.ListMeta `json:"metadata,omitempty"`
-	Items       []ManagedSite `json:"items"`
+	Items       []Network `json:"items"`
 }
 
-type ManagedSiteSpec struct {
+type NetworkSpec struct {
 	NetworkId string            `json:"networkId"`
 	Image     string            `json:"image,omitempty"`
 	Settings  map[string]string `json:"settings,omitempty"`
