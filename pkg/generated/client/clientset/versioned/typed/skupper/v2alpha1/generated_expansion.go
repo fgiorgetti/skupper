@@ -36,9 +36,9 @@ type LinkExpansion interface{}
 
 type ListenerExpansion interface{}
 
-type ManagementLinkExpansion interface{}
-
 type NetworkExpansion interface{}
+
+type NetworkLinkExpansion interface{}
 
 type RouterAccessExpansion interface{}
 

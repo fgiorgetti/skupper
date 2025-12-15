@@ -558,8 +558,8 @@ func (c *EventProcessor) WatchNetwork(namespace string, handler NetworkHandler) 
 	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
 }
 
-func (c *EventProcessor) WatchManagementLink(namespace string, handler ManagementLinkHandler) *ManagementLinkWatcher {
-	informer := skupperv2alpha1informer.NewManagementLinkInformer(
+func (c *EventProcessor) WatchNetworkLink(namespace string, handler NetworkLinkHandler) *NetworkLinkWatcher {
+	informer := skupperv2alpha1informer.NewNetworkLinkInformer(
 		c.skupperClient,
 		namespace,
 		time.Second*30,

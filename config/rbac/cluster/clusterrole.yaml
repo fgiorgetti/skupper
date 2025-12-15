@@ -147,8 +147,8 @@ rules:
       - certificates/status
       - networks
       - networks/status
-      - managementlinks
-      - managementlinks/status
+      - networklinks
+      - networklinks/status
       - internetworkingresses
       - internetworkingresses/status
     verbs:

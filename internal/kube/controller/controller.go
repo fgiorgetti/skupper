@@ -139,7 +139,7 @@ func NewController(cli internalclient.Clients, config *Config, options ...watche
 	controller.eventProcessor.WatchAttachedConnectorBindings(config.WatchNamespace, filter(controller, controller.checkAttachedConnectorBinding))
 	controller.eventProcessor.WatchLinks(config.WatchNamespace, filter(controller, controller.checkLink))
 	controller.eventProcessor.WatchNetwork(config.WatchNamespace, filter(controller, controller.checkNetwork))
-	controller.eventProcessor.WatchManagementLink(config.WatchNamespace, filter(controller, controller.checkManagementLink))
+	controller.eventProcessor.WatchNetworkLink(config.WatchNamespace, filter(controller, controller.checkNetworkLink))
 	controller.eventProcessor.WatchInterNetworkIngress(config.WatchNamespace, filter(controller, controller.checkInterNetworkIngress))
 	controller.eventProcessor.WatchConfigMaps(skupperNetworkStatus(), config.WatchNamespace, filter(controller, controller.networkStatusUpdate))
 	controller.eventProcessor.WatchConfigMaps(skupperRouterConfig(), config.WatchNamespace, filter(controller, controller.routerConfigUpdate))
@@ -553,12 +553,12 @@ func (c *Controller) checkNetwork(key string, network *skupperv2alpha1.Network) 
 	return c.getSite(namespace).CheckNetwork(name, network)
 }
 
-func (c *Controller) checkManagementLink(key string, managementLink *skupperv2alpha1.ManagementLink) error {
+func (c *Controller) checkNetworkLink(key string, networkLink *skupperv2alpha1.NetworkLink) error {
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		return err
 	}
-	return c.getSite(namespace).CheckManagementLink(name, managementLink)
+	return c.getSite(namespace).CheckNetworkLink(name, networkLink)
 }
 
 func (c *Controller) checkInterNetworkIngress(key string, ingress *skupperv2alpha1.InterNetworkIngress) error {

@@ -71,10 +71,10 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().Links().Informer()}, nil
 	case v2alpha1.SchemeGroupVersion.WithResource("listeners"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().Listeners().Informer()}, nil
-	case v2alpha1.SchemeGroupVersion.WithResource("managementlinks"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().ManagementLinks().Informer()}, nil
 	case v2alpha1.SchemeGroupVersion.WithResource("networks"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().Networks().Informer()}, nil
+	case v2alpha1.SchemeGroupVersion.WithResource("networklinks"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().NetworkLinks().Informer()}, nil
 	case v2alpha1.SchemeGroupVersion.WithResource("routeraccesses"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().RouterAccesses().Informer()}, nil
 	case v2alpha1.SchemeGroupVersion.WithResource("securedaccesses"):

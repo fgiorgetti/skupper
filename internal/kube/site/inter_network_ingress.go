@@ -12,21 +12,21 @@ type InterNetworkIngress struct {
 	Address  string
 	LinkName string
 	Ingress  *v2alpha1.InterNetworkIngress
-	Link     *ManagementLink
+	Link     *NetworkLink
 }
 
-func NewInterNetworkIngress(ingress *v2alpha1.InterNetworkIngress, mgmtLink *ManagementLink) *InterNetworkIngress {
+func NewInterNetworkIngress(ingress *v2alpha1.InterNetworkIngress, networkLink *NetworkLink) *InterNetworkIngress {
 	inetIngress := &InterNetworkIngress{
 		Name:     ingress.Name,
 		Address:  ingress.Spec.Address,
-		LinkName: ingress.Spec.ManagementLink,
-		Link:     mgmtLink,
+		LinkName: ingress.Spec.NetworkLink,
+		Link:     networkLink,
 		Ingress:  ingress,
 	}
 	return inetIngress
 }
 
-func (m *InterNetworkIngress) Update(desired *v2alpha1.InterNetworkIngress, mgmtLink *ManagementLink) bool {
+func (m *InterNetworkIngress) Update(desired *v2alpha1.InterNetworkIngress, networkLink *NetworkLink) bool {
 	if desired == nil {
 		m.Ingress = nil
 		return true
@@ -36,13 +36,13 @@ func (m *InterNetworkIngress) Update(desired *v2alpha1.InterNetworkIngress, mgmt
 		m.Address = desired.Spec.Address
 		update = true
 	}
-	if m.LinkName != desired.Spec.ManagementLink {
-		m.LinkName = desired.Spec.ManagementLink
+	if m.LinkName != desired.Spec.NetworkLink {
+		m.LinkName = desired.Spec.NetworkLink
 		update = true
 	}
-	if mgmtLink != nil {
+	if networkLink != nil {
 		if m.Link == nil {
-			m.Link = mgmtLink
+			m.Link = networkLink
 			update = true
 		}
 	} else if m.Link != nil {

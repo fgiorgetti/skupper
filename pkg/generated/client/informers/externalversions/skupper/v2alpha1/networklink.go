@@ -32,71 +32,71 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// ManagementLinkInformer provides access to a shared informer and lister for
-// ManagementLinks.
-type ManagementLinkInformer interface {
+// NetworkLinkInformer provides access to a shared informer and lister for
+// NetworkLinks.
+type NetworkLinkInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() skupperv2alpha1.ManagementLinkLister
+	Lister() skupperv2alpha1.NetworkLinkLister
 }
 
-type managementLinkInformer struct {
+type networkLinkInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewManagementLinkInformer constructs a new informer for ManagementLink type.
+// NewNetworkLinkInformer constructs a new informer for NetworkLink type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewManagementLinkInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredManagementLinkInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewNetworkLinkInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredNetworkLinkInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredManagementLinkInformer constructs a new informer for ManagementLink type.
+// NewFilteredNetworkLinkInformer constructs a new informer for NetworkLink type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredManagementLinkInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredNetworkLinkInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SkupperV2alpha1().ManagementLinks(namespace).List(context.Background(), options)
+				return client.SkupperV2alpha1().NetworkLinks(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SkupperV2alpha1().ManagementLinks(namespace).Watch(context.Background(), options)
+				return client.SkupperV2alpha1().NetworkLinks(namespace).Watch(context.Background(), options)
 			},
 			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SkupperV2alpha1().ManagementLinks(namespace).List(ctx, options)
+				return client.SkupperV2alpha1().NetworkLinks(namespace).List(ctx, options)
 			},
 			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SkupperV2alpha1().ManagementLinks(namespace).Watch(ctx, options)
+				return client.SkupperV2alpha1().NetworkLinks(namespace).Watch(ctx, options)
 			},
 		},
-		&apisskupperv2alpha1.ManagementLink{},
+		&apisskupperv2alpha1.NetworkLink{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *managementLinkInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredManagementLinkInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *networkLinkInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredNetworkLinkInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *managementLinkInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&apisskupperv2alpha1.ManagementLink{}, f.defaultInformer)
+func (f *networkLinkInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&apisskupperv2alpha1.NetworkLink{}, f.defaultInformer)
 }
 
-func (f *managementLinkInformer) Lister() skupperv2alpha1.ManagementLinkLister {
-	return skupperv2alpha1.NewManagementLinkLister(f.Informer().GetIndexer())
+func (f *networkLinkInformer) Lister() skupperv2alpha1.NetworkLinkLister {
+	return skupperv2alpha1.NewNetworkLinkLister(f.Informer().GetIndexer())
 }

@@ -4,14 +4,14 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.19.0
-  name: managementlinks.skupper.io
+  name: networklinks.skupper.io
 spec:
   group: skupper.io
   names:
-    kind: ManagementLink
-    listKind: ManagementLinkList
-    plural: managementlinks
-    singular: managementlink
+    kind: NetworkLink
+    listKind: NetworkLinkList
+    plural: networklinks
+    singular: networklink
   scope: Namespaced
   versions:
   - name: v2alpha1
