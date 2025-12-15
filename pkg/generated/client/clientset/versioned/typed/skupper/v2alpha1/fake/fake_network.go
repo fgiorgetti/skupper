@@ -24,26 +24,24 @@ import (
 	gentype "k8s.io/client-go/gentype"
 )
 
-// fakeManagedSites implements ManagedSiteInterface
-type fakeManagedSites struct {
-	*gentype.FakeClientWithList[*v2alpha1.ManagedSite, *v2alpha1.ManagedSiteList]
+// fakeNetworks implements NetworkInterface
+type fakeNetworks struct {
+	*gentype.FakeClientWithList[*v2alpha1.Network, *v2alpha1.NetworkList]
 	Fake *FakeSkupperV2alpha1
 }
 
-func newFakeManagedSites(fake *FakeSkupperV2alpha1, namespace string) skupperv2alpha1.ManagedSiteInterface {
-	return &fakeManagedSites{
-		gentype.NewFakeClientWithList[*v2alpha1.ManagedSite, *v2alpha1.ManagedSiteList](
+func newFakeNetworks(fake *FakeSkupperV2alpha1, namespace string) skupperv2alpha1.NetworkInterface {
+	return &fakeNetworks{
+		gentype.NewFakeClientWithList[*v2alpha1.Network, *v2alpha1.NetworkList](
 			fake.Fake,
 			namespace,
-			v2alpha1.SchemeGroupVersion.WithResource("managedsites"),
-			v2alpha1.SchemeGroupVersion.WithKind("ManagedSite"),
-			func() *v2alpha1.ManagedSite { return &v2alpha1.ManagedSite{} },
-			func() *v2alpha1.ManagedSiteList { return &v2alpha1.ManagedSiteList{} },
-			func(dst, src *v2alpha1.ManagedSiteList) { dst.ListMeta = src.ListMeta },
-			func(list *v2alpha1.ManagedSiteList) []*v2alpha1.ManagedSite {
-				return gentype.ToPointerSlice(list.Items)
-			},
-			func(list *v2alpha1.ManagedSiteList, items []*v2alpha1.ManagedSite) {
+			v2alpha1.SchemeGroupVersion.WithResource("networks"),
+			v2alpha1.SchemeGroupVersion.WithKind("Network"),
+			func() *v2alpha1.Network { return &v2alpha1.Network{} },
+			func() *v2alpha1.NetworkList { return &v2alpha1.NetworkList{} },
+			func(dst, src *v2alpha1.NetworkList) { dst.ListMeta = src.ListMeta },
+			func(list *v2alpha1.NetworkList) []*v2alpha1.Network { return gentype.ToPointerSlice(list.Items) },
+			func(list *v2alpha1.NetworkList, items []*v2alpha1.Network) {
 				list.Items = gentype.FromPointerSlice(items)
 			},
 		),

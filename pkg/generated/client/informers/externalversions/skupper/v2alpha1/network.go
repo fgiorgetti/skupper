@@ -32,71 +32,71 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// ManagedSiteInformer provides access to a shared informer and lister for
-// ManagedSites.
-type ManagedSiteInformer interface {
+// NetworkInformer provides access to a shared informer and lister for
+// Networks.
+type NetworkInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() skupperv2alpha1.ManagedSiteLister
+	Lister() skupperv2alpha1.NetworkLister
 }
 
-type managedSiteInformer struct {
+type networkInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewManagedSiteInformer constructs a new informer for ManagedSite type.
+// NewNetworkInformer constructs a new informer for Network type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewManagedSiteInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredManagedSiteInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewNetworkInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredNetworkInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredManagedSiteInformer constructs a new informer for ManagedSite type.
+// NewFilteredNetworkInformer constructs a new informer for Network type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredManagedSiteInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredNetworkInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SkupperV2alpha1().ManagedSites(namespace).List(context.Background(), options)
+				return client.SkupperV2alpha1().Networks(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SkupperV2alpha1().ManagedSites(namespace).Watch(context.Background(), options)
+				return client.SkupperV2alpha1().Networks(namespace).Watch(context.Background(), options)
 			},
 			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SkupperV2alpha1().ManagedSites(namespace).List(ctx, options)
+				return client.SkupperV2alpha1().Networks(namespace).List(ctx, options)
 			},
 			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SkupperV2alpha1().ManagedSites(namespace).Watch(ctx, options)
+				return client.SkupperV2alpha1().Networks(namespace).Watch(ctx, options)
 			},
 		},
-		&apisskupperv2alpha1.ManagedSite{},
+		&apisskupperv2alpha1.Network{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *managedSiteInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredManagedSiteInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *networkInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredNetworkInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *managedSiteInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&apisskupperv2alpha1.ManagedSite{}, f.defaultInformer)
+func (f *networkInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&apisskupperv2alpha1.Network{}, f.defaultInformer)
 }
 
-func (f *managedSiteInformer) Lister() skupperv2alpha1.ManagedSiteLister {
-	return skupperv2alpha1.NewManagedSiteLister(f.Informer().GetIndexer())
+func (f *networkInformer) Lister() skupperv2alpha1.NetworkLister {
+	return skupperv2alpha1.NewNetworkLister(f.Informer().GetIndexer())
 }

@@ -44,10 +44,10 @@ type Interface interface {
 	Listeners() ListenerInformer
 	// MultiKeyListeners returns a MultiKeyListenerInformer.
 	MultiKeyListeners() MultiKeyListenerInformer
-	// ManagedSites returns a ManagedSiteInformer.
-	ManagedSites() ManagedSiteInformer
 	// ManagementLinks returns a ManagementLinkInformer.
 	ManagementLinks() ManagementLinkInformer
+	// Networks returns a NetworkInformer.
+	Networks() NetworkInformer
 	// RouterAccesses returns a RouterAccessInformer.
 	RouterAccesses() RouterAccessInformer
 	// SecuredAccesses returns a SecuredAccessInformer.
@@ -116,14 +116,14 @@ func (v *version) Listeners() ListenerInformer {
 func (v *version) MultiKeyListeners() MultiKeyListenerInformer {
 	return &multiKeyListenerInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 
-// ManagedSites returns a ManagedSiteInformer.
-func (v *version) ManagedSites() ManagedSiteInformer {
-	return &managedSiteInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
-}
-
 // ManagementLinks returns a ManagementLinkInformer.
 func (v *version) ManagementLinks() ManagementLinkInformer {
 	return &managementLinkInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// Networks returns a NetworkInformer.
+func (v *version) Networks() NetworkInformer {
+	return &networkInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // RouterAccesses returns a RouterAccessInformer.

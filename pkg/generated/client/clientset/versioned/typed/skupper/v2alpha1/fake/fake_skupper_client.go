@@ -67,12 +67,12 @@ func (c *FakeSkupperV2alpha1) Listeners(namespace string) v2alpha1.ListenerInter
 func (c *FakeSkupperV2alpha1) MultiKeyListeners(namespace string) v2alpha1.MultiKeyListenerInterface {
 	return newFakeMultiKeyListeners(c, namespace)
 
-func (c *FakeSkupperV2alpha1) ManagedSites(namespace string) v2alpha1.ManagedSiteInterface {
-	return newFakeManagedSites(c, namespace)
-}
-
 func (c *FakeSkupperV2alpha1) ManagementLinks(namespace string) v2alpha1.ManagementLinkInterface {
 	return newFakeManagementLinks(c, namespace)
+}
+
+func (c *FakeSkupperV2alpha1) Networks(namespace string) v2alpha1.NetworkInterface {
+	return newFakeNetworks(c, namespace)
 }
 
 func (c *FakeSkupperV2alpha1) RouterAccesses(namespace string) v2alpha1.RouterAccessInterface {

@@ -38,9 +38,9 @@ type ListenerExpansion interface{}
 
 type MultiKeyListenerExpansion interface{}
 
-type ManagedSiteExpansion interface{}
-
 type ManagementLinkExpansion interface{}
+
+type NetworkExpansion interface{}
 
 type RouterAccessExpansion interface{}
 
