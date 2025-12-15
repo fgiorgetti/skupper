@@ -157,8 +157,8 @@ rules:
       - securedaccesses/status
       - certificates
       - certificates/status
-      - managedsites
-      - managedsites/status
+      - networks
+      - networks/status
       - managementlinks
       - managementlinks/status
       - internetworkingresses
