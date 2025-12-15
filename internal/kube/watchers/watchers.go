@@ -549,8 +549,8 @@ func (c *EventProcessor) WatchAttachedConnectors(namespace string, handler Attac
 	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
 }
 
-func (c *EventProcessor) WatchManagedSite(namespace string, handler ManagedSiteHandler) *ManagedSiteWatcher {
-	informer := skupperv2alpha1informer.NewManagedSiteInformer(
+func (c *EventProcessor) WatchNetwork(namespace string, handler NetworkHandler) *NetworkWatcher {
+	informer := skupperv2alpha1informer.NewNetworkInformer(
 		c.skupperClient,
 		namespace,
 		time.Second*30,

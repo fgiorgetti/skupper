@@ -10,7 +10,7 @@ resources:
 - bases/skupper_inter_network_ingress_crd.yaml
 - bases/skupper_link_crd.yaml
 - bases/skupper_listener_crd.yaml
-- bases/skupper_managed_site_crd.yaml
+- bases/skupper_network_crd.yaml
 - bases/skupper_management_link_crd.yaml
 - bases/skupper_router_access_crd.yaml
 - bases/skupper_secured_access_crd.yaml

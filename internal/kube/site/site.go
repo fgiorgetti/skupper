@@ -44,7 +44,7 @@ type Labelling interface {
 type Site struct {
 	initialised   bool
 	site          *skupperv2alpha1.Site
-	managedSite   ManagedSite
+	network       Network
 	name          string
 	namespace     string
 	clients       *watchers.EventProcessor
@@ -177,7 +177,7 @@ func (s *Site) reconcile(siteDef *skupperv2alpha1.Site, inRecovery bool) error {
 		s.bindings.init(s, routerConfig)
 		s.setBindingsConfiguredStatus(nil)
 		s.checkSecuredAccess()
-		s.managedSite.init(routerConfig)
+		s.network.init(routerConfig)
 	} else if len(s.currentGroups) != len(s.groups()) {
 		s.logger.Info("EnableHA setting changed for site",
 			slog.String("namespace", siteDef.Namespace),
@@ -1425,44 +1425,44 @@ func (s *Site) TLSPriorValidRevisions() uint64 {
 	return revisions
 }
 
-func (s *Site) CheckManagedSite(name string, managedSite *skupperv2alpha1.ManagedSite) error {
+func (s *Site) CheckNetwork(name string, network *skupperv2alpha1.Network) error {
 	const expectedName = "network"
 	var err error
-	cli := s.clients.GetSkupperClient().SkupperV2alpha1().ManagedSites(s.namespace)
+	cli := s.clients.GetSkupperClient().SkupperV2alpha1().Networks(s.namespace)
 
 	if name != expectedName {
-		if managedSite != nil {
-			if managedSite.SetError(expectedName) {
-				s.logger.Info("ManagedSites are handled as a singleton and it must be named: network",
+		if network != nil {
+			if network.SetError(expectedName) {
+				s.logger.Info("Networks are handled as a singleton and it must be named: network",
 					slog.String("namespace", s.namespace),
 					slog.String("name", name))
-				_, err = cli.UpdateStatus(context.Background(), managedSite, metav1.UpdateOptions{})
+				_, err = cli.UpdateStatus(context.Background(), network, metav1.UpdateOptions{})
 			}
 		}
 		return err
 	}
 
 	if !s.IsInitialised() {
-		if managedSite == nil {
+		if network == nil {
 			return nil
 		}
-		if managedSite.SetConfigured(false) {
-			s.logger.Info("ManagedSite set to pending as site is not initialised", slog.String("namespace", s.namespace), slog.String("name", name))
-			_, err = cli.UpdateStatus(context.Background(), managedSite, metav1.UpdateOptions{})
+		if network.SetConfigured(false) {
+			s.logger.Info("Network set to pending as site is not initialised", slog.String("namespace", s.namespace), slog.String("name", name))
+			_, err = cli.UpdateStatus(context.Background(), network, metav1.UpdateOptions{})
 		}
 		return err
 	}
-	if s.managedSite.Update(s.namespace, name, managedSite) {
-		err = s.updateRouterConfig(&s.managedSite)
+	if s.network.Update(s.namespace, name, network) {
+		err = s.updateRouterConfig(&s.network)
 	}
-	if managedSite == nil {
+	if network == nil {
 		return err
 	}
-	if managedSite.SetConfigured(true) {
-		_, updErr := cli.UpdateStatus(context.Background(), managedSite, metav1.UpdateOptions{})
+	if network.SetConfigured(true) {
+		_, updErr := cli.UpdateStatus(context.Background(), network, metav1.UpdateOptions{})
 		if updErr != nil {
 			err = stderrors.Join(err, updErr)
-			s.logger.Error("unable to set ManagedSite status to Ready",
+			s.logger.Error("unable to set Network status to Ready",
 				slog.String("namespace", s.namespace),
 				slog.String("name", name),
 				slog.Any("error", err))
@@ -1490,17 +1490,17 @@ func (s *Site) CheckManagementLink(name string, link *skupperv2alpha1.Management
 	}
 	var update qdr.ConfigUpdate
 	if existing, ok := s.mgmtLinks[name]; ok {
-		if existing.Update(s.managedSite.NetworkId, link) {
+		if existing.Update(s.network.NetworkId, link) {
 			update = existing
 		}
 	} else {
 		newLink := &ManagementLink{
 			Name:      name,
 			Link:      link,
-			NetworkId: s.managedSite.NetworkId,
+			NetworkId: s.network.NetworkId,
 		}
 		s.mgmtLinks[name] = newLink
-		if s.managedSite.NetworkId != "" {
+		if s.network.NetworkId != "" {
 			update = newLink
 		}
 	}
@@ -1516,7 +1516,7 @@ func (s *Site) CheckManagementLink(name string, link *skupperv2alpha1.Management
 	if err != nil {
 		link.SetError(err)
 	} else {
-		if s.managedSite.NetworkId != "" {
+		if s.network.NetworkId != "" {
 			link.SetConfigured(true)
 		} else {
 			link.SetConfigured(false)

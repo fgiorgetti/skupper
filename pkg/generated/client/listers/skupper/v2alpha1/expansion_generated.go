@@ -90,14 +90,6 @@ type ListenerListerExpansion interface{}
 // ListenerNamespaceLister.
 type ListenerNamespaceListerExpansion interface{}
 
-// ManagedSiteListerExpansion allows custom methods to be added to
-// ManagedSiteLister.
-type ManagedSiteListerExpansion interface{}
-
-// ManagedSiteNamespaceListerExpansion allows custom methods to be added to
-// ManagedSiteNamespaceLister.
-type ManagedSiteNamespaceListerExpansion interface{}
-
 // ManagementLinkListerExpansion allows custom methods to be added to
 // ManagementLinkLister.
 type ManagementLinkListerExpansion interface{}
@@ -105,6 +97,14 @@ type ManagementLinkListerExpansion interface{}
 // ManagementLinkNamespaceListerExpansion allows custom methods to be added to
 // ManagementLinkNamespaceLister.
 type ManagementLinkNamespaceListerExpansion interface{}
+
+// NetworkListerExpansion allows custom methods to be added to
+// NetworkLister.
+type NetworkListerExpansion interface{}
+
+// NetworkNamespaceListerExpansion allows custom methods to be added to
+// NetworkNamespaceLister.
+type NetworkNamespaceListerExpansion interface{}
 
 // RouterAccessListerExpansion allows custom methods to be added to
 // RouterAccessLister.
