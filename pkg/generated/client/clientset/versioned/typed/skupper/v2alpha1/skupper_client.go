@@ -38,8 +38,8 @@ type SkupperV2alpha1Interface interface {
 	LinksGetter
 	ListenersGetter
 	MultiKeyListenersGetter
-	ManagementLinksGetter
 	NetworksGetter
+	NetworkLinksGetter
 	RouterAccessesGetter
 	SecuredAccessesGetter
 	SitesGetter
@@ -89,12 +89,12 @@ func (c *SkupperV2alpha1Client) Listeners(namespace string) ListenerInterface {
 func (c *SkupperV2alpha1Client) MultiKeyListeners(namespace string) MultiKeyListenerInterface {
 	return newMultiKeyListeners(c, namespace)
 
-func (c *SkupperV2alpha1Client) ManagementLinks(namespace string) ManagementLinkInterface {
-	return newManagementLinks(c, namespace)
-}
-
 func (c *SkupperV2alpha1Client) Networks(namespace string) NetworkInterface {
 	return newNetworks(c, namespace)
+}
+
+func (c *SkupperV2alpha1Client) NetworkLinks(namespace string) NetworkLinkInterface {
+	return newNetworkLinks(c, namespace)
 }
 
 func (c *SkupperV2alpha1Client) RouterAccesses(namespace string) RouterAccessInterface {

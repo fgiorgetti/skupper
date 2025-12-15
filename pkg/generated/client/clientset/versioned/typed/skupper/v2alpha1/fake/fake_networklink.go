@@ -24,26 +24,26 @@ import (
 	gentype "k8s.io/client-go/gentype"
 )
 
-// fakeManagementLinks implements ManagementLinkInterface
-type fakeManagementLinks struct {
-	*gentype.FakeClientWithList[*v2alpha1.ManagementLink, *v2alpha1.ManagementLinkList]
+// fakeNetworkLinks implements NetworkLinkInterface
+type fakeNetworkLinks struct {
+	*gentype.FakeClientWithList[*v2alpha1.NetworkLink, *v2alpha1.NetworkLinkList]
 	Fake *FakeSkupperV2alpha1
 }
 
-func newFakeManagementLinks(fake *FakeSkupperV2alpha1, namespace string) skupperv2alpha1.ManagementLinkInterface {
-	return &fakeManagementLinks{
-		gentype.NewFakeClientWithList[*v2alpha1.ManagementLink, *v2alpha1.ManagementLinkList](
+func newFakeNetworkLinks(fake *FakeSkupperV2alpha1, namespace string) skupperv2alpha1.NetworkLinkInterface {
+	return &fakeNetworkLinks{
+		gentype.NewFakeClientWithList[*v2alpha1.NetworkLink, *v2alpha1.NetworkLinkList](
 			fake.Fake,
 			namespace,
-			v2alpha1.SchemeGroupVersion.WithResource("managementlinks"),
-			v2alpha1.SchemeGroupVersion.WithKind("ManagementLink"),
-			func() *v2alpha1.ManagementLink { return &v2alpha1.ManagementLink{} },
-			func() *v2alpha1.ManagementLinkList { return &v2alpha1.ManagementLinkList{} },
-			func(dst, src *v2alpha1.ManagementLinkList) { dst.ListMeta = src.ListMeta },
-			func(list *v2alpha1.ManagementLinkList) []*v2alpha1.ManagementLink {
+			v2alpha1.SchemeGroupVersion.WithResource("networklinks"),
+			v2alpha1.SchemeGroupVersion.WithKind("NetworkLink"),
+			func() *v2alpha1.NetworkLink { return &v2alpha1.NetworkLink{} },
+			func() *v2alpha1.NetworkLinkList { return &v2alpha1.NetworkLinkList{} },
+			func(dst, src *v2alpha1.NetworkLinkList) { dst.ListMeta = src.ListMeta },
+			func(list *v2alpha1.NetworkLinkList) []*v2alpha1.NetworkLink {
 				return gentype.ToPointerSlice(list.Items)
 			},
-			func(list *v2alpha1.ManagementLinkList, items []*v2alpha1.ManagementLink) {
+			func(list *v2alpha1.NetworkLinkList, items []*v2alpha1.NetworkLink) {
 				list.Items = gentype.FromPointerSlice(items)
 			},
 		),

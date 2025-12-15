@@ -54,7 +54,7 @@ type Site struct {
 	clients       *watchers.EventProcessor
 	bindings      *ExtendedBindings
 	links         map[string]*site.Link
-	mgmtLinks     map[string]*ManagementLink
+	networkLinks  map[string]*NetworkLink
 	inetIngress   map[string]*InterNetworkIngress
 	errors        map[string]string
 	linkAccess    site.RouterAccessMap
@@ -78,7 +78,7 @@ func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs ce
 		namespace:     namespace,
 		clients:       eventProcessor,
 		links:         map[string]*site.Link{},
-		mgmtLinks:     map[string]*ManagementLink{},
+		networkLinks:  map[string]*NetworkLink{},
 		inetIngress:   map[string]*InterNetworkIngress{},
 		linkAccess:    site.RouterAccessMap{},
 		certs:         certs,
@@ -1871,9 +1871,9 @@ func (s *Site) CheckNetwork(name string, network *skupperv2alpha1.Network) error
 	return err
 }
 
-func (s *Site) CheckManagementLink(name string, link *skupperv2alpha1.ManagementLink) error {
+func (s *Site) CheckNetworkLink(name string, link *skupperv2alpha1.NetworkLink) error {
 	var err error
-	cli := s.clients.GetSkupperClient().SkupperV2alpha1().ManagementLinks(s.namespace)
+	cli := s.clients.GetSkupperClient().SkupperV2alpha1().NetworkLinks(s.namespace)
 	logger := s.logger.With(
 		slog.String("namespace", s.namespace),
 		slog.String("name", name),
@@ -1883,23 +1883,23 @@ func (s *Site) CheckManagementLink(name string, link *skupperv2alpha1.Management
 			return nil
 		}
 		if link.SetConfigured(false) && link.Status.SetStatusMessage("Site is not initialized") {
-			logger.Info("ManagementLink set to pending as site is not initialised")
+			logger.Info("NetworkLink set to pending as site is not initialised")
 			_, err = cli.UpdateStatus(context.Background(), link, metav1.UpdateOptions{})
 		}
 		return err
 	}
 	var update qdr.ConfigUpdate
-	if existing, ok := s.mgmtLinks[name]; ok {
+	if existing, ok := s.networkLinks[name]; ok {
 		if existing.Update(s.network.NetworkId, link) {
 			update = existing
 		}
 	} else {
-		newLink := &ManagementLink{
+		newLink := &NetworkLink{
 			Name:      name,
 			Link:      link,
 			NetworkId: s.network.NetworkId,
 		}
-		s.mgmtLinks[name] = newLink
+		s.networkLinks[name] = newLink
 		if s.network.NetworkId != "" {
 			update = newLink
 		}
@@ -1907,10 +1907,10 @@ func (s *Site) CheckManagementLink(name string, link *skupperv2alpha1.Management
 	if update == nil {
 		return nil
 	}
-	logger.Info("ManagementLink has changed, updating router config")
+	logger.Info("NetworkLink has changed, updating router config")
 	err = s.updateRouterConfig(update)
 	if link == nil {
-		delete(s.mgmtLinks, name)
+		delete(s.networkLinks, name)
 		return err
 	}
 	if err != nil {
@@ -1924,7 +1924,7 @@ func (s *Site) CheckManagementLink(name string, link *skupperv2alpha1.Management
 		}
 	}
 	if _, updErr := cli.UpdateStatus(context.Background(), link, metav1.UpdateOptions{}); updErr != nil {
-		logger.Error("error updating ManagementLink status",
+		logger.Error("error updating NetworkLink status",
 			slog.Any("error", err),
 		)
 	}
@@ -1949,18 +1949,18 @@ func (s *Site) CheckInterNetworkIngress(name string, ingress *skupperv2alpha1.In
 		return err
 	}
 	var update qdr.ConfigUpdate
-	var existingLink *ManagementLink
+	var existingLink *NetworkLink
 	if existing, ok := s.inetIngress[name]; ok {
-		var mgmtLink *ManagementLink
+		var networkLink *NetworkLink
 		if ingress != nil {
-			mgmtLink = s.mgmtLinks[ingress.Spec.ManagementLink]
+			networkLink = s.networkLinks[ingress.Spec.NetworkLink]
 		}
-		if existing.Update(ingress, mgmtLink) {
+		if existing.Update(ingress, networkLink) {
 			update = existing
 		}
 		existingLink = existing.Link
 	} else if ingress != nil {
-		newIngress := NewInterNetworkIngress(ingress, s.mgmtLinks[ingress.Spec.ManagementLink])
+		newIngress := NewInterNetworkIngress(ingress, s.networkLinks[ingress.Spec.NetworkLink])
 		s.inetIngress[name] = newIngress
 		existingLink = newIngress.Link
 		if newIngress.Link != nil {
