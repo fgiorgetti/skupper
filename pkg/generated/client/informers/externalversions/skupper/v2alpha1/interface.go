@@ -44,6 +44,8 @@ type Interface interface {
 	Listeners() ListenerInformer
 	// Networks returns a NetworkInformer.
 	Networks() NetworkInformer
+	// NetworkAccesses returns a NetworkAccessInformer.
+	NetworkAccesses() NetworkAccessInformer
 	// NetworkLinks returns a NetworkLinkInformer.
 	NetworkLinks() NetworkLinkInformer
 	// RouterAccesses returns a RouterAccessInformer.
@@ -113,6 +115,11 @@ func (v *version) Listeners() ListenerInformer {
 // Networks returns a NetworkInformer.
 func (v *version) Networks() NetworkInformer {
 	return &networkInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// NetworkAccesses returns a NetworkAccessInformer.
+func (v *version) NetworkAccesses() NetworkAccessInformer {
+	return &networkAccessInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // NetworkLinks returns a NetworkLinkInformer.

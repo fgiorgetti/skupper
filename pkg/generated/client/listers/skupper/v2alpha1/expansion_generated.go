@@ -98,6 +98,14 @@ type NetworkListerExpansion interface{}
 // NetworkNamespaceLister.
 type NetworkNamespaceListerExpansion interface{}
 
+// NetworkAccessListerExpansion allows custom methods to be added to
+// NetworkAccessLister.
+type NetworkAccessListerExpansion interface{}
+
+// NetworkAccessNamespaceListerExpansion allows custom methods to be added to
+// NetworkAccessNamespaceLister.
+type NetworkAccessNamespaceListerExpansion interface{}
+
 // NetworkLinkListerExpansion allows custom methods to be added to
 // NetworkLinkLister.
 type NetworkLinkListerExpansion interface{}
