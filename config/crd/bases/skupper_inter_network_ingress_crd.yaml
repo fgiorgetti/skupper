@@ -103,7 +103,7 @@ spec:
         type: string
         description: The local ingress address
         jsonPath: .spec.address
-      - name: Management Link
+      - name: Network Link
         type: string
         description: The network link name to use
         jsonPath: .spec.networkLink
