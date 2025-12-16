@@ -1568,7 +1568,7 @@ func (s *Site) CheckInterNetworkIngress(name string, ingress *skupperv2alpha1.In
 		}
 	}
 	if update == nil {
-		if ingress != nil && existingLink == nil && ingress.SetError(fmt.Errorf("invalid management link")) {
+		if ingress != nil && existingLink == nil && ingress.SetError(fmt.Errorf("invalid network link")) {
 			_, err = cli.UpdateStatus(context.Background(), ingress, metav1.UpdateOptions{})
 			return err
 		}
