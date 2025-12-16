@@ -40,6 +40,8 @@ type MultiKeyListenerExpansion interface{}
 
 type NetworkExpansion interface{}
 
+type NetworkAccessExpansion interface{}
+
 type NetworkLinkExpansion interface{}
 
 type RouterAccessExpansion interface{}

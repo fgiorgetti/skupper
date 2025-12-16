@@ -1245,3 +1245,102 @@ type InterNetworkIngressSpec struct {
 	NetworkLink string            `json:"networkLink"`
 	Settings    map[string]string `json:"settings,omitempty"`
 }
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+type NetworkAccess struct {
+	v1.TypeMeta   `json:",inline"`
+	v1.ObjectMeta `json:"metadata,omitempty"`
+	Spec          NetworkAccessSpec   `json:"spec,omitempty"`
+	Status        NetworkAccessStatus `json:"status,omitempty"`
+}
+
+func (r *NetworkAccess) Key() string {
+	return fmt.Sprintf("%s/%s", r.Namespace, r.Name)
+}
+
+func (r *NetworkAccess) SetConfigured(err error) bool {
+	if r.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ErrorOrReadyCondition(err), r.ObjectMeta.Generation) {
+		r.Status.setReady([]string{CONDITION_TYPE_CONFIGURED, CONDITION_TYPE_RESOLVED}, r.ObjectMeta.Generation)
+		return true
+	}
+	return false
+}
+
+func (r *NetworkAccess) Resolve(endpoints []Endpoint, group string) bool {
+	changed := false
+	if r.Status.UpdateEndpointsForGroup(endpoints, group) {
+		changed = true
+	}
+	if r.Status.SetCondition(CONDITION_TYPE_RESOLVED, ReadyOrPendingCondition(len(r.Status.Endpoints) > 0), r.ObjectMeta.Generation) {
+		r.Status.setReady([]string{CONDITION_TYPE_CONFIGURED, CONDITION_TYPE_RESOLVED}, r.ObjectMeta.Generation)
+		changed = true
+	}
+	return changed
+}
+
+func (r *NetworkAccess) IsConfigured() bool {
+	return meta.IsStatusConditionTrue(r.Status.Conditions, CONDITION_TYPE_CONFIGURED)
+}
+
+// endpoints are assumed all to be from one group
+func (s *NetworkAccessStatus) UpdateEndpointsForGroup(endpoints []Endpoint, group string) bool {
+	all := []Endpoint{}
+	updated := false
+	byName := map[string]Endpoint{}
+	for _, endpoint := range endpoints {
+		endpoint.Group = group
+		byName[endpoint.Name] = endpoint
+	}
+	for _, endpoint := range s.Endpoints {
+		if endpoint.Group != group {
+			all = append(all, endpoint)
+		} else if desired, ok := byName[endpoint.Name]; ok {
+			if desired.MatchHostPort(&endpoint) {
+				all = append(all, endpoint)
+			} else {
+				all = append(all, desired)
+				updated = true
+			}
+			delete(byName, endpoint.Name)
+		} else {
+			// endpoint is in group, but not in desired list so don't add it
+			updated = true
+		}
+	}
+	for _, endpoint := range byName {
+		all = append(all, endpoint)
+		updated = true
+	}
+	if updated {
+		s.Endpoints = all
+		return true
+	}
+	return false
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// NetworkAccessList contains a List of NetworkAccess instances
+type NetworkAccessList struct {
+	v1.TypeMeta `json:",inline"`
+	v1.ListMeta `json:"metadata,omitempty"`
+	Items       []NetworkAccess `json:"items"`
+}
+
+type NetworkAccessSpec struct {
+	AccessType              string            `json:"accessType,omitempty"`
+	Port                    int               `json:"port,omitempty"`
+	TlsCredentials          string            `json:"tlsCredentials"`
+	GenerateTlsCredentials  bool              `json:"generateTlsCredentials,omitempty"`
+	Issuer                  string            `json:"issuer,omitempty"`
+	BindHost                string            `json:"bindHost,omitempty"`
+	SubjectAlternativeNames []string          `json:"subjectAlternativeNames,omitempty"`
+	Settings                map[string]string `json:"settings,omitempty"`
+}
+
+type NetworkAccessStatus struct {
+	Status    `json:",inline"`
+	Endpoints []Endpoint `json:"endpoints,omitempty"`
+}

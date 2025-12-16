@@ -71,6 +71,10 @@ func (c *FakeSkupperV2alpha1) Networks(namespace string) v2alpha1.NetworkInterfa
 	return newFakeNetworks(c, namespace)
 }
 
+func (c *FakeSkupperV2alpha1) NetworkAccesses(namespace string) v2alpha1.NetworkAccessInterface {
+	return newFakeNetworkAccesses(c, namespace)
+}
+
 func (c *FakeSkupperV2alpha1) NetworkLinks(namespace string) v2alpha1.NetworkLinkInterface {
 	return newFakeNetworkLinks(c, namespace)
 }
