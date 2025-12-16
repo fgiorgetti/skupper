@@ -13,6 +13,7 @@ resources:
 - bases/skupper_multikeylistener_crd.yaml
 - bases/skupper_network_crd.yaml
 - bases/skupper_network_link_crd.yaml
+- bases/skupper_network_access_crd.yaml
 - bases/skupper_router_access_crd.yaml
 - bases/skupper_secured_access_crd.yaml
 - bases/skupper_site_crd.yaml
