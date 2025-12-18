@@ -1122,6 +1122,13 @@ func IsNotProtectedListener(l Listener) bool {
 	return true
 }
 
+func IsInterRouterEdgeNotProtectedListener(l Listener) bool {
+	if !IsNotProtectedListener(l) {
+		return false
+	}
+	return l.Role == RoleInterRouter || l.Role == RoleEdge
+}
+
 func IsInterNetworkNotProtectedListener(l Listener) bool {
 	if !IsNotProtectedListener(l) {
 		return false

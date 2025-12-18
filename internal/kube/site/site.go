@@ -739,7 +739,12 @@ func (s *Site) recoverRouterConfig(update bool) ([]*qdr.RouterConfig, error) {
 	for i, group := range groups {
 		if config, ok := byName[group]; ok {
 			if update {
-				op := ConfigUpdateList{s.bindings, s, s.linkAccess.DesiredConfig(groups[:i], SSL_PROFILE_PATH)}
+				op := ConfigUpdateList{
+					s.bindings,
+					s,
+					s.linkAccess.DesiredConfig(groups[:i], SSL_PROFILE_PATH),
+					s.networkAccess.DesiredConfig(groups[:i], SSL_PROFILE_PATH),
+				}
 				if err := kubeqdr.UpdateRouterConfig(s.clients.GetKubeClient(), group, s.namespace, context.TODO(), op, s.labelling); err != nil {
 					s.logger.Error("Failed to update router config map",
 						slog.String("namespace", s.namespace),
@@ -753,6 +758,7 @@ func (s *Site) recoverRouterConfig(update bool) ([]*qdr.RouterConfig, error) {
 			routerConfig := s.initialRouterConfig()
 			s.bindings.Apply(routerConfig)
 			s.linkAccess.DesiredConfig(groups[:i], SSL_PROFILE_PATH).Apply(routerConfig)
+			s.networkAccess.DesiredConfig(groups[:i], SSL_PROFILE_PATH).Apply(routerConfig)
 			if err := s.createRouterConfigForGroup(group, routerConfig); err != nil {
 				s.logger.Error("Failed to create router config map",
 					slog.String("namespace", s.namespace),
@@ -1794,15 +1800,17 @@ func (s *Site) CheckInterNetworkIngress(name string, ingress *skupperv2alpha1.In
 	var existingLink *NetworkLink
 	if existing, ok := s.inetIngress[name]; ok {
 		var networkLink *NetworkLink
+		var networkAccess *skupperv2alpha1.NetworkAccess
 		if ingress != nil {
 			networkLink = s.networkLinks[ingress.Spec.NetworkLink]
+			networkAccess = s.networkAccess[ingress.Spec.NetworkAccess]
 		}
-		if existing.Update(ingress, networkLink) {
+		if existing.Update(ingress, networkLink, networkAccess) {
 			update = existing
 		}
 		existingLink = existing.Link
 	} else if ingress != nil {
-		newIngress := NewInterNetworkIngress(ingress, s.networkLinks[ingress.Spec.NetworkLink])
+		newIngress := NewInterNetworkIngress(ingress, s.networkLinks[ingress.Spec.NetworkLink], s.networkAccess[ingress.Spec.NetworkAccess])
 		s.inetIngress[name] = newIngress
 		existingLink = newIngress.Link
 		if newIngress.Link != nil {
