@@ -8,20 +8,20 @@ import (
 )
 
 type InterNetworkIngress struct {
-	Name     string
-	Address  string
-	LinkName string
-	Ingress  *v2alpha1.InterNetworkIngress
-	Link     *NetworkLink
+	Name       string
+	RoutingKey string
+	LinkName   string
+	Ingress    *v2alpha1.InterNetworkIngress
+	Link       *NetworkLink
 }
 
 func NewInterNetworkIngress(ingress *v2alpha1.InterNetworkIngress, networkLink *NetworkLink) *InterNetworkIngress {
 	inetIngress := &InterNetworkIngress{
-		Name:     ingress.Name,
-		Address:  ingress.Spec.Address,
-		LinkName: ingress.Spec.NetworkLink,
-		Link:     networkLink,
-		Ingress:  ingress,
+		Name:       ingress.Name,
+		RoutingKey: ingress.Spec.RoutingKey,
+		LinkName:   ingress.Spec.NetworkLink,
+		Link:       networkLink,
+		Ingress:    ingress,
 	}
 	return inetIngress
 }
@@ -32,8 +32,8 @@ func (m *InterNetworkIngress) Update(desired *v2alpha1.InterNetworkIngress, netw
 		return true
 	}
 	var update bool
-	if m.Address != desired.Spec.Address {
-		m.Address = desired.Spec.Address
+	if m.RoutingKey != desired.Spec.RoutingKey {
+		m.RoutingKey = desired.Spec.RoutingKey
 		update = true
 	}
 	if m.LinkName != desired.Spec.NetworkLink {
@@ -60,7 +60,7 @@ func (m *InterNetworkIngress) Apply(config *qdr.RouterConfig) bool {
 	}
 	autoLink := qdr.AutoLink{
 		Name:       m.AutoLinkName(),
-		Address:    m.Address,
+		Address:    m.RoutingKey,
 		Direction:  qdr.DirectionIn,
 		Connection: m.Link.connectorName(),
 	}
