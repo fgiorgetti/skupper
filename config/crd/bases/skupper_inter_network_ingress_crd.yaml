@@ -12,20 +12,20 @@ spec:
         openAPIV3Schema:
           description: |-
             An InterNetworkIngress can be defined alongside a NetworkLink, exposing
-            a local ingress address to be used by the remote router through an inter-network
+            a local ingress routing key to be used by the remote router through an inter-network
             mTLS connection.
-            The remote router can only send messages to the provided address.
+            The remote router can only send messages to the provided routing key.
           type: object
           properties:
             spec:
               type: object
               properties:
-                address:
+                routingKey:
                   type: string
-                  description: The local ingress address to be exposed through the inter-network connection.
+                  description: The local ingress key to be exposed through the inter-network connection.
                 networkLink:
                   type: string
-                  description: Name of the NetworkLink to expose the address through.
+                  description: Name of the NetworkLink to expose the routing key through.
                 settings:
                   description: |-
                     Advanced. A map containing additional settings. Each map
@@ -37,7 +37,7 @@ spec:
                   additionalProperties:
                     type: string
               required:
-                - address
+                - routingKey
                 - networkLink
             status:
               type: object
@@ -99,10 +99,10 @@ spec:
       subresources:
         status: {}
       additionalPrinterColumns:
-      - name: Address
+      - name: Routing Key
         type: string
-        description: The local ingress address
-        jsonPath: .spec.address
+        description: The local ingress key
+        jsonPath: .spec.routingKey
       - name: Network Link
         type: string
         description: The network link name to use
