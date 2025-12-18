@@ -13,7 +13,7 @@ func (m NetworkAccessMap) desiredListeners() map[string]qdr.Listener {
 	role := "inter-network"
 	desired := map[string]qdr.Listener{}
 	for _, na := range m {
-		name := fmt.Sprintf("%s-%s", na.Name, role)
+		name := na.ListenerName()
 		desired[name] = qdr.Listener{
 			Name:             name,
 			Role:             qdr.GetRole(role),

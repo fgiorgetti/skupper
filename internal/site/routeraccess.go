@@ -91,7 +91,7 @@ type RouterAccessConfig struct {
 
 func (g *RouterAccessConfig) Apply(config *qdr.RouterConfig) bool {
 	changed := false
-	lc := qdr.ListenersDifference(config.GetMatchingListeners(qdr.IsNotProtectedListener), g.listeners)
+	lc := qdr.ListenersDifference(config.GetMatchingListeners(qdr.IsInterRouterEdgeNotProtectedListener), g.listeners)
 	// delete before add with listeners, as changes are handled as delete and add
 	for _, value := range lc.Deleted {
 		if removed, _ := config.RemoveListener(value.Name); removed {

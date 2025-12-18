@@ -26,6 +26,9 @@ spec:
                 networkLink:
                   type: string
                   description: Name of the NetworkLink to expose the routing key through.
+                networkAccess:
+                  type: string
+                  description: Name of the NetworkAccess to expose the routing key through.
                 settings:
                   description: |-
                     Advanced. A map containing additional settings. Each map
@@ -107,6 +110,10 @@ spec:
         type: string
         description: The network link name to use
         jsonPath: .spec.networkLink
+      - name: Network Access
+        type: string
+        description: The network access name to use
+        jsonPath: .spec.networkAccess
       - name: Status
         type: string
         description: The status of the VAN site
