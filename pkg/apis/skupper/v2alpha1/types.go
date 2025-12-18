@@ -1212,9 +1212,10 @@ type InterNetworkIngressList struct {
 }
 
 type InterNetworkIngressSpec struct {
-	RoutingKey  string            `json:"routingKey"`
-	NetworkLink string            `json:"networkLink"`
-	Settings    map[string]string `json:"settings,omitempty"`
+	RoutingKey    string            `json:"routingKey"`
+	NetworkLink   string            `json:"networkLink"`
+	NetworkAccess string            `json:"networkAccess"`
+	Settings      map[string]string `json:"settings,omitempty"`
 }
 
 // +genclient
@@ -1225,6 +1226,10 @@ type NetworkAccess struct {
 	v1.ObjectMeta `json:"metadata,omitempty"`
 	Spec          NetworkAccessSpec   `json:"spec,omitempty"`
 	Status        NetworkAccessStatus `json:"status,omitempty"`
+}
+
+func (r *NetworkAccess) ListenerName() string {
+	return r.Name + "-inter-network"
 }
 
 func (r *NetworkAccess) Key() string {

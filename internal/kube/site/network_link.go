@@ -92,7 +92,7 @@ func (m *NetworkLink) sslProfileName() string {
 }
 
 func (m *NetworkLink) connectorName() string {
-	return fmt.Sprintf("%s-mgmt-connector", m.Name)
+	return fmt.Sprintf("%s-networklink-connector", m.Name)
 }
 
 func (m *NetworkLink) autoLinkName() string {
