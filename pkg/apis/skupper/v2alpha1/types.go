@@ -1229,7 +1229,7 @@ type InterNetworkIngressList struct {
 }
 
 type InterNetworkIngressSpec struct {
-	Address     string            `json:"address"`
+	RoutingKey  string            `json:"routingKey"`
 	NetworkLink string            `json:"networkLink"`
 	Settings    map[string]string `json:"settings,omitempty"`
 }
@@ -1248,12 +1248,17 @@ func (r *NetworkAccess) Key() string {
 	return fmt.Sprintf("%s/%s", r.Namespace, r.Name)
 }
 
-func (r *NetworkAccess) SetConfigured(err error) bool {
+func (r *NetworkAccess) SetConfigured(networkId string, err error) bool {
+	updated := false
 	if r.Status.SetCondition(CONDITION_TYPE_CONFIGURED, ErrorOrReadyCondition(err), r.ObjectMeta.Generation) {
 		r.Status.setReady([]string{CONDITION_TYPE_CONFIGURED, CONDITION_TYPE_RESOLVED}, r.ObjectMeta.Generation)
-		return true
+		updated = true
 	}
-	return false
+	if r.Status.NetworkId != networkId {
+		r.Status.NetworkId = networkId
+		updated = true
+	}
+	return updated
 }
 
 func (r *NetworkAccess) Resolve(endpoints []Endpoint, group string) bool {
@@ -1268,8 +1273,8 @@ func (r *NetworkAccess) Resolve(endpoints []Endpoint, group string) bool {
 	return changed
 }
 
-func (r *NetworkAccess) IsConfigured() bool {
-	return meta.IsStatusConditionTrue(r.Status.Conditions, CONDITION_TYPE_CONFIGURED)
+func (r *NetworkAccess) IsConfigured(networkId string) bool {
+	return r.Status.NetworkId == networkId && meta.IsStatusConditionTrue(r.Status.Conditions, CONDITION_TYPE_CONFIGURED)
 }
 
 // endpoints are assumed all to be from one group
@@ -1330,5 +1335,6 @@ type NetworkAccessSpec struct {
 
 type NetworkAccessStatus struct {
 	Status    `json:",inline"`
+	NetworkId string     `json:"networkId"`
 	Endpoints []Endpoint `json:"endpoints,omitempty"`
 }
