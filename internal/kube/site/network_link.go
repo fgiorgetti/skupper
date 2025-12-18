@@ -96,7 +96,7 @@ func (m *NetworkLink) connectorName() string {
 }
 
 func (m *NetworkLink) autoLinkName() string {
-	return fmt.Sprintf("%s-mgmt-autoLink", m.Name)
+	return fmt.Sprintf("%s-connector-autoLink", m.Name)
 }
 
 func (m *NetworkLink) autoLinkExternalAddress() string {
