@@ -39,6 +39,7 @@ type Controller struct {
 	listenerWatcher      *watchers.ListenerWatcher
 	connectorWatcher     *watchers.ConnectorWatcher
 	linkAccessWatcher    *watchers.RouterAccessWatcher
+	networkAccessWatcher *watchers.NetworkAccessWatcher
 	grantWatcher         *watchers.AccessGrantWatcher
 	serviceWatcher       *watchers.ServiceWatcher
 	sites                map[string]*site.Site
@@ -135,6 +136,7 @@ func NewController(cli internalclient.Clients, config *Config, options ...watche
 	controller.serviceWatcher = controller.eventProcessor.WatchServices(sansSkupperListenerServices(), config.WatchNamespace, filter(controller, controller.checkObservedService))
 	controller.connectorWatcher = controller.eventProcessor.WatchConnectors(config.WatchNamespace, filter(controller, controller.checkConnector))
 	controller.linkAccessWatcher = controller.eventProcessor.WatchRouterAccesses(config.WatchNamespace, filter(controller, controller.checkRouterAccess))
+	controller.networkAccessWatcher = controller.eventProcessor.WatchNetworkAccesses(config.WatchNamespace, filter(controller, controller.checkNetworkAccess))
 	controller.eventProcessor.WatchAttachedConnectors(config.WatchNamespace, filter(controller, controller.checkAttachedConnector))
 	controller.eventProcessor.WatchAttachedConnectorBindings(config.WatchNamespace, filter(controller, controller.checkAttachedConnectorBinding))
 	controller.eventProcessor.WatchLinks(config.WatchNamespace, filter(controller, controller.checkLink))
@@ -475,6 +477,14 @@ func (c *Controller) checkRouterAccess(key string, ra *skupperv2alpha1.RouterAcc
 		return err
 	}
 	return c.getSite(namespace).CheckRouterAccess(name, ra)
+}
+
+func (c *Controller) checkNetworkAccess(key string, na *skupperv2alpha1.NetworkAccess) error {
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return err
+	}
+	return c.getSite(namespace).CheckNetworkAccess(name, na)
 }
 
 func (c *Controller) checkAttachedConnectorBinding(key string, binding *skupperv2alpha1.AttachedConnectorBinding) error {

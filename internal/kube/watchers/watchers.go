@@ -531,6 +531,15 @@ func (c *EventProcessor) WatchRouterAccesses(namespace string, handler RouterAcc
 	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
 }
 
+func (c *EventProcessor) WatchNetworkAccesses(namespace string, handler NetworkAccessHandler) *NetworkAccessWatcher {
+	informer := skupperv2alpha1informer.NewNetworkAccessInformer(
+		c.skupperClient,
+		namespace,
+		time.Second*30,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
+}
+
 func (c *EventProcessor) WatchAttachedConnectorBindings(namespace string, handler AttachedConnectorBindingHandler) *AttachedConnectorBindingWatcher {
 	informer := skupperv2alpha1informer.NewAttachedConnectorBindingInformer(
 		c.skupperClient,

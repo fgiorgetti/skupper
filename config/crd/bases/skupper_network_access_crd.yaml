@@ -96,6 +96,10 @@ spec:
                   description: |-
                     A human-readable status message. Error messages are reported here.
                   type: string
+                networkId:
+                  description: |-
+                    The network id currently associated with the Network Access.
+                  type: string
                 conditions:
                   type: array
                   description: |-
