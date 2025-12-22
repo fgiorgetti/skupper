@@ -39,9 +39,11 @@ spec:
                   type: object
                   additionalProperties:
                     type: string
+              x-kubernetes-validations:
+                - message: At least one of networkLink or networkAccess must be set
+                  rule: has(self.networkLink) || has(self.networkAccess)
               required:
                 - routingKey
-                - networkLink
             status:
               type: object
               properties:
