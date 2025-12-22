@@ -1240,9 +1240,13 @@ type InterNetworkIngressList struct {
 	Items       []InterNetworkIngress `json:"items"`
 }
 
+// InterNetworkIngressSpec
+// +kubebuilder:validation:XValidation:rule="has(self.networkLink) || has(self.networkAccess)",message="At least one of networkLink or networkAccess must be set"
 type InterNetworkIngressSpec struct {
-	RoutingKey    string            `json:"routingKey"`
-	NetworkLink   string            `json:"networkLink"`
+	RoutingKey string `json:"routingKey"`
+	// +optional
+	NetworkLink string `json:"networkLink"`
+	// +optional
 	NetworkAccess string            `json:"networkAccess"`
 	Settings      map[string]string `json:"settings,omitempty"`
 }
