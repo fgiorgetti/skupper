@@ -39,6 +39,20 @@ type SecuredAccessFactory interface {
 	IsValidAccessType(accessType string) bool
 }
 
+type securedAccessSpec struct {
+	AccessType             string
+	Issuer                 string
+	GenerateTlsCredentials bool
+	TlsCredentials         string
+	Ports                  []securedAccessPort
+	Settings               map[string]string
+}
+
+type securedAccessPort struct {
+	Name string
+	Port int
+}
+
 type Labelling interface {
 	SetLabels(namespace string, name string, kind string, labels map[string]string) bool
 	SetAnnotations(namespace string, name string, kind string, annotations map[string]string) bool
@@ -61,8 +75,8 @@ type Site struct {
 	networkAccess        site.NetworkAccessMap
 	certs                certificates.CertificateManager
 	access               SecuredAccessFactory
-	accessMapping        securedAccessMap
-	networkAccessMapping networkAccessMap
+	accessMapping        accessMap
+	networkAccessMapping accessMap
 	sizes                *sizing.Registry
 	routerPods           map[string]*corev1.Pod
 	logger               *slog.Logger
@@ -86,8 +100,8 @@ func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs ce
 		networkAccess:        site.NetworkAccessMap{},
 		certs:                certs,
 		access:               access,
-		accessMapping:        make(securedAccessMap),
-		networkAccessMapping: make(networkAccessMap),
+		accessMapping:        make(accessMap),
+		networkAccessMapping: make(accessMap),
 		sizes:                sizes,
 		routerPods:           map[string]*corev1.Pod{},
 		logger: logger.With(
@@ -1489,7 +1503,7 @@ func (s *Site) UpdateSiteStatus(site *skupperv2alpha1.Site) (*skupperv2alpha1.Si
 
 func (s *Site) CheckSecuredAccess(name string, sa *skupperv2alpha1.SecuredAccess) error {
 	if _, ok := s.accessMapping[name]; ok {
-		return s.checkAccessMapping(name, sa)
+		return s.checkRouterAccessMapping(name, sa)
 	}
 	return s.checkNetworkAccessMapping(name, sa)
 }
@@ -1526,67 +1540,78 @@ func (s *Site) updateNetworkAccessStatus(na *skupperv2alpha1.NetworkAccess) erro
 	return err
 }
 
-func asSecuredAccessSpec(routerAccess *skupperv2alpha1.RouterAccess, group string, defaultIssuer string) skupperv2alpha1.SecuredAccessSpec {
+func routerAccessToSecuredAccessSpec(routerAccess *skupperv2alpha1.RouterAccess) securedAccessSpec {
+	spec := securedAccessSpec{
+		AccessType:             routerAccess.Spec.AccessType,
+		Issuer:                 routerAccess.Spec.Issuer,
+		GenerateTlsCredentials: routerAccess.Spec.GenerateTlsCredentials,
+		TlsCredentials:         routerAccess.Spec.TlsCredentials,
+		Settings:               routerAccess.Spec.Settings,
+	}
+	for _, role := range routerAccess.Spec.Roles {
+		spec.Ports = append(spec.Ports, securedAccessPort{
+			Name: role.Name,
+			Port: role.Port,
+		})
+	}
+	return spec
+}
+
+func networkAccessToSecuredAccessSpec(networkAccess *skupperv2alpha1.NetworkAccess) securedAccessSpec {
+	spec := securedAccessSpec{
+		AccessType:             networkAccess.Spec.AccessType,
+		Issuer:                 networkAccess.Spec.Issuer,
+		GenerateTlsCredentials: networkAccess.Spec.GenerateTlsCredentials,
+		TlsCredentials:         networkAccess.Spec.TlsCredentials,
+		Ports: []securedAccessPort{
+			{
+				Name: "inter-network",
+				Port: networkAccess.Spec.Port,
+			},
+		},
+		Settings: networkAccess.Spec.Settings,
+	}
+	return spec
+}
+
+func asSecuredAccessSpec(accessSpec securedAccessSpec, group string, defaultIssuer string) skupperv2alpha1.SecuredAccessSpec {
 	issuer := ""
-	if routerAccess.Spec.GenerateTlsCredentials {
-		issuer = routerAccess.Spec.Issuer
+	if accessSpec.GenerateTlsCredentials {
+		issuer = accessSpec.Issuer
 		if issuer == "" {
 			issuer = defaultIssuer
 		}
 	}
 	spec := skupperv2alpha1.SecuredAccessSpec{
-		AccessType: routerAccess.Spec.AccessType,
+		AccessType: accessSpec.AccessType,
 		Selector: map[string]string{
 			"skupper.io/component": "router",
 		},
-		Certificate: routerAccess.Spec.TlsCredentials,
+		Certificate: accessSpec.TlsCredentials,
 		Issuer:      issuer,
-		Settings:    routerAccess.Spec.Settings,
+		Settings:    accessSpec.Settings,
 	}
 	if group != "" {
 		//add extra label to allow for distinct sets of routers in EnableHA
 		spec.Selector["skupper.io/group"] = group
 	}
-	for _, role := range routerAccess.Spec.Roles {
+	for _, port := range accessSpec.Ports {
 		spec.Ports = append(spec.Ports, skupperv2alpha1.SecuredAccessPort{
-			Name:       role.Name,
-			Port:       role.Port,
-			TargetPort: role.Port,
+			Name:       port.Name,
+			Port:       port.Port,
+			TargetPort: port.Port,
 			Protocol:   "TCP",
 		})
 	}
 	return spec
 }
 
+func routerAccessAsSecuredAccessSpec(routerAccess *skupperv2alpha1.RouterAccess, group string, defaultIssuer string) skupperv2alpha1.SecuredAccessSpec {
+	return asSecuredAccessSpec(routerAccessToSecuredAccessSpec(routerAccess), group, defaultIssuer)
+}
+
 func networkAccessAsSecuredAccessSpec(networkAccess *skupperv2alpha1.NetworkAccess, group string, defaultIssuer string) skupperv2alpha1.SecuredAccessSpec {
-	issuer := ""
-	if networkAccess.Spec.GenerateTlsCredentials {
-		issuer = networkAccess.Spec.Issuer
-		if issuer == "" {
-			issuer = defaultIssuer
-		}
-	}
-	spec := skupperv2alpha1.SecuredAccessSpec{
-		AccessType: networkAccess.Spec.AccessType,
-		Selector: map[string]string{
-			"skupper.io/component": "router",
-		},
-		Certificate: networkAccess.Spec.TlsCredentials,
-		Issuer:      issuer,
-		Settings:    networkAccess.Spec.Settings,
-	}
-	if group != "" {
-		//add extra label to allow for distinct sets of routers in EnableHA
-		spec.Selector["skupper.io/group"] = group
-	}
-	role := "inter-network"
-	spec.Ports = append(spec.Ports, skupperv2alpha1.SecuredAccessPort{
-		Name:       role,
-		Port:       networkAccess.Spec.Port,
-		TargetPort: networkAccess.Spec.Port,
-		Protocol:   "TCP",
-	})
-	return spec
+	return asSecuredAccessSpec(networkAccessToSecuredAccessSpec(networkAccess), group, defaultIssuer)
 }
 
 func (s *Site) checkSecuredAccess() error {
@@ -1601,13 +1626,13 @@ func (s *Site) checkSecuredAccess() error {
 				"internal.skupper.io/controlled":   "true",
 				"internal.skupper.io/routeraccess": la.Name,
 			}
-			if err := s.access.Ensure(s.namespace, name, asSecuredAccessSpec(la, group, s.site.DefaultIssuer()), annotations, routerAccessOwner(la)); err != nil {
+			if err := s.access.Ensure(s.namespace, name, routerAccessAsSecuredAccessSpec(la, group, s.site.DefaultIssuer()), annotations, routerAccessOwner(la)); err != nil {
 				//TODO: add message to site status
 				s.logger.Error("Error ensuring SecuredAccess for RouterAccess",
 					slog.String("key", la.Key()),
 					slog.Any("error", err))
 			} else {
-				s.accessMapping[name] = newSecuredAccessMapping(la.Name, group)
+				s.accessMapping[name] = newAccessMapping(la.Name, group)
 			}
 		}
 		for _, na := range s.networkAccess {
@@ -1625,7 +1650,7 @@ func (s *Site) checkSecuredAccess() error {
 					slog.String("key", na.Key()),
 					slog.Any("error", err))
 			} else {
-				s.networkAccessMapping[name] = newNetworkAccessMapping(na.Name, group)
+				s.networkAccessMapping[name] = newAccessMapping(na.Name, group)
 			}
 		}
 	}
@@ -1671,13 +1696,13 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 					"internal.skupper.io/controlled":   "true",
 					"internal.skupper.io/routeraccess": la.Name,
 				}
-				if err := s.access.Ensure(s.namespace, name, asSecuredAccessSpec(la, group, s.site.DefaultIssuer()), annotations, routerAccessOwner(la)); err != nil {
+				if err := s.access.Ensure(s.namespace, name, routerAccessAsSecuredAccessSpec(la, group, s.site.DefaultIssuer()), annotations, routerAccessOwner(la)); err != nil {
 					s.logger.Error("Error ensuring SecuredAccess for RouterAccess",
 						slog.String("key", la.Key()),
 						slog.Any("error", err))
 					errors = append(errors, err.Error())
 				} else {
-					s.accessMapping[name] = newSecuredAccessMapping(la.Name, group)
+					s.accessMapping[name] = newAccessMapping(la.Name, group)
 				}
 			}
 		}
@@ -1742,7 +1767,7 @@ func (s *Site) CheckNetworkAccess(name string, na *skupperv2alpha1.NetworkAccess
 						slog.Any("error", err))
 					errors = append(errors, err.Error())
 				} else {
-					s.networkAccessMapping[accessName] = newNetworkAccessMapping(na.Name, group)
+					s.networkAccessMapping[accessName] = newAccessMapping(na.Name, group)
 				}
 			}
 		}
@@ -1985,7 +2010,7 @@ func (s *Site) CheckInterNetworkIngress(name string, ingress *skupperv2alpha1.In
 	return err
 }
 
-func (s *Site) checkAccessMapping(name string, sa *skupperv2alpha1.SecuredAccess) error {
+func (s *Site) checkRouterAccessMapping(name string, sa *skupperv2alpha1.SecuredAccess) error {
 	refs, ok := s.accessMapping[name]
 	if !ok {
 		return nil
@@ -1995,7 +2020,7 @@ func (s *Site) checkAccessMapping(name string, sa *skupperv2alpha1.SecuredAccess
 			delete(s.accessMapping, name)
 		}
 	}()
-	routerAccess, ok := s.linkAccess[refs.RouterAccessName]
+	routerAccess, ok := s.linkAccess[refs.AccessName]
 	if !ok {
 		return nil
 	}
@@ -2019,7 +2044,7 @@ func (s *Site) checkNetworkAccessMapping(name string, sa *skupperv2alpha1.Secure
 			delete(s.networkAccessMapping, name)
 		}
 	}()
-	networkAccess, ok := s.networkAccess[refs.NetworkAccessName]
+	networkAccess, ok := s.networkAccess[refs.AccessName]
 	if !ok {
 		return nil
 	}
