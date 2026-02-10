@@ -6,6 +6,7 @@ resources:
 - bases/skupper_attached_connector_binding_crd.yaml
 - bases/skupper_attached_connector_crd.yaml
 - bases/skupper_certificate_crd.yaml
+- bases/skupper_certificate_request_crd.yaml
 - bases/skupper_connector_crd.yaml
 - bases/skupper_inter_network_ingress_crd.yaml
 - bases/skupper_link_crd.yaml

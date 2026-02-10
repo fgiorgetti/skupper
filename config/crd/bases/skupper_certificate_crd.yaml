@@ -25,7 +25,7 @@ spec:
                   items:
                     type: string
                 remoteIssuer:
-                  type: bool
+                  type: boolean
                 duration:
                   type: string
                   format: duration
