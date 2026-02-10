@@ -63,6 +63,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().AttachedConnectorBindings().Informer()}, nil
 	case v2alpha1.SchemeGroupVersion.WithResource("certificates"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().Certificates().Informer()}, nil
+	case v2alpha1.SchemeGroupVersion.WithResource("certificaterequests"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().CertificateRequests().Informer()}, nil
 	case v2alpha1.SchemeGroupVersion.WithResource("connectors"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Skupper().V2alpha1().Connectors().Informer()}, nil
 	case v2alpha1.SchemeGroupVersion.WithResource("internetworkingresses"):
