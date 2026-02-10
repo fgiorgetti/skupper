@@ -355,7 +355,10 @@ func (m *CertificateManagerImpl) generateSecret(certificate *skupperv2alpha1.Cer
 			return secret, err
 		}
 	} else {
-		expiration := time.Hour * 24 * 365 * 5 // TODO: make this configurable (through controller setting or field on certificate?)
+		expiration, err := time.ParseDuration(certificate.Spec.Duration)
+		if err != nil {
+			expiration = time.Hour * 24 * 365 * 5
+		}
 		caKey := fmt.Sprintf("%s/%s", certificate.Namespace, certificate.Spec.Ca)
 		ca, ok := m.secrets[caKey]
 		if !ok {
@@ -427,6 +430,16 @@ func isSecretCorrect(certificate *skupperv2alpha1.Certificate, secret *corev1.Se
 	if time.Now().After(cert.NotAfter) {
 		log.Printf("Certificate %s has expired", certificate.Key())
 		return false
+	}
+	if certificate.Spec.RenewBefore != "" {
+		if renewBefore, err := time.ParseDuration(certificate.Spec.RenewBefore); err == nil {
+			renewTime := cert.NotAfter.Add(-1 * renewBefore)
+			if time.Now().After(renewTime) {
+				log.Printf("Certificate %s will be renewed now - condition: %v before expiration: %v",
+					certificate.Key(), renewBefore, cert.NotAfter)
+				return false
+			}
+		}
 	}
 	if certificate.Spec.Subject != cert.Subject.CommonName {
 		return false
