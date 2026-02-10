@@ -19,10 +19,12 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/pem"
 	"fmt"
 	"math/big"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -197,4 +199,88 @@ func DecodeCertificate(data []byte) (*x509.Certificate, error) {
 		return nil, fmt.Errorf("Could not decode PEM block from data")
 	}
 	return x509.ParseCertificate(b.Bytes)
+}
+
+func GenerateCSRSecret(name string, subject string, hosts []string, issuer string) (*corev1.Secret, error) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate private key: %v", err)
+
+	}
+
+	template := x509.CertificateRequest{
+		PublicKey: publicKey(priv),
+		Subject: pkix.Name{
+			CommonName: subject,
+		},
+	}
+
+	for _, h := range hosts {
+		// Remove leading and trailing whitespaces from the string
+		h = strings.TrimSpace(h)
+		if ip := net.ParseIP(h); ip != nil {
+			template.IPAddresses = append(template.IPAddresses, ip)
+		}
+		template.DNSNames = append(template.DNSNames, h)
+	}
+
+	// Need to go through RFC 5280, see:
+	// https://oid-info.com
+	// https://oidref.com
+	oidExtensionKeyUsage := asn1.ObjectIdentifier{2, 5, 29, 15}
+	kuValue, _ := asn1.Marshal(asn1.BitString{Bytes: []byte{byte(x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature)}, BitLength: 3})
+
+	oidExtensionExtendedKeyUsage := asn1.ObjectIdentifier{2, 5, 29, 37}
+	oidExtKeyUsageServerAuth := asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 1}
+	oidExtKeyUsageClientAuth := asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 2}
+	ekuDER, err := asn1.Marshal([]asn1.ObjectIdentifier{oidExtKeyUsageServerAuth, oidExtKeyUsageClientAuth})
+	if err != nil {
+		return nil, err
+	}
+	template.ExtraExtensions = []pkix.Extension{
+		{
+			Id:       oidExtensionKeyUsage,
+			Critical: true,
+			Value:    kuValue,
+		},
+		{
+			Id:       oidExtensionExtendedKeyUsage,
+			Critical: false,
+			Value:    ekuDER,
+		},
+	}
+
+	derBytes, err := x509.CreateCertificateRequest(rand.Reader, &template, priv)
+	if err != nil {
+		return nil, err
+	}
+
+	secret := corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Type: "kubernetes.io/tls",
+		Data: map[string][]byte{},
+	}
+
+	csrString := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: derBytes})
+	keyString := pem.EncodeToMemory(pemBlockForKey(priv))
+
+	secret.Data["tls.csr"] = csrString
+	secret.Data["tls.key"] = keyString
+
+	err = os.WriteFile("/tmp/tls.csr", csrString, 0644)
+	if err != nil {
+		return nil, err
+	}
+	err = os.WriteFile("/tmp/tls.key", keyString, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	return &secret, nil
 }

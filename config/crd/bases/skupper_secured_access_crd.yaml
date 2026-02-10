@@ -38,6 +38,8 @@ spec:
                     type: string
                 issuer:
                   type: string
+                remoteIssuer:
+                  type: boolean
                 certificate:
                   type: string
                 accessType:
