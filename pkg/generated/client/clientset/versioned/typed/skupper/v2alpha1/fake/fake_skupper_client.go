@@ -48,6 +48,10 @@ func (c *FakeSkupperV2alpha1) Certificates(namespace string) v2alpha1.Certificat
 	return newFakeCertificates(c, namespace)
 }
 
+func (c *FakeSkupperV2alpha1) CertificateRequests(namespace string) v2alpha1.CertificateRequestInterface {
+	return newFakeCertificateRequests(c, namespace)
+}
+
 func (c *FakeSkupperV2alpha1) Connectors(namespace string) v2alpha1.ConnectorInterface {
 	return newFakeConnectors(c, namespace)
 }
