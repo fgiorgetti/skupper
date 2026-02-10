@@ -58,6 +58,14 @@ type CertificateListerExpansion interface{}
 // CertificateNamespaceLister.
 type CertificateNamespaceListerExpansion interface{}
 
+// CertificateRequestListerExpansion allows custom methods to be added to
+// CertificateRequestLister.
+type CertificateRequestListerExpansion interface{}
+
+// CertificateRequestNamespaceListerExpansion allows custom methods to be added to
+// CertificateRequestNamespaceLister.
+type CertificateRequestNamespaceListerExpansion interface{}
+
 // ConnectorListerExpansion allows custom methods to be added to
 // ConnectorLister.
 type ConnectorListerExpansion interface{}

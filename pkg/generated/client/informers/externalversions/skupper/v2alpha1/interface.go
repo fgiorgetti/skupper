@@ -34,6 +34,8 @@ type Interface interface {
 	AttachedConnectorBindings() AttachedConnectorBindingInformer
 	// Certificates returns a CertificateInformer.
 	Certificates() CertificateInformer
+	// CertificateRequests returns a CertificateRequestInformer.
+	CertificateRequests() CertificateRequestInformer
 	// Connectors returns a ConnectorInformer.
 	Connectors() ConnectorInformer
 	// InterNetworkIngresses returns a InterNetworkIngressInformer.
@@ -90,6 +92,11 @@ func (v *version) AttachedConnectorBindings() AttachedConnectorBindingInformer {
 // Certificates returns a CertificateInformer.
 func (v *version) Certificates() CertificateInformer {
 	return &certificateInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// CertificateRequests returns a CertificateRequestInformer.
+func (v *version) CertificateRequests() CertificateRequestInformer {
+	return &certificateRequestInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // Connectors returns a ConnectorInformer.

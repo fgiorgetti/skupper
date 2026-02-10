@@ -26,7 +26,7 @@ var (
 )
 
 func addKnownTypes(scheme *runtime.Scheme) error {
-	scheme.AddKnownTypes(SchemeGroupVersion, &Site{}, &SiteList{}, &Listener{}, &ListenerList{}, &Connector{}, &ConnectorList{}, &Link{}, &LinkList{}, &AccessToken{}, &AccessTokenList{}, &AccessGrant{}, &AccessGrantList{}, &SecuredAccess{}, &SecuredAccessList{}, &Certificate{}, &CertificateList{}, &RouterAccess{}, &RouterAccessList{}, &AttachedConnector{}, &AttachedConnectorList{}, &AttachedConnectorBinding{}, &AttachedConnectorBindingList{}, &Network{}, &NetworkList{}, &NetworkLink{}, &NetworkLinkList{}, &InterNetworkIngress{}, &InterNetworkIngressList{}, &NetworkAccess{}, &NetworkAccessList{})
+	scheme.AddKnownTypes(SchemeGroupVersion, &Site{}, &SiteList{}, &Listener{}, &ListenerList{}, &Connector{}, &ConnectorList{}, &Link{}, &LinkList{}, &AccessToken{}, &AccessTokenList{}, &AccessGrant{}, &AccessGrantList{}, &SecuredAccess{}, &SecuredAccessList{}, &Certificate{}, &CertificateList{}, &CertificateRequest{}, &CertificateRequestList{}, &RouterAccess{}, &RouterAccessList{}, &AttachedConnector{}, &AttachedConnectorList{}, &AttachedConnectorBinding{}, &AttachedConnectorBindingList{}, &Network{}, &NetworkList{}, &NetworkLink{}, &NetworkLinkList{}, &InterNetworkIngress{}, &InterNetworkIngressList{}, &NetworkAccess{}, &NetworkAccessList{})
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
 }
