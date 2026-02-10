@@ -1,7 +1,7 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: certificates.skupper.io
+  name: certificaterequests.skupper.io
 spec:
   group: skupper.io
   versions:
@@ -10,41 +10,25 @@ spec:
       storage: true
       schema:
         openAPIV3Schema:
-          description: "An internal resource used to indicate TLS credentials to be created"
+          description: "An internal resource used to request a TLS certificate to be signed by a remote issuer"
           type: object
           properties:
             spec:
               type: object
               properties:
-                ca:
+                issuer:
                   type: string
-                subject:
+                request:
                   type: string
-                hosts:
-                  type: array
-                  items:
-                    type: string
-                remoteIssuer:
-                  type: bool
-                duration:
+                secretName:
                   type: string
-                  format: duration
-                renewBefore:
-                  type: string
-                  format: duration
-                client:
-                  type: boolean
-                server:
-                  type: boolean
-                signing:
-                  type: boolean
                 settings:
                   type: object
                   additionalProperties:
                     type: string
               required:
-              - ca
-              - subject
+              - issuer
+              - request
             status:
               type: object
               properties:
@@ -52,6 +36,22 @@ spec:
                   type: string
                 message:
                   type: string
+                caCertificate:
+                  type: string
+                certificate:
+                  type: string
+                expiration:
+                  type: string
+                  format: date-time
+                controller:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                    version:
+                      type: string
                 conditions:
                   type: array
                   items:
@@ -88,28 +88,13 @@ spec:
                     - reason
                     - status
                     - type
-                expiration:
-                  type: string
-                  format: date-time
       subresources:
         status: {}
       additionalPrinterColumns:
-      - name: CA
+      - name: Issuer
         type: string
-        description: Identifies the CA to be used in signing the certificate
+        description: Identifies the issuer to be used in signing the certificate
         jsonPath: .spec.ca
-      - name: Server
-        type: boolean
-        description: Whether or not the certificate is valid for use as a server
-        jsonPath: .spec.server
-      - name: Client
-        type: boolean
-        description: Whether or not the certificate is valid for use as a client
-        jsonPath: .spec.client
-      - name: Signing
-        type: boolean
-        description: Whether or not the certificate is valid for use as a CA
-        jsonPath: .spec.signing
       - name: Status
         type: string
         description: The status of the certificate
@@ -124,6 +109,6 @@ spec:
         jsonPath: .status.message
   scope: Namespaced
   names:
-    plural: certificates
-    singular: certificate
-    kind: Certificate
+    plural: certificaterequests
+    singular: certificaterequest
+    kind: CertificateRequest
