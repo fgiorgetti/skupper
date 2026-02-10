@@ -841,13 +841,16 @@ type CertificateList struct {
 }
 
 type CertificateSpec struct {
-	Ca       string            `json:"ca"`
-	Subject  string            `json:"subject"`
-	Hosts    []string          `json:"hosts,omitempty"`
-	Client   bool              `json:"client,omitempty"`
-	Server   bool              `json:"server,omitempty"`
-	Signing  bool              `json:"signing,omitempty"`
-	Settings map[string]string `json:"settings,omitempty"`
+	Ca           string            `json:"ca"`
+	Subject      string            `json:"subject"`
+	Hosts        []string          `json:"hosts,omitempty"`
+	Duration     string            `json:"duration,omitempty"`
+	RenewBefore  string            `json:"renewBefore,omitempty"`
+	RemoteIssuer bool              `json:"remoteIssuer,omitempty"`
+	Client       bool              `json:"client,omitempty"`
+	Server       bool              `json:"server,omitempty"`
+	Signing      bool              `json:"signing,omitempty"`
+	Settings     map[string]string `json:"settings,omitempty"`
 }
 
 type CertificateStatus struct {
@@ -860,6 +863,48 @@ func (c *Certificate) Key() string {
 }
 
 func (c *Certificate) SetReady(err error) bool {
+	return c.Status.SetCondition(CONDITION_TYPE_READY, ErrorOrReadyCondition(err), c.ObjectMeta.Generation)
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+type CertificateRequest struct {
+	v1.TypeMeta   `json:",inline"`
+	v1.ObjectMeta `json:"metadata,omitempty"`
+	Spec          CertificateRequestSpec   `json:"spec,omitempty"`
+	Status        CertificateRequestStatus `json:"status,omitempty"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// CertificateRequestList contains a List of CertificateRequest instances
+type CertificateRequestList struct {
+	v1.TypeMeta `json:",inline"`
+	v1.ListMeta `json:"metadata,omitempty"`
+	Items       []CertificateRequest `json:"items"`
+}
+
+type CertificateRequestSpec struct {
+	Issuer     string            `json:"issuer"`
+	Request    string            `json:"request"`
+	SecretName string            `json:"secretName,omitempty"`
+	Settings   map[string]string `json:"settings,omitempty"`
+}
+
+type CertificateRequestStatus struct {
+	Status        `json:",inline"`
+	Certificate   string      `json:"certificate,omitempty"`
+	CaCertificate string      `json:"caCertificate,omitempty"`
+	Expiration    string      `json:"expiration,omitempty"`
+	Controller    *Controller `json:"controller,omitempty"`
+}
+
+func (c *CertificateRequest) Key() string {
+	return fmt.Sprintf("%s/%s", c.Namespace, c.Name)
+}
+
+func (c *CertificateRequest) SetReady(err error) bool {
 	return c.Status.SetCondition(CONDITION_TYPE_READY, ErrorOrReadyCondition(err), c.ObjectMeta.Generation)
 }
 

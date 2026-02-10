@@ -28,6 +28,8 @@ type AttachedConnectorBindingExpansion interface{}
 
 type CertificateExpansion interface{}
 
+type CertificateRequestExpansion interface{}
+
 type ConnectorExpansion interface{}
 
 type InterNetworkIngressExpansion interface{}

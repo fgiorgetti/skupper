@@ -33,6 +33,7 @@ type SkupperV2alpha1Interface interface {
 	AttachedConnectorsGetter
 	AttachedConnectorBindingsGetter
 	CertificatesGetter
+	CertificateRequestsGetter
 	ConnectorsGetter
 	InterNetworkIngressesGetter
 	LinksGetter
@@ -69,6 +70,10 @@ func (c *SkupperV2alpha1Client) AttachedConnectorBindings(namespace string) Atta
 
 func (c *SkupperV2alpha1Client) Certificates(namespace string) CertificateInterface {
 	return newCertificates(c, namespace)
+}
+
+func (c *SkupperV2alpha1Client) CertificateRequests(namespace string) CertificateRequestInterface {
+	return newCertificateRequests(c, namespace)
 }
 
 func (c *SkupperV2alpha1Client) Connectors(namespace string) ConnectorInterface {
