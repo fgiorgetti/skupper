@@ -20,8 +20,6 @@ spec:
                   type: string
                 request:
                   type: string
-                secretName:
-                  type: string
                 settings:
                   type: object
                   additionalProperties:
