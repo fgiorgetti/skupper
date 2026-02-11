@@ -886,10 +886,9 @@ type CertificateRequestList struct {
 }
 
 type CertificateRequestSpec struct {
-	Issuer     string            `json:"issuer"`
-	Request    string            `json:"request"`
-	SecretName string            `json:"secretName,omitempty"`
-	Settings   map[string]string `json:"settings,omitempty"`
+	Issuer   string            `json:"issuer"`
+	Request  string            `json:"request"`
+	Settings map[string]string `json:"settings,omitempty"`
 }
 
 type CertificateRequestStatus struct {
