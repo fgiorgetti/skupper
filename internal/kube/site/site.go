@@ -229,13 +229,28 @@ func (s *Site) reconcile(siteDef *skupperv2alpha1.Site, inRecovery bool) error {
 		}
 	}
 	// CAs for local and site access
-	if err := s.certs.EnsureCA(s.namespace, "skupper-site-ca", fmt.Sprintf("%s site CA", s.name), s.ownerReferences()); err != nil {
+	if err := s.certs.EnsureCA(s.namespace, "skupper-site-ca", certificates.Options{
+		Subject: fmt.Sprintf("%s site CA", s.name),
+		Refs:    s.ownerReferences(),
+	}); err != nil {
 		return err
 	}
-	if err := s.certs.EnsureCA(s.namespace, "skupper-local-ca", fmt.Sprintf("%s local CA", s.name), s.ownerReferences()); err != nil {
+	if err := s.certs.EnsureCA(s.namespace, "skupper-local-ca", certificates.Options{
+		Subject: fmt.Sprintf("%s local CA", s.name),
+		Refs:    s.ownerReferences(),
+	}); err != nil {
 		return err
 	}
-	if err := s.certs.Ensure(s.namespace, "skupper-local-server", "skupper-local-ca", "skupper-router-local", s.qualified("skupper-router-local"), false, true, s.ownerReferences()); err != nil {
+	if err := s.certs.Ensure(s.namespace, "skupper-local-server", certificates.CertOptions{
+		Options: certificates.Options{
+			Subject: "skupper-router-local",
+			Refs:    s.ownerReferences(),
+		},
+		CA:     "skupper-local-ca",
+		Hosts:  s.qualified("skupper-router-local"),
+		Client: false,
+		Server: true,
+	}); err != nil {
 		return err
 	}
 	// RouterAccess for router

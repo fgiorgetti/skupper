@@ -38,12 +38,29 @@ type ControllerContext interface {
 // the existence of a particular Certificate resource can be
 // ensured. It is currently used by package internal/kube/site.
 type CertificateManager interface {
-	EnsureCA(namespace string, name string, subject string, refs []metav1.OwnerReference) error
-	Ensure(namespace string, name string, ca string, subject string, hosts []string, client bool, server bool, refs []metav1.OwnerReference) error
+	EnsureCA(namespace string, name string, options Options) error
+	Ensure(namespace string, name string, options CertOptions) error
+}
+
+type Options struct {
+	Subject     string
+	Refs        []metav1.OwnerReference
+	Duration    time.Duration
+	RenewBefore time.Duration
+	Remote      bool
+}
+
+type CertOptions struct {
+	Options
+	CA     string
+	Hosts  []string
+	Client bool
+	Server bool
 }
 
 type CertificateManagerImpl struct {
 	definitions        map[string]*skupperv2alpha1.Certificate
+	remotes            map[string]*skupperv2alpha1.CertificateRequest
 	secrets            map[string]*corev1.Secret
 	certificateWatcher *watchers.CertificateWatcher
 	secretWatcher      *watchers.SecretWatcher
@@ -101,12 +118,19 @@ func (m *CertificateManagerImpl) Recover() {
 // This method is called to ensure that a Certificate resource exists
 // to represent a CA (i.e. certificate issuer) with the properties
 // specified in the arguments.
-func (m *CertificateManagerImpl) EnsureCA(namespace string, name string, subject string, refs []metav1.OwnerReference) error {
+func (m *CertificateManagerImpl) EnsureCA(namespace string, name string, options Options) error {
 	spec := skupperv2alpha1.CertificateSpec{
-		Subject: subject,
-		Signing: true,
+		Subject:      options.Subject,
+		Signing:      true,
+		RemoteIssuer: options.Remote,
 	}
-	return m.ensure(namespace, name, spec, refs)
+	if options.Duration > 0 {
+		spec.Duration = options.Duration.String()
+	}
+	if options.RenewBefore > 0 {
+		spec.RenewBefore = options.RenewBefore.String()
+	}
+	return m.ensure(namespace, name, spec, options.Refs)
 }
 
 // This method is called to ensure that a Certificate resource exists
@@ -117,15 +141,22 @@ func (m *CertificateManagerImpl) EnsureCA(namespace string, name string, subject
 // if the same owner changes the hosts then they will be changed on
 // the certificate. This allows the same certificate to be used for
 // multiple resources such as Routes.
-func (m *CertificateManagerImpl) Ensure(namespace string, name string, ca string, subject string, hosts []string, client bool, server bool, refs []metav1.OwnerReference) error {
+func (m *CertificateManagerImpl) Ensure(namespace string, name string, options CertOptions) error {
 	spec := skupperv2alpha1.CertificateSpec{
-		Ca:      ca,
-		Subject: subject,
-		Hosts:   hosts,
-		Client:  client,
-		Server:  server,
+		Ca:           options.CA,
+		Subject:      options.Subject,
+		Hosts:        options.Hosts,
+		Client:       options.Client,
+		Server:       options.Server,
+		RemoteIssuer: options.Remote,
 	}
-	return m.ensure(namespace, name, spec, refs)
+	if options.Duration > 0 {
+		spec.Duration = options.Duration.String()
+	}
+	if options.RenewBefore > 0 {
+		spec.RenewBefore = options.RenewBefore.String()
+	}
+	return m.ensure(namespace, name, spec, options.Refs)
 }
 
 var compareSpecUnordered []cmp.Option = []cmp.Option{
@@ -259,9 +290,17 @@ func (m *CertificateManagerImpl) reconcileSecret(key string, certificate *skuppe
 
 	var err error
 	if secret != nil {
-		err = m.updateSecret(key, certificate, secret)
+		if !certificate.Spec.RemoteIssuer {
+			err = m.updateSecret(key, certificate, secret)
+		} else {
+			log.Println("TODO: CertificateRequest update check needed at reconcileSecret()")
+		}
 	} else {
-		err = m.createSecret(key, certificate)
+		if !certificate.Spec.RemoteIssuer {
+			err = m.createSecret(key, certificate)
+		} else {
+			log.Println("TODO: CertificateRequest logic needed at reconcileSecret()")
+		}
 	}
 	return m.updateStatus(certificate, err)
 }
