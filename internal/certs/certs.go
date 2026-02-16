@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"math/big"
 	"net"
-	"os"
 	"strings"
 	"time"
 
@@ -201,7 +200,13 @@ func DecodeCertificate(data []byte) (*x509.Certificate, error) {
 	return x509.ParseCertificate(b.Bytes)
 }
 
-func GenerateCSRSecret(name string, subject string, hosts []string, issuer string) (*corev1.Secret, error) {
+// Define the BasicConstraints ASN.1 sequence
+type basicConstraints struct {
+	IsCA       bool `asn1:"optional"`
+	MaxPathLen int  `asn1:"optional,default:-1"`
+}
+
+func GenerateCSRSecret(name string, subject string, hosts []string, signing bool) (*corev1.Secret, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate private key: %v", err)
@@ -249,6 +254,15 @@ func GenerateCSRSecret(name string, subject string, hosts []string, issuer strin
 			Value:    ekuDER,
 		},
 	}
+	if signing {
+		caVal, _ := asn1.Marshal(basicConstraints{IsCA: true, MaxPathLen: 0})
+		caExtension := pkix.Extension{
+			Id:       asn1.ObjectIdentifier{2, 5, 29, 19},
+			Critical: true,
+			Value:    caVal,
+		}
+		template.ExtraExtensions = append(template.ExtraExtensions, caExtension)
+	}
 
 	derBytes, err := x509.CreateCertificateRequest(rand.Reader, &template, priv)
 	if err != nil {
@@ -272,15 +286,15 @@ func GenerateCSRSecret(name string, subject string, hosts []string, issuer strin
 
 	secret.Data["tls.csr"] = csrString
 	secret.Data["tls.key"] = keyString
-
-	err = os.WriteFile("/tmp/tls.csr", csrString, 0644)
-	if err != nil {
-		return nil, err
-	}
-	err = os.WriteFile("/tmp/tls.key", keyString, 0644)
-	if err != nil {
-		return nil, err
-	}
+	secret.Data["tls.crt"] = []byte{}
 
 	return &secret, nil
+}
+
+func DecodeCSR(data []byte) (*x509.CertificateRequest, error) {
+	b, _ := pem.Decode(data)
+	if b == nil {
+		return nil, fmt.Errorf("Could not decode PEM block from data")
+	}
+	return x509.ParseCertificateRequest(b.Bytes)
 }
