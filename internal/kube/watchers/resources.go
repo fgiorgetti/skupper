@@ -52,6 +52,8 @@ type (
 	AttachedConnectorBindingWatcher = ResourceWatcher[*v2alpha1.AttachedConnectorBinding]
 	CertificateHandler              = Handler[*v2alpha1.Certificate]
 	CertificateWatcher              = ResourceWatcher[*v2alpha1.Certificate]
+	CertificateRequestHandler       = Handler[*v2alpha1.CertificateRequest]
+	CertificateRequestWatcher       = ResourceWatcher[*v2alpha1.CertificateRequest]
 	ConnectorHandler                = Handler[*v2alpha1.Connector]
 	ConnectorWatcher                = ResourceWatcher[*v2alpha1.Connector]
 	LinkHandler                     = Handler[*v2alpha1.Link]

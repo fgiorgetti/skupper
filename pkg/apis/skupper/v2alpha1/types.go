@@ -849,6 +849,10 @@ func (c *Certificate) SetReady(err error) bool {
 	return c.Status.SetCondition(CONDITION_TYPE_READY, ErrorOrReadyCondition(err), c.ObjectMeta.Generation)
 }
 
+func (c *Certificate) SetReadyOrPending(ready bool) bool {
+	return c.Status.SetCondition(CONDITION_TYPE_READY, ReadyOrPendingCondition(ready), c.ObjectMeta.Generation)
+}
+
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
@@ -888,6 +892,10 @@ func (c *CertificateRequest) Key() string {
 
 func (c *CertificateRequest) SetReady(err error) bool {
 	return c.Status.SetCondition(CONDITION_TYPE_READY, ErrorOrReadyCondition(err), c.ObjectMeta.Generation)
+}
+
+func (c *CertificateRequest) IsReady() bool {
+	return meta.IsStatusConditionTrue(c.Status.Conditions, CONDITION_TYPE_READY)
 }
 
 // +genclient

@@ -4,10 +4,13 @@
 package certificates
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"strings"
 	"time"
 
@@ -60,9 +63,10 @@ type CertOptions struct {
 
 type CertificateManagerImpl struct {
 	definitions        map[string]*skupperv2alpha1.Certificate
-	remotes            map[string]*skupperv2alpha1.CertificateRequest
+	requests           map[string]*skupperv2alpha1.CertificateRequest
 	secrets            map[string]*corev1.Secret
 	certificateWatcher *watchers.CertificateWatcher
+	requestWatcher     *watchers.CertificateRequestWatcher
 	secretWatcher      *watchers.SecretWatcher
 	processor          *watchers.EventProcessor
 	context            ControllerContext
@@ -73,6 +77,7 @@ func NewCertificateManager(processor *watchers.EventProcessor) *CertificateManag
 	return &CertificateManagerImpl{
 		definitions: map[string]*skupperv2alpha1.Certificate{},
 		secrets:     map[string]*corev1.Secret{},
+		requests:    map[string]*skupperv2alpha1.CertificateRequest{},
 		processor:   processor,
 	}
 }
@@ -85,6 +90,7 @@ func (m *CertificateManagerImpl) SetControllerContext(context ControllerContext)
 // Causes the CertificateManager to start watching relevant resources.
 func (m *CertificateManagerImpl) Watch(watchNamespace string) {
 	m.certificateWatcher = m.processor.WatchCertificates(watchNamespace, watchers.FilterByNamespace(m.isControlled, m.checkCertificate))
+	m.requestWatcher = m.processor.WatchCertificateRequests(watchNamespace, watchers.FilterByNamespace(m.isControlled, m.checkCertificateRequest))
 	m.secretWatcher = m.processor.WatchAllSecrets(watchNamespace, watchers.FilterByNamespace(m.isControlled, m.checkSecret))
 }
 
@@ -104,6 +110,12 @@ func (m *CertificateManagerImpl) Recover() {
 			continue
 		}
 		m.secrets[secretKey(secret)] = secret
+	}
+	for _, request := range m.requestWatcher.List() {
+		if !m.isControlled(request.Namespace) {
+			continue
+		}
+		m.requests[request.Key()] = request
 	}
 	for _, cert := range m.certificateWatcher.List() {
 		if !m.isControlled(cert.Namespace) {
@@ -281,7 +293,14 @@ func (m *CertificateManagerImpl) checkCertificate(key string, certificate *skupp
 		}
 
 	}
-	return m.reconcileSecret(key, certificate, m.secrets[key])
+	err := m.reconcileSecret(key, certificate, m.secrets[key])
+	if err != nil {
+		return err
+	}
+	if certificate.Spec.RemoteIssuer {
+		err = m.ensureRequestFor(certificate)
+	}
+	return err
 }
 
 // This method does whatever is required to ensure that there is a
@@ -290,29 +309,38 @@ func (m *CertificateManagerImpl) reconcileSecret(key string, certificate *skuppe
 
 	var err error
 	if secret != nil {
-		if !certificate.Spec.RemoteIssuer {
-			err = m.updateSecret(key, certificate, secret)
-		} else {
-			log.Println("TODO: CertificateRequest update check needed at reconcileSecret()")
-		}
+		err = m.updateSecret(key, certificate, secret)
 	} else {
-		if !certificate.Spec.RemoteIssuer {
-			err = m.createSecret(key, certificate)
-		} else {
-			log.Println("TODO: CertificateRequest logic needed at reconcileSecret()")
-		}
+		err = m.createSecret(key, certificate)
 	}
 	return m.updateStatus(certificate, err)
 }
 
 func (m *CertificateManagerImpl) certificateDeleted(key string) error {
+	var err error
 	delete(m.definitions, key)
+	// TODO: check if we should delete it even if not controlled
 	if secret, ok := m.secrets[key]; ok {
-		err := m.processor.GetKubeClient().CoreV1().Secrets(secret.Namespace).Delete(context.Background(), secret.Name, metav1.DeleteOptions{})
+		deleteErr := m.processor.GetKubeClient().CoreV1().Secrets(secret.Namespace).Delete(context.Background(), secret.Name, metav1.DeleteOptions{})
+		if deleteErr != nil {
+			log.Println("Failed to delete secret after certificate removal", secret.Name, deleteErr)
+			err = errors.Join(err, deleteErr)
+		} else {
+			delete(m.secrets, key)
+		}
+	}
+	err = errors.Join(err, m.deleteCertificateRequest(key))
+	return err
+}
+
+func (m *CertificateManagerImpl) deleteCertificateRequest(key string) error {
+	if certRequest, ok := m.requests[key]; ok && isResourceControlled(certRequest) {
+		err := m.processor.GetSkupperClient().SkupperV2alpha1().CertificateRequests(certRequest.Namespace).Delete(context.Background(), certRequest.Name, metav1.DeleteOptions{})
 		if err != nil {
+			log.Println("Failed to delete certificate request after certificate removal", certRequest.Name, err)
 			return err
 		}
-		delete(m.secrets, key)
+		delete(m.requests, key)
 	}
 	return nil
 }
@@ -324,7 +352,20 @@ func (m *CertificateManagerImpl) secretDeleted(key string) error {
 }
 
 func (m *CertificateManagerImpl) updateStatus(certificate *skupperv2alpha1.Certificate, err error) error {
-	if certificate.SetReady(err) {
+	var certRequestUpdated bool
+	remoteIssuer := certificate.Spec.RemoteIssuer
+	if remoteIssuer {
+		if request, ok := m.requests[certificate.Key()]; ok && request.IsReady() {
+			if certificate.SetReadyOrPending(true) {
+				certRequestUpdated = true
+			}
+		} else if certificate.SetReadyOrPending(false) {
+			certRequestUpdated = true
+		}
+	} else if certificate.SetReady(err) {
+		certRequestUpdated = true
+	}
+	if certRequestUpdated {
 		latest, err := m.processor.GetSkupperClient().SkupperV2alpha1().Certificates(certificate.Namespace).UpdateStatus(context.TODO(), certificate, metav1.UpdateOptions{})
 		if err != nil {
 			return err
@@ -332,19 +373,37 @@ func (m *CertificateManagerImpl) updateStatus(certificate *skupperv2alpha1.Certi
 		certificate = latest
 		log.Printf("Updated certificate status %s/%s", certificate.Namespace, certificate.Name)
 		m.definitions[certificate.Key()] = latest
+	} else {
+		m.definitions[certificate.Key()] = certificate
 	}
-	m.definitions[certificate.Key()] = certificate
 	return nil
 }
 
 func (m *CertificateManagerImpl) updateSecret(key string, certificate *skupperv2alpha1.Certificate, secret *corev1.Secret) error {
 	changed := false
-	controlled := isSecretControlled(secret)
-	if !isSecretCorrect(certificate, secret) {
-		if !controlled {
-			return errors.New("secret exists but is not controlled by skupper")
+	controlled := isResourceControlled(secret)
+	if !controlled {
+		return errors.New("secret exists but is not controlled by skupper")
+	}
+	if certificate.Spec.RemoteIssuer {
+		request, _ := m.requests[key]
+		updSecret, err := m.createCSRSecret(certificate)
+		if err != nil {
+			log.Printf("Failed to generate updated CSR secret %s: %v", key, err)
+			return err
 		}
-
+		if !isSecretCSRCorrect(certificate, secret) || !isRequestCSRCorrect(request, secret) {
+			log.Printf("Certificate Request CSR %s updated", key)
+			secret.Data["tls.key"] = updSecret.Data["tls.key"]
+			secret.Data["tls.csr"] = updSecret.Data["tls.csr"]
+			changed = true
+		} else if !isRequestCertsCorrect(key, request, secret) {
+			log.Printf("Certificate Request certificates %s updated", key)
+			secret.Data["ca.crt"], _ = base64.StdEncoding.DecodeString(request.Status.CaCertificate)
+			secret.Data["tls.crt"], _ = base64.StdEncoding.DecodeString(request.Status.Certificate)
+			changed = true
+		}
+	} else if !isSecretCorrect(certificate, secret) {
 		regenerated, err := m.generateSecret(certificate)
 		if err != nil {
 			log.Printf("Error generating Secret %s/%s for Certificate %s", certificate.Namespace, secret.Name, key)
@@ -352,12 +411,14 @@ func (m *CertificateManagerImpl) updateSecret(key string, certificate *skupperv2
 		}
 		changed = true
 		secret.Data = regenerated.Data
+	}
+	if changed {
 		if secret.Annotations == nil {
 			secret.Annotations = map[string]string{}
 		}
 		secret.Annotations["internal.skupper.io/hosts"] = strings.Join(certificate.Spec.Hosts, ",")
 	}
-	if m.context != nil && controlled {
+	if m.context != nil {
 		if secret.Labels == nil {
 			secret.Labels = map[string]string{}
 		}
@@ -383,6 +444,44 @@ func (m *CertificateManagerImpl) updateSecret(key string, certificate *skupperv2
 	m.secrets[key] = updated
 	log.Printf("Updated Secret %s/%s for Certificate %s (hosts %v)", secret.Namespace, secret.Name, key, certificate.Spec.Hosts)
 	return nil
+}
+
+// isRequestCSRCorrect returns true if CertificateRequest has been defined
+// and the spec.request differs from what is in the provided Secret
+func isRequestCSRCorrect(request *skupperv2alpha1.CertificateRequest, secret *corev1.Secret) bool {
+	if request == nil {
+		return true
+	}
+	secretCSR, csrOk := secret.Data["tls.csr"]
+	if !csrOk {
+		return false
+	}
+	csr, _ := base64.StdEncoding.DecodeString(request.Spec.Request)
+	if !bytes.Equal(secretCSR, csr) {
+		return false
+	}
+	return true
+}
+
+// isRequestCertsCorrect returns true if CertificateRequest has a cert and a ca key populated
+// and their value differ from what is in the provided Secret
+func isRequestCertsCorrect(key string, request *skupperv2alpha1.CertificateRequest, secret *corev1.Secret) bool {
+	if request == nil || !request.IsReady() {
+		// nothing else to compare at this point
+		return true
+	}
+	ca, _ := base64.StdEncoding.DecodeString(request.Status.CaCertificate)
+	crt, _ := base64.StdEncoding.DecodeString(request.Status.Certificate)
+	if len(ca) == 0 || len(crt) == 0 {
+		// if no info yet available, ignore
+		return true
+	}
+	secretCa, caOk := secret.Data["ca.crt"]
+	secretCrt, crtOk := secret.Data["tls.crt"]
+	if !caOk || !crtOk {
+		return false
+	}
+	return bytes.Equal(ca, secretCa) && bytes.Equal(crt, secretCrt)
 }
 
 func (m *CertificateManagerImpl) generateSecret(certificate *skupperv2alpha1.Certificate) (*corev1.Secret, error) {
@@ -415,7 +514,13 @@ func (m *CertificateManagerImpl) generateSecret(certificate *skupperv2alpha1.Cer
 }
 
 func (m *CertificateManagerImpl) createSecret(key string, certificate *skupperv2alpha1.Certificate) error {
-	secret, err := m.generateSecret(certificate)
+	var secret *corev1.Secret
+	var err error
+	if certificate.Spec.RemoteIssuer {
+		secret, err = m.createCSRSecret(certificate)
+	} else {
+		secret, err = m.generateSecret(certificate)
+	}
 	if err != nil {
 		log.Printf("Error generating secret for Certificate %s: %s", key, err)
 		return err
@@ -456,6 +561,75 @@ func (m *CertificateManagerImpl) checkSecret(key string, secret *corev1.Secret) 
 	return nil
 }
 
+func (m *CertificateManagerImpl) createCSRSecret(certificate *skupperv2alpha1.Certificate) (*corev1.Secret, error) {
+	return certs.GenerateCSRSecret(certificate.Name, certificate.Spec.Subject, certificate.Spec.Hosts, certificate.Spec.Signing)
+}
+
+func (m *CertificateManagerImpl) ensureRequestFor(certificate *skupperv2alpha1.Certificate) error {
+	crClient := m.processor.GetSkupperClient().SkupperV2alpha1().CertificateRequests(certificate.Namespace)
+	if existing, ok := m.requests[certificate.Key()]; ok {
+		changed := false
+		csrStr, _ := base64.StdEncoding.DecodeString(existing.Spec.Request)
+		secret, ok := m.secrets[certificate.Key()]
+		if !ok {
+			return nil
+		}
+		secretCsrStr, ok := secret.Data["tls.csr"]
+		if ok && !bytes.Equal(csrStr, secretCsrStr) {
+			existing.Spec.Request = base64.StdEncoding.EncodeToString(secretCsrStr)
+			changed = true
+		}
+		if certificate.Spec.Ca != existing.Spec.Issuer {
+			existing.Spec.Issuer = certificate.Spec.Ca
+			changed = true
+		}
+		if !changed {
+			return nil
+		}
+		log.Printf("Updating CertificateRequest %s", certificate.Key())
+		updated, err := crClient.Update(context.Background(), existing, metav1.UpdateOptions{})
+		if err != nil {
+			return err
+		}
+		m.requests[certificate.Key()] = updated
+	} else {
+		secret, secretFound := m.secrets[certificate.Key()]
+		if !secretFound {
+			log.Printf("Secret does not exist, CertificateRequest %s cannot be created yet", certificate.Key())
+			return nil
+		}
+		csrStr, csrFound := secret.Data["tls.csr"]
+		if !csrFound {
+			log.Printf("Secret does not contain a CSR, CertificateRequest %s cannot be created yet", certificate.Key())
+			return nil
+		}
+		newRequest := &skupperv2alpha1.CertificateRequest{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "skupper.io/v2alpha1",
+				Kind:       "CertificateRequest",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            certificate.Name,
+				OwnerReferences: ownerReferences(certificate),
+				Annotations: map[string]string{
+					"internal.skupper.io/controlled": "true",
+				},
+			},
+			Spec: skupperv2alpha1.CertificateRequestSpec{
+				Issuer:  certificate.Spec.Ca,
+				Request: base64.StdEncoding.EncodeToString(csrStr),
+			},
+		}
+		log.Printf("Creating CertificateRequest %s", certificate.Key())
+		created, err := crClient.Create(context.Background(), newRequest, metav1.CreateOptions{})
+		if err != nil {
+			return err
+		}
+		m.requests[certificate.Key()] = created
+	}
+	return nil
+}
+
 func isSecretCorrect(certificate *skupperv2alpha1.Certificate, secret *corev1.Secret) bool {
 	data, ok := secret.Data["tls.crt"]
 	if !ok {
@@ -483,15 +657,19 @@ func isSecretCorrect(certificate *skupperv2alpha1.Certificate, secret *corev1.Se
 	if certificate.Spec.Subject != cert.Subject.CommonName {
 		return false
 	}
+	return isCertificateHostsCorrect(certificate, cert.DNSNames, cert.IPAddresses)
+}
+
+func isCertificateHostsCorrect(certificate *skupperv2alpha1.Certificate, dnsNames []string, ipAddresses []net.IP) bool {
 	validFor := map[string]string{}
-	for _, host := range cert.DNSNames {
+	for _, host := range dnsNames {
 		// Ignore empty DNSNames - GH-2277
 		if host == "" {
 			continue
 		}
 		validFor[host] = host
 	}
-	for _, ip := range cert.IPAddresses {
+	for _, ip := range ipAddresses {
 		validFor[ip.String()] = ip.String()
 	}
 	if len(certificate.Spec.Hosts) != len(validFor) {
@@ -505,20 +683,36 @@ func isSecretCorrect(certificate *skupperv2alpha1.Certificate, secret *corev1.Se
 	return true
 }
 
-func isSecretControlled(secret *corev1.Secret) bool {
-	return hasControlledAnnotation(secret) || hasCertificateOwner(secret)
-}
-
-func hasControlledAnnotation(secret *corev1.Secret) bool {
-	if secret.Annotations == nil {
+func isSecretCSRCorrect(certificate *skupperv2alpha1.Certificate, secret *corev1.Secret) bool {
+	data, ok := secret.Data["tls.csr"]
+	if !ok {
 		return false
 	}
-	_, ok := secret.Annotations["internal.skupper.io/controlled"]
+	request, err := certs.DecodeCSR(data)
+	if err != nil {
+		log.Printf("Bad certificate request secret %s: %s", certificate.Key(), err)
+		return false
+	}
+	if certificate.Spec.Subject != request.Subject.CommonName {
+		return false
+	}
+	return isCertificateHostsCorrect(certificate, request.DNSNames, request.IPAddresses)
+}
+
+func isResourceControlled(obj metav1.ObjectMetaAccessor) bool {
+	return hasControlledAnnotation(obj.GetObjectMeta()) || hasCertificateOwner(obj.GetObjectMeta())
+}
+
+func hasControlledAnnotation(metadata metav1.Object) bool {
+	if metadata.GetAnnotations() == nil {
+		return false
+	}
+	_, ok := metadata.GetAnnotations()["internal.skupper.io/controlled"]
 	return ok
 }
 
-func hasCertificateOwner(secret *corev1.Secret) bool {
-	for _, owner := range secret.ObjectMeta.OwnerReferences {
+func hasCertificateOwner(metadata metav1.Object) bool {
+	for _, owner := range metadata.GetOwnerReferences() {
 		if owner.Kind == "Certificate" && owner.APIVersion == "skupper.io/v2alpha1" {
 			return true
 		}
@@ -539,4 +733,13 @@ func ownerReferences(cert *skupperv2alpha1.Certificate) []metav1.OwnerReference 
 			UID:        cert.ObjectMeta.UID,
 		},
 	}
+}
+
+func (m *CertificateManagerImpl) checkCertificateRequest(key string, request *skupperv2alpha1.CertificateRequest) error {
+	if request == nil {
+		delete(m.requests, key)
+		return nil
+	}
+	m.requests[key] = request
+	return nil
 }

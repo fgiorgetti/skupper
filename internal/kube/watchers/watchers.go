@@ -522,6 +522,15 @@ func (c *EventProcessor) WatchCertificates(namespace string, handler Certificate
 	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
 }
 
+func (c *EventProcessor) WatchCertificateRequests(namespace string, handler CertificateRequestHandler) *CertificateRequestWatcher {
+	informer := skupperv2alpha1informer.NewCertificateRequestInformer(
+		c.skupperClient,
+		namespace,
+		c.resyncShort,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
+}
+
 func (c *EventProcessor) WatchRouterAccesses(namespace string, handler RouterAccessHandler) *RouterAccessWatcher {
 	informer := skupperv2alpha1informer.NewRouterAccessInformer(
 		c.skupperClient,
