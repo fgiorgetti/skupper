@@ -148,6 +148,8 @@ rules:
       - securedaccesses/status
       - certificates
       - certificates/status
+      - certificaterequests
+      - certificaterequests/status
       - networks
       - networks/status
       - networklinks

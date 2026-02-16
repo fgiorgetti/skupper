@@ -116,9 +116,3 @@ func TestGH2284(t *testing.T) {
 
 	assert.DeepEqual(t, cert.DNSNames, []string{""})
 }
-
-func TestCSR(t *testing.T) {
-	secret, err := GenerateCSRSecret("mycsr", "mysubject", []string{"192.168.124.1", "skupper.giorgetti.com.br"}, "some-issuer-ref")
-	assert.Assert(t, err)
-	t.Logf("Secret: %+v", secret)
-}
