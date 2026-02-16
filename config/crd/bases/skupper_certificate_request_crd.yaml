@@ -10,7 +10,9 @@ spec:
       storage: true
       schema:
         openAPIV3Schema:
-          description: "An internal resource used to request a TLS certificate to be signed by a remote issuer"
+          description: |-
+            An internal resource used to request a TLS certificate to be signed by a remote issuer.
+            This resource must be reconciled by an external controller.
           type: object
           properties:
             spec:
