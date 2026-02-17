@@ -199,6 +199,7 @@ type SiteSpec struct {
 	DefaultIssuer  string            `json:"defaultIssuer,omitempty"`
 	Edge           bool              `json:"edge,omitempty"`
 	HA             bool              `json:"ha,omitempty"`
+	RemoteIssuer   bool              `json:"remoteIssuer,omitempty"`
 	Settings       map[string]string `json:"settings,omitempty"`
 }
 
@@ -768,12 +769,13 @@ type SecuredAccessPort struct {
 }
 
 type SecuredAccessSpec struct {
-	AccessType  string              `json:"accessType,omitempty"`
-	Selector    map[string]string   `json:"selector"`
-	Ports       []SecuredAccessPort `json:"ports"`
-	Certificate string              `json:"certificate,omitempty"`
-	Issuer      string              `json:"issuer,omitempty"`
-	Settings    map[string]string   `json:"settings,omitempty"`
+	AccessType   string              `json:"accessType,omitempty"`
+	Selector     map[string]string   `json:"selector"`
+	Ports        []SecuredAccessPort `json:"ports"`
+	Certificate  string              `json:"certificate,omitempty"`
+	Issuer       string              `json:"issuer,omitempty"`
+	RemoteIssuer bool                `json:"remoteIssuer,omitempty"`
+	Settings     map[string]string   `json:"settings,omitempty"`
 }
 
 type SecuredAccessStatus struct {
@@ -1011,6 +1013,7 @@ type RouterAccessSpec struct {
 	TlsCredentials          string             `json:"tlsCredentials"`
 	GenerateTlsCredentials  bool               `json:"generateTlsCredentials,omitempty"`
 	Issuer                  string             `json:"issuer,omitempty"`
+	RemoteIssuer            bool               `json:"remoteIssuer,omitempty"`
 	BindHost                string             `json:"bindHost,omitempty"`
 	SubjectAlternativeNames []string           `json:"subjectAlternativeNames,omitempty"`
 	Settings                map[string]string  `json:"settings,omitempty"`
@@ -1371,6 +1374,7 @@ type NetworkAccessSpec struct {
 	Port                    int               `json:"port,omitempty"`
 	TlsCredentials          string            `json:"tlsCredentials"`
 	GenerateTlsCredentials  bool              `json:"generateTlsCredentials,omitempty"`
+	RemoteIssuer            bool              `json:"remoteIssuer,omitempty"`
 	Issuer                  string            `json:"issuer,omitempty"`
 	BindHost                string            `json:"bindHost,omitempty"`
 	SubjectAlternativeNames []string          `json:"subjectAlternativeNames,omitempty"`
