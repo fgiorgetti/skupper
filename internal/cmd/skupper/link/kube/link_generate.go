@@ -210,7 +210,13 @@ func (cmd *CmdLinkGenerate) Run() error {
 				},
 			}
 
-			_, err := cmd.Client.Certificates(cmd.Namespace).Create(context.TODO(), &certificate, metav1.CreateOptions{})
+			defaultIssuer := pkgutils.DefaultStr(cmd.activeSite.Status.DefaultIssuer, "skupper-site-ca")
+			defaultIssuerCert, err := cmd.Client.Certificates(cmd.Namespace).Get(context.TODO(), defaultIssuer, metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("unable to retrieve default issuer certificate %q: %w", defaultIssuer, err)
+			}
+			certificate.Spec.RemoteIssuer = defaultIssuerCert.Spec.RemoteIssuer
+			_, err = cmd.Client.Certificates(cmd.Namespace).Create(context.TODO(), &certificate, metav1.CreateOptions{})
 			if err != nil {
 				return err
 			}
