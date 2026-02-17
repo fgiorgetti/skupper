@@ -281,6 +281,7 @@ func (m *SecuredAccessManager) checkCertificate(sa *skupperv2alpha1.SecuredAcces
 		Options: certificates.Options{
 			Subject: sa.Name,
 			Refs:    ownerReferences(sa),
+			Remote:  sa.Spec.RemoteIssuer,
 		},
 		CA:     sa.Spec.Issuer,
 		Hosts:  getHosts(sa),
