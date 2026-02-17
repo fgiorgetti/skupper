@@ -120,6 +120,15 @@ func (s *Sync) handleSslProfile(key string, secret *corev1.Secret, pctx profileC
 	return viableUpdate, nil
 }
 
+func isSecretReady(secret *corev1.Secret) bool {
+	if secret == nil {
+		return false
+	}
+	tlsCrt := secret.Data["tls.crt"]
+	tlsKey := secret.Data["tls.key"]
+	return len(tlsCrt) > 0 && len(tlsKey) > 0
+}
+
 func (s *Sync) handleProxyProfile(namespace string, secret *corev1.Secret) (bool, error) {
 	profileName := secret.Name
 	prev, hadPrev := s.getProfile(profileName)
@@ -235,6 +244,9 @@ func (s *Sync) ExpectSslProfiles(profiles map[string]qdr.SslProfile) SyncDelta {
 		} else {
 			secret, _ := s.cache.Get(context.SecretKey)
 			if secret != nil {
+				if !isSecretReady(secret) {
+					delta.Errors = append(delta.Errors, fmt.Errorf("secret %q not ready", context.SecretKey))
+				}
 				_, err := s.handleSslProfile(context.SecretKey, secret, context.profileContext)
 				if err != nil {
 					delta.Errors = append(delta.Errors, err)
