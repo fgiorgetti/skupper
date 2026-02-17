@@ -299,6 +299,8 @@ func (m *CertificateManagerImpl) checkCertificate(key string, certificate *skupp
 	}
 	if certificate.Spec.RemoteIssuer {
 		err = m.ensureRequestFor(certificate)
+	} else {
+		err = m.ensureNoRequestFor(certificate)
 	}
 	return err
 }
@@ -742,4 +744,19 @@ func (m *CertificateManagerImpl) checkCertificateRequest(key string, request *sk
 	}
 	m.requests[key] = request
 	return nil
+}
+
+func (m *CertificateManagerImpl) ensureNoRequestFor(certificate *skupperv2alpha1.Certificate) error {
+	var err error
+	if m.requests[certificate.Key()] != nil {
+		log.Printf("Deleting CertificateRequest and Secret for %s (remoteIssuer disabled)", certificate.Key())
+		secretClient := m.processor.GetKubeClient().CoreV1().Secrets(certificate.Namespace)
+		err = secretClient.Delete(context.Background(), certificate.Name, metav1.DeleteOptions{})
+		if err != nil {
+			return err
+		}
+		_ = m.secretDeleted(certificate.Key())
+		err = m.deleteCertificateRequest(certificate.Key())
+	}
+	return err
 }
