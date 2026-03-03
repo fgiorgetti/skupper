@@ -26,10 +26,10 @@ spec:
                     type: string
                 remoteIssuer:
                   type: boolean
-                duration:
+                expireInterval:
                   type: string
                   format: duration
-                renewBefore:
+                renewInterval:
                   type: string
                   format: duration
                 client:
