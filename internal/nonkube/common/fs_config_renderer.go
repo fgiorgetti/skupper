@@ -381,7 +381,7 @@ func (c *FileSystemConfigurationRenderer) createTlsCertificates(siteState *api.S
 			continue
 		}
 		var expiration time.Duration = 0
-		if parsedDuration, err := time.ParseDuration(certificate.Spec.Duration); err == nil {
+		if parsedDuration, err := time.ParseDuration(certificate.Spec.ExpireInterval); err == nil {
 			expiration = parsedDuration
 		}
 		secret, err := certs.GenerateSecret(name, certificate.Spec.Subject, nil, expiration, nil)
@@ -415,7 +415,7 @@ func (c *FileSystemConfigurationRenderer) createTlsCertificates(siteState *api.S
 			}
 		}
 		var expiration time.Duration = 0
-		if parsedDuration, err := time.ParseDuration(certificate.Spec.Duration); err == nil {
+		if parsedDuration, err := time.ParseDuration(certificate.Spec.ExpireInterval); err == nil {
 			expiration = parsedDuration
 		}
 		if certificate.Spec.Client {

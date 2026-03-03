@@ -46,11 +46,11 @@ type CertificateManager interface {
 }
 
 type Options struct {
-	Subject     string
-	Refs        []metav1.OwnerReference
-	Duration    time.Duration
-	RenewBefore time.Duration
-	Remote      bool
+	Subject        string
+	Refs           []metav1.OwnerReference
+	ExpireInterval time.Duration
+	RenewInterval  time.Duration
+	Remote         bool
 }
 
 type CertOptions struct {
@@ -136,11 +136,11 @@ func (m *CertificateManagerImpl) EnsureCA(namespace string, name string, options
 		Signing:      true,
 		RemoteIssuer: options.Remote,
 	}
-	if options.Duration > 0 {
-		spec.Duration = options.Duration.String()
+	if options.ExpireInterval > 0 {
+		spec.ExpireInterval = options.ExpireInterval.String()
 	}
-	if options.RenewBefore > 0 {
-		spec.RenewBefore = options.RenewBefore.String()
+	if options.RenewInterval > 0 {
+		spec.RenewInterval = options.RenewInterval.String()
 	}
 	return m.ensure(namespace, name, spec, options.Refs)
 }
@@ -162,11 +162,11 @@ func (m *CertificateManagerImpl) Ensure(namespace string, name string, options C
 		Server:       options.Server,
 		RemoteIssuer: options.Remote,
 	}
-	if options.Duration > 0 {
-		spec.Duration = options.Duration.String()
+	if options.ExpireInterval > 0 {
+		spec.ExpireInterval = options.ExpireInterval.String()
 	}
-	if options.RenewBefore > 0 {
-		spec.RenewBefore = options.RenewBefore.String()
+	if options.RenewInterval > 0 {
+		spec.RenewInterval = options.RenewInterval.String()
 	}
 	return m.ensure(namespace, name, spec, options.Refs)
 }
@@ -495,7 +495,7 @@ func (m *CertificateManagerImpl) generateSecret(certificate *skupperv2alpha1.Cer
 			return secret, err
 		}
 	} else {
-		expiration, err := time.ParseDuration(certificate.Spec.Duration)
+		expiration, err := time.ParseDuration(certificate.Spec.ExpireInterval)
 		if err != nil {
 			expiration = time.Hour * 24 * 365 * 5
 		}
@@ -646,12 +646,12 @@ func isSecretCorrect(certificate *skupperv2alpha1.Certificate, secret *corev1.Se
 		log.Printf("Certificate %s has expired", certificate.Key())
 		return false
 	}
-	if certificate.Spec.RenewBefore != "" {
-		if renewBefore, err := time.ParseDuration(certificate.Spec.RenewBefore); err == nil {
-			renewTime := cert.NotAfter.Add(-1 * renewBefore)
+	if certificate.Spec.RenewInterval != "" {
+		if renewInterval, err := time.ParseDuration(certificate.Spec.RenewInterval); err == nil {
+			renewTime := cert.NotBefore.Add(renewInterval)
 			if time.Now().After(renewTime) {
-				log.Printf("Certificate %s will be renewed now - condition: %v before expiration: %v",
-					certificate.Key(), renewBefore, cert.NotAfter)
+				log.Printf("Certificate %s will be renewed now - condition: %v after: %v",
+					certificate.Key(), renewInterval, cert.NotBefore)
 				return false
 			}
 		}
