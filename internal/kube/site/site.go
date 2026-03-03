@@ -374,7 +374,17 @@ func (s *Site) checkDefaultRouterAccess(ctxt context.Context, site *skupperv2alp
 	} else {
 		created, err := s.clients.GetSkupperClient().SkupperV2alpha1().RouterAccesses(s.namespace).Create(context.Background(), desired, metav1.CreateOptions{})
 		if err != nil {
-			return err
+			if !errors.IsAlreadyExists(err) {
+				s.logger.Error("Error creating RouterAccess",
+					slog.String("name", desired.Name),
+					slog.String("error", err.Error()))
+				return err
+			}
+			s.logger.Info("Router access already exists - loading latest", slog.String("name", desired.Name))
+			created, err = s.clients.GetSkupperClient().SkupperV2alpha1().RouterAccesses(s.namespace).Get(context.Background(), desired.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
 		}
 		s.linkAccess[name] = created
 		return nil
