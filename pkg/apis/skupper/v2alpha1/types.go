@@ -843,16 +843,16 @@ type CertificateList struct {
 }
 
 type CertificateSpec struct {
-	Ca           string            `json:"ca"`
-	Subject      string            `json:"subject"`
-	Hosts        []string          `json:"hosts,omitempty"`
-	Duration     string            `json:"duration,omitempty"`
-	RenewBefore  string            `json:"renewBefore,omitempty"`
-	RemoteIssuer bool              `json:"remoteIssuer,omitempty"`
-	Client       bool              `json:"client,omitempty"`
-	Server       bool              `json:"server,omitempty"`
-	Signing      bool              `json:"signing,omitempty"`
-	Settings     map[string]string `json:"settings,omitempty"`
+	Ca             string            `json:"ca"`
+	Subject        string            `json:"subject"`
+	Hosts          []string          `json:"hosts,omitempty"`
+	ExpireInterval string            `json:"expireInterval,omitempty"`
+	RenewInterval  string            `json:"renewInterval,omitempty"`
+	RemoteIssuer   bool              `json:"remoteIssuer,omitempty"`
+	Client         bool              `json:"client,omitempty"`
+	Server         bool              `json:"server,omitempty"`
+	Signing        bool              `json:"signing,omitempty"`
+	Settings       map[string]string `json:"settings,omitempty"`
 }
 
 type CertificateStatus struct {
