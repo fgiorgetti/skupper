@@ -9,6 +9,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -163,7 +164,15 @@ func (m *SecuredAccessManager) Ensure(namespace string, name string, spec skuppe
 		}
 		created, err := m.clients.GetSkupperClient().SkupperV2alpha1().SecuredAccesses(namespace).Create(context.Background(), sa, metav1.CreateOptions{})
 		if err != nil {
-			return err
+			if !apierrors.IsAlreadyExists(err) {
+				log.Printf("Error creating SecuredAccess %s: %v", key, err)
+				return err
+			}
+			log.Printf("SecuredAccess already exists %s - loading latest", key)
+			created, err = m.clients.GetSkupperClient().SkupperV2alpha1().SecuredAccesses(namespace).Get(context.Background(), sa.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
 		}
 		m.definitions[key] = created
 		return nil
