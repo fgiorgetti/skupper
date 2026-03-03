@@ -21,6 +21,7 @@ import (
 	"github.com/skupperproject/skupper/internal/kube/watchers"
 	skupperv2alpha1 "github.com/skupperproject/skupper/pkg/apis/skupper/v2alpha1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -260,7 +261,15 @@ func (m *CertificateManagerImpl) ensure(namespace string, name string, spec skup
 
 		created, err := m.processor.GetSkupperClient().SkupperV2alpha1().Certificates(namespace).Create(context.Background(), cert, metav1.CreateOptions{})
 		if err != nil {
-			return err
+			if !apierrors.IsAlreadyExists(err) {
+				log.Printf("Error creating certificate %s: %s", key, err)
+				return err
+			}
+			log.Printf("Certificate %s already exists - loading latest", key)
+			created, err = m.processor.GetSkupperClient().SkupperV2alpha1().Certificates(namespace).Get(context.Background(), cert.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
 		}
 		m.definitions[key] = created
 		return nil
