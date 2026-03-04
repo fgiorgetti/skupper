@@ -213,10 +213,17 @@ func GenerateCSRSecret(name string, subject string, hosts []string, signing bool
 
 	}
 
+	// TODO: Handle UID: 0.9.2342.19200300.100.1.1 or
 	template := x509.CertificateRequest{
 		PublicKey: publicKey(priv),
 		Subject: pkix.Name{
 			CommonName: subject,
+			Names: []pkix.AttributeTypeAndValue{
+				{
+					Type:  asn1.ObjectIdentifier{0, 9, 2342, 19200300, 100, 1, 1},
+					Value: subject, // TODO find a better way or value to use here
+				},
+			},
 		},
 	}
 
