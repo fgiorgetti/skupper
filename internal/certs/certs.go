@@ -232,36 +232,10 @@ func GenerateCSRSecret(name string, subject string, hosts []string, signing bool
 	// Need to go through RFC 5280, see:
 	// https://oid-info.com
 	// https://oidref.com
-	oidExtensionKeyUsage := asn1.ObjectIdentifier{2, 5, 29, 15}
-	kuValue, _ := asn1.Marshal(asn1.BitString{Bytes: []byte{byte(x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature)}, BitLength: 3})
-
-	oidExtensionExtendedKeyUsage := asn1.ObjectIdentifier{2, 5, 29, 37}
-	oidExtKeyUsageServerAuth := asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 1}
-	oidExtKeyUsageClientAuth := asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 2}
-	ekuDER, err := asn1.Marshal([]asn1.ObjectIdentifier{oidExtKeyUsageServerAuth, oidExtKeyUsageClientAuth})
-	if err != nil {
-		return nil, err
-	}
-	template.ExtraExtensions = []pkix.Extension{
-		{
-			Id:       oidExtensionKeyUsage,
-			Critical: true,
-			Value:    kuValue,
-		},
-		{
-			Id:       oidExtensionExtendedKeyUsage,
-			Critical: false,
-			Value:    ekuDER,
-		},
-	}
+	template.ExtraExtensions = append(template.ExtraExtensions, extensionKeyUsage())
+	template.ExtraExtensions = append(template.ExtraExtensions, extensionExtendedKeyUsage())
 	if signing {
-		caVal, _ := asn1.Marshal(basicConstraints{IsCA: true, MaxPathLen: 0})
-		caExtension := pkix.Extension{
-			Id:       asn1.ObjectIdentifier{2, 5, 29, 19},
-			Critical: true,
-			Value:    caVal,
-		}
-		template.ExtraExtensions = append(template.ExtraExtensions, caExtension)
+		template.ExtraExtensions = append(template.ExtraExtensions, extensionCA())
 	}
 
 	derBytes, err := x509.CreateCertificateRequest(rand.Reader, &template, priv)
@@ -289,6 +263,37 @@ func GenerateCSRSecret(name string, subject string, hosts []string, signing bool
 	secret.Data["tls.crt"] = []byte{}
 
 	return &secret, nil
+}
+
+func extensionCA() pkix.Extension {
+	caVal, _ := asn1.Marshal(basicConstraints{IsCA: true, MaxPathLen: 0})
+	return pkix.Extension{
+		Id:       asn1.ObjectIdentifier{2, 5, 29, 19},
+		Critical: true,
+		Value:    caVal,
+	}
+}
+
+func extensionExtendedKeyUsage() pkix.Extension {
+	oidExtensionExtendedKeyUsage := asn1.ObjectIdentifier{2, 5, 29, 37}
+	oidExtKeyUsageServerAuth := asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 1}
+	oidExtKeyUsageClientAuth := asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 2}
+	ekuDER, _ := asn1.Marshal([]asn1.ObjectIdentifier{oidExtKeyUsageServerAuth, oidExtKeyUsageClientAuth})
+	return pkix.Extension{
+		Id:       oidExtensionExtendedKeyUsage,
+		Critical: false,
+		Value:    ekuDER,
+	}
+}
+
+func extensionKeyUsage() pkix.Extension {
+	oidExtensionKeyUsage := asn1.ObjectIdentifier{2, 5, 29, 15}
+	kuValue, _ := asn1.Marshal(asn1.BitString{Bytes: []byte{byte(x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature)}, BitLength: 3})
+	return pkix.Extension{
+		Id:       oidExtensionKeyUsage,
+		Critical: true,
+		Value:    kuValue,
+	}
 }
 
 func DecodeCSR(data []byte) (*x509.CertificateRequest, error) {
