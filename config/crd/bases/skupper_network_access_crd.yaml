@@ -37,9 +37,9 @@ spec:
                 remoteIssuer:
                   description: |-
                     Advanced. Enable it if you want the Skupper Controller to
-                    generate CertificateSigningRequests (CSRs) instead of the default
+                    generate CertificateRequests (CRs) instead of the default
                     self-signed certificates.
-                    The CSRs must be reconciled by an external application.
+                    The CRs must be reconciled by an external application.
                   type: boolean
                 accessType:
                   description: |-
