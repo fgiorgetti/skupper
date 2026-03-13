@@ -36,19 +36,19 @@ func TestPortAllocationCase2(t *testing.T) {
 func TestPortAllocationCase3(t *testing.T) {
 	ports := NewFreePorts()
 	ports.InUse(1027)
-	if ports.String() != "[(1024-1026), (1028-65535)]" {
+	if ports.String() != "[(1024-1026), (1028-65024)]" {
 		t.Errorf(`Invalid internal state after consuming 1027: %s`, ports)
 	}
 	ports.InUse(1025)
-	if ports.String() != "[(1024-1024), (1026-1026), (1028-65535)]" {
+	if ports.String() != "[(1024-1024), (1026-1026), (1028-65024)]" {
 		t.Errorf(`Invalid internal state after consuming 1025: %s`, ports)
 	}
 	ports.InUse(1024)
-	if ports.String() != "[(1026-1026), (1028-65535)]" {
+	if ports.String() != "[(1026-1026), (1028-65024)]" {
 		t.Errorf(`Invalid internal state after consuming 1024: %s`, ports)
 	}
 	ports.InUse(1026)
-	if ports.String() != "[(1028-65535)]" {
+	if ports.String() != "[(1028-65024)]" {
 		t.Errorf(`Invalid internal state after consuming 1026: %s`, ports)
 	}
 }
@@ -56,21 +56,21 @@ func TestPortAllocationCase3(t *testing.T) {
 func TestPortAllocationCase4(t *testing.T) {
 	ports := NewFreePorts()
 	ports.InUse(1027)
-	if ports.String() != "[(1024-1026), (1028-65535)]" {
+	if ports.String() != "[(1024-1026), (1028-65024)]" {
 		t.Errorf(`Invalid internal state after consuming 1027: %s`, ports)
 	}
 	ports.InUse(2025)
-	if ports.String() != "[(1024-1026), (1028-2024), (2026-65535)]" {
+	if ports.String() != "[(1024-1026), (1028-2024), (2026-65024)]" {
 		t.Errorf(`Invalid internal state after consuming 2025: %s`, ports)
 	}
 	ports.InUse(1500)
-	if ports.String() != "[(1024-1026), (1028-1499), (1501-2024), (2026-65535)]" {
+	if ports.String() != "[(1024-1026), (1028-1499), (1501-2024), (2026-65024)]" {
 		t.Errorf(`Invalid internal state after consuming 1024: %s`, ports)
 	}
 	for i := 1028; i <= 1499; i++ {
 		ports.InUse(i)
 	}
-	if ports.String() != "[(1024-1026), (1501-2024), (2026-65535)]" {
+	if ports.String() != "[(1024-1026), (1501-2024), (2026-65024)]" {
 		t.Errorf(`Invalid internal state after consuming 1028-1499: %s`, ports)
 	}
 }

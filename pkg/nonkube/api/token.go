@@ -51,9 +51,9 @@ func CreateTokens(routerAccess v2alpha1.RouterAccess, serverSecret *v1.Secret, c
 	for _, role := range routerAccess.Spec.Roles {
 		switch role.Name {
 		case "inter-router":
-			interRouter = role.Port
+			interRouter = int(routerAccess.GetPortForRole(role.Name))
 		case "edge":
-			edge = role.Port
+			edge = int(routerAccess.GetPortForRole(role.Name))
 		}
 	}
 	if interRouter == 0 && edge == 0 {
