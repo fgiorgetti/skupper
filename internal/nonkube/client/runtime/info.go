@@ -24,5 +24,5 @@ func GetLocalRouterPort(namespace string) (int, error) {
 	if len(ra.Spec.Roles) == 0 {
 		return 0, fmt.Errorf("no roles defined on RouterAccess: %s", ra.Name)
 	}
-	return ra.Spec.Roles[0].Port, nil
+	return int(ra.GetPortForRole("normal")), nil
 }

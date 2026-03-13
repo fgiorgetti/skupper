@@ -976,6 +976,82 @@ func (r *RouterAccess) IsConfigured() bool {
 	return meta.IsStatusConditionTrue(r.Status.Conditions, CONDITION_TYPE_CONFIGURED)
 }
 
+func (r *RouterAccess) GetAllocatedPorts() []int32 {
+	var ports []int32
+	for _, role := range r.Spec.Roles {
+		if role.Port != 0 {
+			continue
+		}
+		if allocatedPort := r.GetAllocatedPortForRole(role.Name); allocatedPort != 0 {
+			ports = append(ports, allocatedPort)
+		}
+	}
+	return ports
+}
+
+func (r *RouterAccess) GetUnusedPorts() []int32 {
+	var ports []int32
+	for _, role := range r.Status.Roles {
+		if r.FindRole(role.Name) == nil {
+			ports = append(ports, int32(role.Port))
+		}
+	}
+	return ports
+}
+
+func (r *RouterAccess) GetPortForRole(name string) int32 {
+	for _, role := range r.Spec.Roles {
+		if role.Name == name {
+			if role.Port > 0 {
+				return int32(role.Port)
+			}
+			return r.GetAllocatedPortForRole(name)
+		}
+	}
+	return 0
+}
+
+func (r *RouterAccess) GetAllocatedPortForRole(name string) int32 {
+	for _, role := range r.Status.Roles {
+		if role.Name == name {
+			return int32(role.Port)
+		}
+	}
+	return 0
+}
+
+func (r *RouterAccess) AllocatePort(role string, port int) bool {
+	var ports []RouterAccessRole
+	for _, portStatus := range r.Status.Roles {
+		if portStatus.Name == role {
+			if portStatus.Port == port {
+				return false
+			}
+			continue
+		}
+		ports = append(ports, portStatus)
+	}
+	ports = append(ports, RouterAccessRole{
+		Name: role,
+		Port: port,
+	})
+	r.Status.Roles = ports
+	return true
+}
+
+func (r *RouterAccess) ReleaseUnusedPorts(unusedPorts []int32) {
+	var ports []RouterAccessRole
+	for _, port := range unusedPorts {
+		for _, portStatus := range r.Status.Roles {
+			if portStatus.Port == int(port) {
+				continue
+			}
+			ports = append(ports, portStatus)
+		}
+	}
+	r.Status.Roles = ports
+}
+
 // endpoints are assumed all to be from one group
 func (s *RouterAccessStatus) UpdateEndpointsForGroup(endpoints []Endpoint, group string) bool {
 	all := []Endpoint{}
@@ -1026,16 +1102,6 @@ type RouterAccessRole struct {
 	Port int    `json:"port,omitempty"`
 }
 
-func (role RouterAccessRole) GetPort() int32 {
-	if role.Port != 0 {
-		return int32(role.Port)
-	} else if role.Name == "edge" {
-		return 45671
-	} else {
-		return 55671
-	}
-}
-
 type RouterAccessSpec struct {
 	AccessType              string             `json:"accessType,omitempty"`
 	Roles                   []RouterAccessRole `json:"roles"`
@@ -1050,7 +1116,8 @@ type RouterAccessSpec struct {
 
 type RouterAccessStatus struct {
 	Status    `json:",inline"`
-	Endpoints []Endpoint `json:"endpoints,omitempty"`
+	Roles     []RouterAccessRole `json:"roles,omitempty"`
+	Endpoints []Endpoint         `json:"endpoints,omitempty"`
 }
 
 // +genclient

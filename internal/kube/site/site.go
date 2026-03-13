@@ -26,6 +26,7 @@ import (
 	"github.com/skupperproject/skupper/internal/kube/site/resources"
 	"github.com/skupperproject/skupper/internal/kube/site/sizing"
 	"github.com/skupperproject/skupper/internal/kube/watchers"
+	"github.com/skupperproject/skupper/internal/ports"
 	"github.com/skupperproject/skupper/internal/qdr"
 	"github.com/skupperproject/skupper/internal/site"
 	"github.com/skupperproject/skupper/internal/version"
@@ -72,6 +73,7 @@ type Site struct {
 	networkLinks         map[string]*NetworkLink
 	inetIngress          map[string]*InterNetworkIngress
 	errors               map[string]string
+	routerAccessPorts    *ports.FreePorts
 	linkAccess           site.RouterAccessMap
 	networkAccess        site.NetworkAccessMap
 	certs                certificates.CertificateManager
@@ -97,6 +99,7 @@ func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs ce
 		links:                map[string]*site.Link{},
 		networkLinks:         map[string]*NetworkLink{},
 		inetIngress:          map[string]*InterNetworkIngress{},
+		routerAccessPorts:    ports.NewFreePortsForRouterAccess(),
 		linkAccess:           site.RouterAccessMap{},
 		networkAccess:        site.NetworkAccessMap{},
 		certs:                certs,
@@ -1701,7 +1704,7 @@ func routerAccessToSecuredAccessSpec(routerAccess *skupperv2alpha1.RouterAccess)
 	for _, role := range routerAccess.Spec.Roles {
 		spec.Ports = append(spec.Ports, securedAccessPort{
 			Name: role.Name,
-			Port: role.Port,
+			Port: int(routerAccess.GetPortForRole(role.Name)),
 		})
 	}
 	return spec
@@ -1811,12 +1814,34 @@ func (s *Site) checkSecuredAccess() error {
 
 func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) error {
 	specChanged := false
+	statusChanged := false
 	if la == nil {
+		if existing, ok := s.linkAccess[name]; ok {
+			s.routerAccessPorts.ReleaseAll(existing.GetAllocatedPorts()...)
+		}
 		delete(s.linkAccess, name)
 		specChanged = true
 	} else {
 		if existing, ok := s.linkAccess[name]; ok {
 			specChanged = !reflect.DeepEqual(existing.Spec, la.Spec)
+		}
+		if unusedPorts := la.GetUnusedPorts(); len(unusedPorts) > 0 {
+			s.routerAccessPorts.ReleaseAll(unusedPorts...)
+			la.ReleaseUnusedPorts(unusedPorts)
+			statusChanged = true
+		}
+		var err error
+		for _, role := range la.Spec.Roles {
+			port := int(la.GetPortForRole(role.Name))
+			if port == 0 {
+				port, err = s.routerAccessPorts.NextFreePort()
+				if err != nil {
+					return err
+				}
+			}
+			if la.AllocatePort(role.Name, port) {
+				statusChanged = true
+			}
 		}
 		s.linkAccess[name] = la
 	}
@@ -1878,7 +1903,7 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 	if configuredErr != nil {
 		err = stderrors.Join(configuredErr, err)
 	}
-	if la != nil && la.SetConfigured(err) {
+	if la != nil && (la.SetConfigured(err) || statusChanged) {
 		if err := s.updateRouterAccessStatus(la); err != nil {
 			return err
 		}

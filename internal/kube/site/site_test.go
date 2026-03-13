@@ -11,6 +11,7 @@ import (
 	"github.com/skupperproject/skupper/internal/kube/securedaccess"
 	"github.com/skupperproject/skupper/internal/kube/site/sizing"
 	"github.com/skupperproject/skupper/internal/kube/watchers"
+	"github.com/skupperproject/skupper/internal/ports"
 	"github.com/skupperproject/skupper/internal/qdr"
 	site1 "github.com/skupperproject/skupper/internal/site"
 	"github.com/skupperproject/skupper/internal/version"
@@ -1489,16 +1490,17 @@ func newSiteMocks(namespace string, k8sObjects []runtime.Object, skupperObjects 
 
 	controller := watchers.NewEventProcessor("test", client)
 	newSite := &Site{
-		clients:       controller,
-		bindings:      NewExtendedBindings(controller, ""),
-		links:         make(map[string]*site1.Link),
-		errors:        make(map[string]string),
-		linkAccess:    make(map[string]*skupperv2alpha1.RouterAccess),
-		certs:         certificates.NewCertificateManager(controller),
-		access:        securedaccess.NewSecuredAccessManager(client, nil, &securedaccess.Config{DefaultAccessType: "loadbalancer"}, nil),
-		accessMapping: make(securedAccessMap),
-		routerPods:    make(map[string]*corev1.Pod),
-		sizes:         sizing.NewRegistry(),
+		clients:           controller,
+		bindings:          NewExtendedBindings(controller, ""),
+		links:             make(map[string]*site1.Link),
+		errors:            make(map[string]string),
+		routerAccessPorts: ports.NewFreePortsForRouterAccess(),
+		linkAccess:        make(map[string]*skupperv2alpha1.RouterAccess),
+		certs:             certificates.NewCertificateManager(controller),
+		access:            securedaccess.NewSecuredAccessManager(client, nil, &securedaccess.Config{DefaultAccessType: "loadbalancer"}, nil),
+		accessMapping:     make(accessMap),
+		routerPods:        make(map[string]*corev1.Pod),
+		sizes:             sizing.NewRegistry(),
 		logger: slog.New(slog.Default().Handler()).With(
 			slog.String("component", "kube.site.site"),
 		),
