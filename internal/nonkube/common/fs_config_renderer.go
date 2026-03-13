@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/skupperproject/skupper/internal/certs"
+	"github.com/skupperproject/skupper/internal/ports"
 	"github.com/skupperproject/skupper/internal/qdr"
 	"github.com/skupperproject/skupper/internal/utils"
 	"github.com/skupperproject/skupper/pkg/apis/skupper/v2alpha1"
@@ -100,6 +101,19 @@ func (c *FileSystemConfigurationRenderer) Render(siteState *api.SiteState) error
 			return fmt.Errorf("unable to create configuration directory %s: %v", configDir, err)
 		}
 	}
+	// Allocate ports to router accesses (if not specified)
+	freePorts := ports.NewFreePortsForRouterAccess()
+	for raName, ra := range siteState.RouterAccesses {
+		for _, role := range ra.Spec.Roles {
+			if role.Port == 0 {
+				port, err := freePorts.NextFreePort()
+				if err != nil {
+					return fmt.Errorf("unable to allocate port for router access %s - role %s: %w", raName, role.Name, err)
+				}
+				ra.AllocatePort(role.Name, port)
+			}
+		}
+	}
 	// Creating the router config
 	err = c.createRouterConfig(siteState)
 	if err != nil {
@@ -137,12 +151,12 @@ func (c *FileSystemConfigurationRenderer) Render(siteState *api.SiteState) error
 				logger.Debug("site endpoint configured:",
 					slog.String("host", ra.Spec.BindHost),
 					slog.String("role", role.Name),
-					slog.Int("port", role.Port),
+					slog.Int("port", int(ra.GetPortForRole(role.Name))),
 				)
 				endpoints = append(endpoints, v2alpha1.Endpoint{
 					Name:  fmt.Sprintf("%s-%s", raName, role.Name),
 					Host:  ra.Spec.BindHost,
-					Port:  strconv.Itoa(role.Port),
+					Port:  strconv.Itoa(int(ra.GetPortForRole(role.Name))),
 					Group: "skupper-router",
 				})
 			}
@@ -471,7 +485,7 @@ func (c *FileSystemConfigurationRenderer) connectJson(siteState *api.SiteState) 
 	for _, la := range siteState.RouterAccesses {
 		for _, role := range la.Spec.Roles {
 			if role.Name == "normal" {
-				port = role.Port
+				port = int(la.GetPortForRole(role.Name))
 				host = getOption(la.Spec.Settings, la.Spec.BindHost, "127.0.0.1")
 			}
 		}
