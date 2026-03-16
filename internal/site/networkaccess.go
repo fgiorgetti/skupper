@@ -18,7 +18,7 @@ func (m NetworkAccessMap) desiredListeners() map[string]qdr.Listener {
 			Name:             name,
 			Role:             qdr.GetRole(role),
 			Host:             na.Spec.BindHost,
-			Port:             int32(na.Spec.Port),
+			Port:             int32(na.GetPort()),
 			SslProfile:       na.Spec.TlsCredentials,
 			SaslMechanisms:   "EXTERNAL",
 			AuthenticatePeer: true,
@@ -52,7 +52,8 @@ func (g *NetworkAccessConfig) Apply(config *qdr.RouterConfig) bool {
 		}
 	}
 	for _, value := range lc.Added {
-		if config.AddListener(value) && config.AddSslProfile(qdr.ConfigureSslProfile(value.SslProfile, g.profilePath, true)) {
+		if config.AddListener(value) {
+			config.AddSslProfile(qdr.ConfigureSslProfile(value.SslProfile, g.profilePath, true))
 			changed = true
 		}
 	}
