@@ -1334,7 +1334,7 @@ func networkAccessToSecuredAccessSpec(networkAccess *skupperv2alpha1.NetworkAcce
 		Ports: []securedAccessPort{
 			{
 				Name: "inter-network",
-				Port: networkAccess.Spec.Port,
+				Port: networkAccess.GetPort(),
 			},
 		},
 		Settings: networkAccess.Spec.Settings,
@@ -1513,13 +1513,27 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 
 func (s *Site) CheckNetworkAccess(name string, na *skupperv2alpha1.NetworkAccess) error {
 	specChanged := false
+	statusChanged := false
 	if na == nil {
+		if existing, ok := s.networkAccess[name]; ok && existing.HasAllocatedPort() {
+			s.routerAccessPorts.Release(existing.GetPort())
+		}
 		delete(s.networkAccess, name)
 		specChanged = true
 	} else {
 		if existing, ok := s.networkAccess[name]; ok {
 			specChanged = !reflect.DeepEqual(existing.Spec, na.Spec)
-
+		}
+		port := na.Spec.Port
+		if na.GetPort() == 0 {
+			var err error
+			port, err = s.routerAccessPorts.NextFreePort()
+			if err != nil {
+				return err
+			}
+		}
+		if na.AllocatePort(port) {
+			statusChanged = true
 		}
 		s.networkAccess[name] = na
 	}
@@ -1568,7 +1582,7 @@ func (s *Site) CheckNetworkAccess(name string, na *skupperv2alpha1.NetworkAccess
 	if len(errors) > 0 {
 		err = fmt.Errorf("%s", strings.Join(errors, ", "))
 	}
-	if na != nil && na.SetConfigured(s.network.NetworkId, err) {
+	if na != nil && (na.SetConfigured(s.network.NetworkId, err) || statusChanged) {
 		if err := s.updateNetworkAccessStatus(na); err != nil {
 			return err
 		}

@@ -992,6 +992,9 @@ func (r *RouterAccess) GetAllocatedPortForRole(name string) int32 {
 }
 
 func (r *RouterAccess) AllocatePort(role string, port int) bool {
+	if port == 0 {
+		return false
+	}
 	var ports []RouterAccessRole
 	for _, portStatus := range r.Status.Roles {
 		if portStatus.Name == role {
@@ -1450,6 +1453,29 @@ type NetworkAccessSpec struct {
 
 type NetworkAccessStatus struct {
 	Status    `json:",inline"`
+	Port      int        `json:"port,omitempty"`
 	NetworkId string     `json:"networkId"`
 	Endpoints []Endpoint `json:"endpoints,omitempty"`
+}
+
+func (n *NetworkAccess) GetPort() int {
+	if n.Spec.Port > 0 {
+		return n.Spec.Port
+	}
+	return n.Status.Port
+}
+
+func (n *NetworkAccess) HasAllocatedPort() bool {
+	return n.Spec.Port == 0 && n.Status.Port > 0
+}
+
+func (n *NetworkAccess) AllocatePort(port int) bool {
+	if port == 0 {
+		return false
+	}
+	if n.Status.Port != port {
+		n.Status.Port = port
+		return true
+	}
+	return false
 }
