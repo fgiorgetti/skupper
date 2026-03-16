@@ -87,7 +87,6 @@ spec:
                   additionalProperties:
                     type: string
               required:
-              - port
               - tlsCredentials
             status:
               type: object
@@ -107,6 +106,10 @@ spec:
                   description: |-
                     The network id currently associated with the Network Access.
                   type: string
+                port:
+                    description: |-
+                      If a port is not specified, the controller assigns a dynamic port and reports it here.
+                    type: integer
                 conditions:
                   type: array
                   description: |-
