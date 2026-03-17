@@ -70,6 +70,7 @@ func (c *FakeSkupperV2alpha1) Listeners(namespace string) v2alpha1.ListenerInter
 
 func (c *FakeSkupperV2alpha1) MultiKeyListeners(namespace string) v2alpha1.MultiKeyListenerInterface {
 	return newFakeMultiKeyListeners(c, namespace)
+}
 
 func (c *FakeSkupperV2alpha1) Networks(namespace string) v2alpha1.NetworkInterface {
 	return newFakeNetworks(c, namespace)

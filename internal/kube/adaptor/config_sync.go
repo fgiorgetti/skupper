@@ -114,7 +114,7 @@ func (c *ConfigSync) configEvent(key string, configmap *corev1.ConfigMap) error 
 		return err
 	}
 	if err := c.syncAutoLinks(desired); err != nil {
-		log.Printf("sync failed: %s", err)
+		c.logger.Error("sync failed", slog.Any("error", err))
 		return err
 	}
 	return nil
