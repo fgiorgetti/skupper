@@ -165,10 +165,10 @@ func (m *SecuredAccessManager) Ensure(namespace string, name string, spec skuppe
 		created, err := m.clients.GetSkupperClient().SkupperV2alpha1().SecuredAccesses(namespace).Create(context.Background(), sa, metav1.CreateOptions{})
 		if err != nil {
 			if !apierrors.IsAlreadyExists(err) {
-				log.Printf("Error creating SecuredAccess %s: %v", key, err)
+				m.logger.Error("Error creating SecuredAccess", slog.String("key", key), slog.Any("error", err))
 				return err
 			}
-			log.Printf("SecuredAccess already exists %s - loading latest", key)
+			m.logger.Info("SecuredAccess already exists - loading latest", slog.String("key", key))
 			created, err = m.clients.GetSkupperClient().SkupperV2alpha1().SecuredAccesses(namespace).Get(context.Background(), sa.Name, metav1.GetOptions{})
 			if err != nil {
 				return err
