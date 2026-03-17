@@ -124,6 +124,7 @@ func (v *version) Listeners() ListenerInformer {
 // MultiKeyListeners returns a MultiKeyListenerInformer.
 func (v *version) MultiKeyListeners() MultiKeyListenerInformer {
 	return &multiKeyListenerInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
 
 // Networks returns a NetworkInformer.
 func (v *version) Networks() NetworkInformer {

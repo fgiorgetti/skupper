@@ -262,10 +262,12 @@ func (m *CertificateManagerImpl) ensure(namespace string, name string, spec skup
 		created, err := m.processor.GetSkupperClient().SkupperV2alpha1().Certificates(namespace).Create(context.Background(), cert, metav1.CreateOptions{})
 		if err != nil {
 			if !apierrors.IsAlreadyExists(err) {
-				log.Printf("Error creating certificate %s: %s", key, err)
+				m.logger.Error("Error creating certificate",
+					slog.String("key", key),
+					slog.Any("error", err))
 				return err
 			}
-			log.Printf("Certificate %s already exists - loading latest", key)
+			m.logger.Info("Certificate already exists - loading latest", slog.String("key", key))
 			created, err = m.processor.GetSkupperClient().SkupperV2alpha1().Certificates(namespace).Get(context.Background(), cert.Name, metav1.GetOptions{})
 			if err != nil {
 				return err
@@ -697,7 +699,7 @@ func isSecretCorrect(certificate *skupperv2alpha1.Certificate, secret *corev1.Se
 				slog.Info("Certificate will be renewed now",
 					slog.String("key", certificate.Key()),
 					slog.Any("renewInterval", renewInterval),
-					slog.Any("after", cert.NotBefore))
+					slog.Any("notBefore", cert.NotBefore))
 				return false
 			}
 		}
@@ -797,7 +799,8 @@ func (m *CertificateManagerImpl) checkCertificateRequest(key string, request *sk
 func (m *CertificateManagerImpl) ensureNoRequestFor(certificate *skupperv2alpha1.Certificate) error {
 	var err error
 	if m.requests[certificate.Key()] != nil {
-		log.Printf("Deleting CertificateRequest and Secret for %s (remoteIssuer disabled)", certificate.Key())
+		m.logger.Info("Deleting CertificateRequest and Secret (remoteIssuer disabled)",
+			slog.String("key", certificate.Key()))
 		secretClient := m.processor.GetKubeClient().CoreV1().Secrets(certificate.Namespace)
 		err = secretClient.Delete(context.Background(), certificate.Name, metav1.DeleteOptions{})
 		if err != nil {

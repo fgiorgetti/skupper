@@ -94,6 +94,7 @@ func (c *SkupperV2alpha1Client) Listeners(namespace string) ListenerInterface {
 
 func (c *SkupperV2alpha1Client) MultiKeyListeners(namespace string) MultiKeyListenerInterface {
 	return newMultiKeyListeners(c, namespace)
+}
 
 func (c *SkupperV2alpha1Client) Networks(namespace string) NetworkInterface {
 	return newNetworks(c, namespace)
