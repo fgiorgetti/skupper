@@ -295,7 +295,7 @@ func extensionExtendedKeyUsage() pkix.Extension {
 
 func extensionKeyUsage() pkix.Extension {
 	oidExtensionKeyUsage := asn1.ObjectIdentifier{2, 5, 29, 15}
-	kuValue, _ := asn1.Marshal(asn1.BitString{Bytes: []byte{byte(x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature)}, BitLength: 3})
+	kuValue, _ := asn1.Marshal(asn1.BitString{Bytes: []byte{byte((x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature) << 5)}, BitLength: 3})
 	return pkix.Extension{
 		Id:       oidExtensionKeyUsage,
 		Critical: true,
