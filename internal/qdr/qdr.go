@@ -1227,11 +1227,11 @@ func IsNotProtectedListener(l Listener) bool {
 	return true
 }
 
-func IsInterRouterEdgeNotProtectedListener(l Listener) bool {
+func IsSupportedAndNotProtectedListener(l Listener) bool {
 	if !IsNotProtectedListener(l) {
 		return false
 	}
-	return l.Role == RoleInterRouter || l.Role == RoleEdge
+	return l.Role == RoleInterRouter || l.Role == RoleEdge || l.Role == RoleNormal
 }
 
 func IsInterNetworkNotProtectedListener(l Listener) bool {
