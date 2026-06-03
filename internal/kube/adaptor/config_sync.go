@@ -97,7 +97,7 @@ func (c *ConfigSync) configEvent(key string, configmap *corev1.ConfigMap) error 
 	if err != nil {
 		return err
 	}
-	if err := c.syncNetworkConfig(desired.Network); err != nil {
+	if err := qdr.SyncNetwork(c.agentPool, desired.Network); err != nil {
 		return err
 	}
 	if err := c.syncSslProfileCredentialsToDisk(desired.SslProfiles); err != nil {
@@ -147,32 +147,6 @@ func (c *ConfigSync) recoverTracking() error {
 		return err
 	}
 	c.profileSyncer.Recover()
-	return nil
-}
-
-func (c *ConfigSync) syncNetworkConfig(desired qdr.Network) error {
-	agent, err := c.agentPool.Get()
-	if err != nil {
-		return fmt.Errorf("Could not get management agent : %s", err)
-	}
-	err = syncNetwork(agent, desired)
-	if err != nil {
-		return fmt.Errorf("error while syncing network: %w", err)
-	}
-	c.agentPool.Put(agent)
-	return nil
-}
-
-func syncNetwork(agent *qdr.Agent, desired qdr.Network) error {
-	actual, err := agent.GetNetwork()
-	if err != nil {
-		return fmt.Errorf("error retrieving network: %s", err)
-	}
-	if !actual.Equals(desired) {
-		if err = agent.UpdateNetworkConfig(desired); err != nil {
-			return fmt.Errorf("error updating network config: %s", err)
-		}
-	}
 	return nil
 }
 
