@@ -120,38 +120,7 @@ func (c *ConfigSync) configEvent(key string, configmap *corev1.ConfigMap) error 
 		c.logger.Error("sync failed", slog.Any("error", err))
 		return err
 	}
-	if err := c.syncAutoLinks(desired); err != nil {
-		c.logger.Error("sync failed", slog.Any("error", err))
-		return err
-	}
 
-	return nil
-}
-
-func (c *ConfigSync) syncAutoLinks(desired *qdr.RouterConfig) error {
-	agent, err := c.agentPool.Get()
-	if err != nil {
-		return fmt.Errorf("Could not get management agent : %s", err)
-	}
-	err = syncAutoLinks(agent, desired)
-	if err != nil {
-		return fmt.Errorf("error while syncing auto-links: %w", err)
-	}
-	c.agentPool.Put(agent)
-	return nil
-}
-
-func syncAutoLinks(agent *qdr.Agent, desired *qdr.RouterConfig) error {
-	actual, err := agent.GetAutoLinks()
-	if err != nil {
-		return fmt.Errorf("Error retrieving autoLinks: %s", err)
-	}
-
-	if differences := qdr.AutoLinksDifference(actual, desired); !differences.Empty() {
-		if err = agent.UpdateAutoLinkConfig(differences); err != nil {
-			return fmt.Errorf("Error syncing autoLinks: %s", err)
-		}
-	}
 	return nil
 }
 

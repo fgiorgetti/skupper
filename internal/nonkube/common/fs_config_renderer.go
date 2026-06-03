@@ -403,7 +403,7 @@ func (c *FileSystemConfigurationRenderer) createTlsCertificates(siteState *api.S
 		var secret *corev1.Secret
 		var ok bool
 		if secret, ok = siteState.Secrets[name]; !ok {
-			secret, err := certs.GenerateSecret(name, certificate.Spec.Subject, nil, expiration, nil)
+			secret, err = certs.GenerateSecret(name, certificate.Spec.Subject, nil, expiration, nil)
 			if err != nil {
 				return err
 			}
