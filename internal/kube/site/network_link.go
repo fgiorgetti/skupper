@@ -100,5 +100,5 @@ func (m *NetworkLink) autoLinkName() string {
 }
 
 func (m *NetworkLink) autoLinkExternalAddress() string {
-	return fmt.Sprintf("_topo/%s", m.NetworkId)
+	return fmt.Sprintf("_xtopo/%s", m.NetworkId)
 }
