@@ -79,7 +79,7 @@ func (g *NetworkAccessConfig) autoLinkName(listenerName string) string {
 }
 
 func (g *NetworkAccessConfig) autoLinkExternalAddress(networkId string) string {
-	return fmt.Sprintf("_topo/%s", networkId)
+	return fmt.Sprintf("_xtopo/%s", networkId)
 }
 
 func (g *NetworkAccessConfig) removeListenerAutoLinks(config *qdr.RouterConfig) bool {
