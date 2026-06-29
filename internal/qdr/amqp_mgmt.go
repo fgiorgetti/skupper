@@ -1606,6 +1606,7 @@ func (a *Agent) UpdateNetworkConfig(desired Network) error {
 	if err := a.Update("io.skupper.router.network", "network/0", desired); err != nil {
 		return fmt.Errorf("error updating network config: %w", err)
 	}
+	time.Sleep(time.Second * 2)
 	return nil
 }
 
