@@ -2,6 +2,7 @@ package site
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"maps"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	site1 "github.com/skupperproject/skupper/internal/site"
 	"github.com/skupperproject/skupper/internal/version"
 	skupperv2alpha1 "github.com/skupperproject/skupper/pkg/apis/skupper/v2alpha1"
+	skupperclientfake "github.com/skupperproject/skupper/pkg/generated/client/clientset/versioned/fake"
 	"gotest.tools/v3/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -23,6 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 func TestSite_Recover(t *testing.T) {
@@ -1043,6 +1046,7 @@ func TestSite_CheckRouterAccess(t *testing.T) {
 		k8sObjects          []runtime.Object
 		skupperObjects      []runtime.Object
 		skupperErrorMessage string
+		updateStatusError   bool
 	}{
 		{
 			name: "no router access config",
@@ -1084,6 +1088,105 @@ func TestSite_CheckRouterAccess(t *testing.T) {
 			wantLinkAccess: 1,
 			want:           "initialized",
 		},
+		{
+			name: "router access dynamic port",
+			args: args{
+				name: "skupper-router",
+				la: &skupperv2alpha1.RouterAccess{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "skupper.io/v2alpha1",
+						Kind:       "RouterAccess",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "skupper-router",
+						Namespace: "test",
+					},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						AccessType: "nodeport",
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							skupperv2alpha1.RouterAccessRole{
+								Name: "inter-router",
+								Port: 0,
+							},
+						},
+					},
+				},
+			},
+			skupperObjects: []runtime.Object{
+				&skupperv2alpha1.RouterAccess{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "skupper.io/v2alpha1",
+						Kind:       "RouterAccess",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "skupper-router",
+						Namespace: "test",
+					},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						AccessType: "nodeport",
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{
+								Name: "inter-router",
+								Port: 0,
+							},
+						},
+					},
+				},
+			},
+			wantErr:        false,
+			wantLinkAccess: 1,
+			want:           "initialized",
+		},
+		{
+			name: "router access dynamic port err status update",
+			args: args{
+				name: "skupper-router",
+				la: &skupperv2alpha1.RouterAccess{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "skupper.io/v2alpha1",
+						Kind:       "RouterAccess",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "skupper-router",
+						Namespace: "test",
+					},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						AccessType: "nodeport",
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							skupperv2alpha1.RouterAccessRole{
+								Name: "inter-router",
+								Port: 0,
+							},
+						},
+					},
+				},
+			},
+			skupperObjects: []runtime.Object{
+				&skupperv2alpha1.RouterAccess{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "skupper.io/v2alpha1",
+						Kind:       "RouterAccess",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "skupper-router",
+						Namespace: "test",
+					},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						AccessType: "nodeport",
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{
+								Name: "inter-router",
+								Port: 0,
+							},
+						},
+					},
+				},
+			},
+			updateStatusError: true,
+			wantErr:           true,
+			wantLinkAccess:    1,
+			want:              "initialized",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1097,6 +1200,14 @@ func TestSite_CheckRouterAccess(t *testing.T) {
 				assert.Assert(t, err)
 			}
 
+			fakeSkupperCli := s.clients.GetSkupperClient().(*skupperclientfake.Clientset)
+			fakeSkupperCli.PrependReactor("update", "routeraccesses", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+				if action.GetSubresource() == "status" && tt.updateStatusError {
+					return true, nil, fmt.Errorf("error updating status")
+				}
+				return false, nil, nil
+			})
+
 			if err = s.CheckRouterAccess(tt.args.name, tt.args.la); (err != nil) != tt.wantErr {
 				t.Errorf("Site.CheckRouterAccess() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -1108,6 +1219,13 @@ func TestSite_CheckRouterAccess(t *testing.T) {
 				if s.linkAccess["skupper-router"].Spec.AccessType != "nodeport" {
 					t.Errorf("Site.CheckRouterAccess() incorrect values found")
 				}
+				for _, role := range s.linkAccess["skupper-router"].Status.Roles {
+					assert.Assert(t, role.Port > 0)
+				}
+			}
+			// If UpdataStatus failed, port that was dynamically allocated should have been released
+			if tt.updateStatusError {
+				assert.Equal(t, s.routerAccessPorts.Available[0].Start, ports.MIN_ROUTER_PORT)
 			}
 		})
 	}

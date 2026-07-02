@@ -1694,6 +1694,10 @@ func (s *Site) checkSecuredAccess() error {
 }
 
 func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) error {
+	if !s.initialised {
+		return nil
+	}
+	var allocatedPorts []int32
 	specChanged := false
 	statusChanged := false
 	if la == nil {
@@ -1719,15 +1723,13 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 				if err != nil {
 					return err
 				}
+				allocatedPorts = append(allocatedPorts, int32(port))
 			}
 			if la.AllocatePort(role.Name, port) {
 				statusChanged = true
 			}
 		}
 		s.linkAccess[name] = la
-	}
-	if !s.initialised {
-		return nil
 	}
 	var previousGroups []string
 	groups := s.groups()
@@ -1772,6 +1774,11 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 	}
 	if la != nil && (la.SetConfigured(err) || statusChanged) {
 		if err := s.updateRouterAccessStatus(la); err != nil {
+			if len(allocatedPorts) > 0 {
+				la.ReleaseUnusedPorts(allocatedPorts)
+				s.routerAccessPorts.ReleaseAll(allocatedPorts...)
+				s.linkAccess[name] = la
+			}
 			return err
 		}
 	}
@@ -1779,6 +1786,10 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 }
 
 func (s *Site) CheckNetworkAccess(name string, na *skupperv2alpha1.NetworkAccess) error {
+	if !s.initialised {
+		return nil
+	}
+	var allocatedPorts []int32
 	specChanged := false
 	statusChanged := false
 	if na == nil {
@@ -1798,14 +1809,12 @@ func (s *Site) CheckNetworkAccess(name string, na *skupperv2alpha1.NetworkAccess
 			if err != nil {
 				return err
 			}
+			allocatedPorts = append(allocatedPorts, int32(port))
 		}
 		if na.AllocatePort(port) {
 			statusChanged = true
 		}
 		s.networkAccess[name] = na
-	}
-	if !s.initialised {
-		return nil
 	}
 	var previousGroups []string
 	groups := s.groups()
@@ -1851,6 +1860,11 @@ func (s *Site) CheckNetworkAccess(name string, na *skupperv2alpha1.NetworkAccess
 	}
 	if na != nil && (na.SetConfigured(s.network.NetworkId, err) || statusChanged) {
 		if err := s.updateNetworkAccessStatus(na); err != nil {
+			if len(allocatedPorts) > 0 {
+				na.Status.Port = 0
+				s.routerAccessPorts.ReleaseAll(allocatedPorts...)
+				s.networkAccess[name] = na
+			}
 			return err
 		}
 	}
