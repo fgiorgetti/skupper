@@ -28,8 +28,24 @@ func (m NetworkAccessMap) desiredListeners() map[string]qdr.Listener {
 }
 
 func (m NetworkAccessMap) DesiredConfig(targetGroups []string, profilePath string) *NetworkAccessConfig {
+	return m.DesiredConfigWithAvailableCredentials(targetGroups, profilePath, nil)
+}
+
+// DesiredConfigWithAvailableCredentials is like DesiredConfig but skips NetworkAccess entries whose
+// spec.tlsCredentials is set when isTlsSecretPresent is non-nil and returns false for that name.
+func (m NetworkAccessMap) DesiredConfigWithAvailableCredentials(targetGroups []string, profilePath string, isTlsSecretPresent func(string) bool) *NetworkAccessConfig {
+	source := m
+	if isTlsSecretPresent != nil {
+		source = make(NetworkAccessMap, len(m))
+		for k, ra := range m {
+			if ra.Spec.TlsCredentials != "" && !isTlsSecretPresent(ra.Spec.TlsCredentials) {
+				continue
+			}
+			source[k] = ra
+		}
+	}
 	return &NetworkAccessConfig{
-		listeners:   m.desiredListeners(),
+		listeners:   source.desiredListeners(),
 		profilePath: profilePath,
 	}
 }
