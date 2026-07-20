@@ -1122,7 +1122,6 @@ func (s *Site) updateConnectorConfiguredStatusWithSelectedPods(connector *skuppe
 }
 
 func (s *Site) CheckConnector(name string, connector *skupperv2alpha1.Connector) error {
-	update := s.bindings.UpdateConnector(name, connector)
 	if s.site == nil {
 		if connector == nil {
 			return nil
