@@ -553,6 +553,15 @@ func (c *EventProcessor) WatchRouterAccesses(namespace string, handler RouterAcc
 	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
 }
 
+func (c *EventProcessor) WatchNetworkAccesses(namespace string, handler NetworkAccessHandler) *NetworkAccessWatcher {
+	informer := skupperv2alpha1informer.NewNetworkAccessInformer(
+		c.skupperClient,
+		namespace,
+		time.Second*30,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
+}
+
 func (c *EventProcessor) WatchAttachedConnectorBindings(namespace string, handler AttachedConnectorBindingHandler) *AttachedConnectorBindingWatcher {
 	informer := skupperv2alpha1informer.NewAttachedConnectorBindingInformer(
 		c.skupperClient,
@@ -567,6 +576,33 @@ func (c *EventProcessor) WatchAttachedConnectors(namespace string, handler Attac
 		c.skupperClient,
 		namespace,
 		c.resyncShort,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
+}
+
+func (c *EventProcessor) WatchNetwork(namespace string, handler NetworkHandler) *NetworkWatcher {
+	informer := skupperv2alpha1informer.NewNetworkInformer(
+		c.skupperClient,
+		namespace,
+		time.Second*30,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
+}
+
+func (c *EventProcessor) WatchNetworkLink(namespace string, handler NetworkLinkHandler) *NetworkLinkWatcher {
+	informer := skupperv2alpha1informer.NewNetworkLinkInformer(
+		c.skupperClient,
+		namespace,
+		time.Second*30,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
+}
+
+func (c *EventProcessor) WatchInterNetworkIngress(namespace string, handler InterNetworkIngressHandler) *InterNetworkIngressWatcher {
+	informer := skupperv2alpha1informer.NewInterNetworkIngressInformer(
+		c.skupperClient,
+		namespace,
+		time.Second*30,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
 }

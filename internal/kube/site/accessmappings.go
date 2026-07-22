@@ -1,15 +1,15 @@
 package site
 
-type securedAccessMapping struct {
-	RouterAccessName string
-	Group            string
+type accessMapping struct {
+	AccessName string
+	Group      string
 }
 
-func newSecuredAccessMapping(routerAccess, group string) securedAccessMapping {
-	return securedAccessMapping{
-		RouterAccessName: routerAccess,
-		Group:            group,
+func newAccessMapping(accessName, group string) accessMapping {
+	return accessMapping{
+		AccessName: accessName,
+		Group:      group,
 	}
 }
 
-type securedAccessMap map[string]securedAccessMapping
+type accessMap map[string]accessMapping

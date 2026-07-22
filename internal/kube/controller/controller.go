@@ -41,6 +41,7 @@ type Controller struct {
 	connectorWatcher                *watchers.ConnectorWatcher
 	multiKeyListenerWatcher         *watchers.MultiKeyListenerWatcher
 	linkAccessWatcher               *watchers.RouterAccessWatcher
+	networkAccessWatcher            *watchers.NetworkAccessWatcher
 	attachedConnectorWatcher        *watchers.AttachedConnectorWatcher
 	attachedConnectorBindingWatcher *watchers.AttachedConnectorBindingWatcher
 	grantWatcher                    *watchers.AccessGrantWatcher
@@ -67,6 +68,7 @@ func skupperRouterConfig() internalinterfaces.TweakListOptionsFunc {
 		options.LabelSelector = "internal.skupper.io/router-config"
 	}
 }
+
 func skupperNetworkStatus() internalinterfaces.TweakListOptionsFunc {
 	return func(options *metav1.ListOptions) {
 		options.FieldSelector = "metadata.name=skupper-network-status"
@@ -140,9 +142,13 @@ func NewController(cli internalclient.Clients, config *Config, options ...watche
 	controller.serviceWatcher = controller.eventProcessor.WatchServices(sansSkupperListenerServices(), config.WatchNamespace, filter(controller, controller.checkObservedService))
 	controller.connectorWatcher = controller.eventProcessor.WatchConnectors(config.WatchNamespace, filter(controller, controller.checkConnector))
 	controller.linkAccessWatcher = controller.eventProcessor.WatchRouterAccesses(config.WatchNamespace, filter(controller, controller.checkRouterAccess))
+	controller.networkAccessWatcher = controller.eventProcessor.WatchNetworkAccesses(config.WatchNamespace, filter(controller, controller.checkNetworkAccess))
 	controller.attachedConnectorWatcher = controller.eventProcessor.WatchAttachedConnectors(config.WatchNamespace, filter(controller, controller.checkAttachedConnector))
 	controller.attachedConnectorBindingWatcher = controller.eventProcessor.WatchAttachedConnectorBindings(config.WatchNamespace, filter(controller, controller.checkAttachedConnectorBinding))
 	controller.eventProcessor.WatchLinks(config.WatchNamespace, filter(controller, controller.checkLink))
+	controller.eventProcessor.WatchNetwork(config.WatchNamespace, filter(controller, controller.checkNetwork))
+	controller.eventProcessor.WatchNetworkLink(config.WatchNamespace, filter(controller, controller.checkNetworkLink))
+	controller.eventProcessor.WatchInterNetworkIngress(config.WatchNamespace, filter(controller, controller.checkInterNetworkIngress))
 	controller.networkStatusWatcher = controller.eventProcessor.WatchConfigMaps(skupperNetworkStatus(), config.WatchNamespace, filter(controller, controller.networkStatusUpdate))
 	controller.eventProcessor.WatchConfigMaps(skupperRouterConfig(), config.WatchNamespace, filter(controller, controller.routerConfigUpdate))
 	controller.eventProcessor.WatchAccessTokens(config.WatchNamespace, filter(controller, controller.checkAccessToken))
@@ -619,6 +625,14 @@ func (c *Controller) checkRouterAccess(key string, ra *skupperv2alpha1.RouterAcc
 	return c.getSite(namespace).CheckRouterAccess(name, ra)
 }
 
+func (c *Controller) checkNetworkAccess(key string, na *skupperv2alpha1.NetworkAccess) error {
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return err
+	}
+	return c.getSite(namespace).CheckNetworkAccess(name, na)
+}
+
 func (c *Controller) checkAttachedConnectorBinding(key string, binding *skupperv2alpha1.AttachedConnectorBinding) error {
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -685,6 +699,30 @@ func (c *Controller) networkStatusUpdate(key string, cm *corev1.ConfigMap) error
 	}
 	c.log.Debug("Updating network status", slog.String("site", key))
 	return c.getSite(cm.ObjectMeta.Namespace).NetworkStatusUpdated(network.ExtractSiteRecords(status))
+}
+
+func (c *Controller) checkNetwork(key string, network *skupperv2alpha1.Network) error {
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return err
+	}
+	return c.getSite(namespace).CheckNetwork(name, network)
+}
+
+func (c *Controller) checkNetworkLink(key string, networkLink *skupperv2alpha1.NetworkLink) error {
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return err
+	}
+	return c.getSite(namespace).CheckNetworkLink(name, networkLink)
+}
+
+func (c *Controller) checkInterNetworkIngress(key string, ingress *skupperv2alpha1.InterNetworkIngress) error {
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return err
+	}
+	return c.getSite(namespace).CheckInterNetworkIngress(name, ingress)
 }
 
 func filter[V any](controller *Controller, handler func(string, V) error) func(string, V) error {

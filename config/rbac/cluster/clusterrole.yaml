@@ -152,12 +152,12 @@ rules:
       - attachedconnectorbindings/status
       - routeraccesses
       - routeraccesses/status
+      - networkaccesses
+      - networkaccesses/status
       - securedaccesses
       - securedaccesses/status
       - certificates
       - certificates/status
-      - networkaccesses
-      - networkaccesses/status
       - networks
       - networks/status
       - networklinks
