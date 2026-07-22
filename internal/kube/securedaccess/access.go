@@ -288,7 +288,17 @@ func (m *SecuredAccessManager) checkCertificate(sa *skupperv2alpha1.SecuredAcces
 	if name == "" {
 		name = sa.Name
 	}
-	return m.certMgr.Ensure(sa.Namespace, name, sa.Spec.Issuer, sa.Name, getHosts(sa), false, true, ownerReferences(sa))
+	return m.certMgr.Ensure(sa.Namespace, name, certificates.CertOptions{
+		Options: certificates.Options{
+			Subject: sa.Name,
+			Refs:    ownerReferences(sa),
+			Remote:  sa.Spec.RemoteIssuer,
+		},
+		CA:     sa.Spec.Issuer,
+		Hosts:  getHosts(sa),
+		Client: false,
+		Server: true,
+	})
 }
 
 func (m *SecuredAccessManager) checkService(sa *skupperv2alpha1.SecuredAccess) (*corev1.Service, error) {

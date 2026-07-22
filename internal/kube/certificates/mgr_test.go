@@ -592,9 +592,21 @@ func (c *Call) invoke(mgr *CertificateManagerImpl) error {
 		return err
 	}
 	if c.signing {
-		return mgr.EnsureCA(c.namespace, c.name, c.subject, c.refs)
+		return mgr.EnsureCA(c.namespace, c.name, Options{
+			Subject: c.subject,
+			Refs:    c.refs,
+		})
 	}
-	return mgr.Ensure(c.namespace, c.name, c.ca, c.subject, c.hosts, c.client, c.server, c.refs)
+	return mgr.Ensure(c.namespace, c.name, CertOptions{
+		Options: Options{
+			Subject: c.subject,
+			Refs:    c.refs,
+		},
+		CA:     c.ca,
+		Hosts:  c.hosts,
+		Client: c.client,
+		Server: c.server,
+	})
 }
 
 func (c *Call) ensure(ca string, subject string, hosts []string, client bool, server bool) *Call {

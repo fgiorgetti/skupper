@@ -12,6 +12,7 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	internalclient "github.com/skupperproject/skupper/internal/kube/client"
 	fakeclient "github.com/skupperproject/skupper/internal/kube/client/fake"
+	"github.com/skupperproject/skupper/internal/kube/certificates"
 	"github.com/skupperproject/skupper/internal/kube/watchers"
 	skupperv2alpha1 "github.com/skupperproject/skupper/pkg/apis/skupper/v2alpha1"
 	"gotest.tools/v3/assert"
@@ -3069,7 +3070,7 @@ func newSecureAccessManagerMocks(namespace string, k8sObjects []runtime.Object, 
 		ingresses:   make(map[string]*networkingv1.Ingress),
 		//httpProxies: make(map[string]*unstructured.Unstructured),
 		certMgr: newMockCertificateManager(),
-		logger:  slog.New(slog.Default().Handler()),
+		logger:  slog.New(slog.Default().Handler()).With(slog.String("component", "kube.securedaccess.managermocks")),
 	}
 	return securedAccessManager, nil
 }
@@ -3135,26 +3136,26 @@ func (m *MockCertificateManager) pushError(e string) {
 	m.errors = append(m.errors, e)
 }
 
-func (m *MockCertificateManager) EnsureCA(namespace string, name string, subject string, refs []metav1.OwnerReference) error {
+func (m *MockCertificateManager) EnsureCA(namespace string, name string, options certificates.Options) error {
 	m.cas[namespace+"/"+name] = MockCA{
 		namespace: namespace,
 		name:      name,
-		subject:   subject,
-		refs:      refs,
+		subject:   options.Subject,
+		refs:      options.Refs,
 	}
 	return m.popError()
 }
 
-func (m *MockCertificateManager) Ensure(namespace string, name string, ca string, subject string, hosts []string, client bool, server bool, refs []metav1.OwnerReference) error {
+func (m *MockCertificateManager) Ensure(namespace string, name string, options certificates.CertOptions) error {
 	m.certs[namespace+"/"+name] = MockCertificate{
 		namespace: namespace,
 		name:      name,
-		ca:        ca,
-		subject:   subject,
-		hosts:     hosts,
-		client:    client,
-		server:    server,
-		refs:      refs,
+		ca:        options.CA,
+		subject:   options.Subject,
+		hosts:     options.Hosts,
+		client:    options.Client,
+		server:    options.Server,
+		refs:      options.Refs,
 	}
 	return m.popError()
 }

@@ -19,6 +19,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -197,4 +198,115 @@ func DecodeCertificate(data []byte) (*x509.Certificate, error) {
 		return nil, fmt.Errorf("Could not decode PEM block from data")
 	}
 	return x509.ParseCertificate(b.Bytes)
+}
+
+// Define the BasicConstraints ASN.1 sequence
+type basicConstraints struct {
+	IsCA       bool `asn1:"optional"`
+	MaxPathLen int  `asn1:"optional,default:-1"`
+}
+
+func GenerateCSRSecret(name string, subject string, hosts []string, signing bool) (*corev1.Secret, error) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate private key: %v", err)
+
+	}
+
+	// TODO: Handle UID: 0.9.2342.19200300.100.1.1 or
+	template := x509.CertificateRequest{
+		PublicKey: publicKey(priv),
+		Subject: pkix.Name{
+			CommonName: subject,
+			Names: []pkix.AttributeTypeAndValue{
+				{
+					Type:  asn1.ObjectIdentifier{0, 9, 2342, 19200300, 100, 1, 1},
+					Value: subject, // TODO find a better way or value to use here
+				},
+			},
+		},
+	}
+
+	for _, h := range hosts {
+		// Remove leading and trailing whitespaces from the string
+		h = strings.TrimSpace(h)
+		if ip := net.ParseIP(h); ip != nil {
+			template.IPAddresses = append(template.IPAddresses, ip)
+		}
+		template.DNSNames = append(template.DNSNames, h)
+	}
+
+	// Need to go through RFC 5280, see:
+	// https://oid-info.com
+	// https://oidref.com
+	template.ExtraExtensions = append(template.ExtraExtensions, extensionKeyUsage())
+	template.ExtraExtensions = append(template.ExtraExtensions, extensionExtendedKeyUsage())
+	if signing {
+		template.ExtraExtensions = append(template.ExtraExtensions, extensionCA())
+	}
+
+	derBytes, err := x509.CreateCertificateRequest(rand.Reader, &template, priv)
+	if err != nil {
+		return nil, err
+	}
+
+	secret := corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Type: "kubernetes.io/tls",
+		Data: map[string][]byte{},
+	}
+
+	csrString := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: derBytes})
+	keyString := pem.EncodeToMemory(pemBlockForKey(priv))
+
+	secret.Data["tls.csr"] = csrString
+	secret.Data["tls.key"] = keyString
+	secret.Data["tls.crt"] = []byte{}
+
+	return &secret, nil
+}
+
+func extensionCA() pkix.Extension {
+	caVal, _ := asn1.Marshal(basicConstraints{IsCA: true, MaxPathLen: 0})
+	return pkix.Extension{
+		Id:       asn1.ObjectIdentifier{2, 5, 29, 19},
+		Critical: true,
+		Value:    caVal,
+	}
+}
+
+func extensionExtendedKeyUsage() pkix.Extension {
+	oidExtensionExtendedKeyUsage := asn1.ObjectIdentifier{2, 5, 29, 37}
+	oidExtKeyUsageServerAuth := asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 1}
+	oidExtKeyUsageClientAuth := asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 2}
+	ekuDER, _ := asn1.Marshal([]asn1.ObjectIdentifier{oidExtKeyUsageServerAuth, oidExtKeyUsageClientAuth})
+	return pkix.Extension{
+		Id:       oidExtensionExtendedKeyUsage,
+		Critical: false,
+		Value:    ekuDER,
+	}
+}
+
+func extensionKeyUsage() pkix.Extension {
+	oidExtensionKeyUsage := asn1.ObjectIdentifier{2, 5, 29, 15}
+	kuValue, _ := asn1.Marshal(asn1.BitString{Bytes: []byte{byte((x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature) << 5)}, BitLength: 3})
+	return pkix.Extension{
+		Id:       oidExtensionKeyUsage,
+		Critical: true,
+		Value:    kuValue,
+	}
+}
+
+func DecodeCSR(data []byte) (*x509.CertificateRequest, error) {
+	b, _ := pem.Decode(data)
+	if b == nil {
+		return nil, fmt.Errorf("Could not decode PEM block from data")
+	}
+	return x509.ParseCertificateRequest(b.Bytes)
 }

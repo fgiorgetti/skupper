@@ -8,6 +8,7 @@ import (
 	"path"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/skupperproject/skupper/internal/certs"
 	"github.com/skupperproject/skupper/internal/ports"
@@ -395,10 +396,14 @@ func (c *FileSystemConfigurationRenderer) createTlsCertificates(siteState *api.S
 		if certificate.Spec.Signing == false {
 			continue
 		}
+		var expiration time.Duration = 0
+		if parsedDuration, err := time.ParseDuration(certificate.Spec.ExpireInterval); err == nil {
+			expiration = parsedDuration
+		}
 		var secret *corev1.Secret
 		var ok bool
 		if secret, ok = siteState.Secrets[name]; !ok {
-			secret, err = certs.GenerateSecret(name, certificate.Spec.Subject, nil, 0, nil)
+			secret, err = certs.GenerateSecret(name, certificate.Spec.Subject, nil, expiration, nil)
 			if err != nil {
 				return err
 			}
@@ -432,10 +437,14 @@ func (c *FileSystemConfigurationRenderer) createTlsCertificates(siteState *api.S
 				return fmt.Errorf("unable to load CA secret %s: %v", certificate.Spec.Ca, err)
 			}
 		}
+		var expiration time.Duration = 0
+		if parsedDuration, err := time.ParseDuration(certificate.Spec.ExpireInterval); err == nil {
+			expiration = parsedDuration
+		}
 		if certificate.Spec.Client {
 			purpose = "client"
 			if secret, ok = siteState.Secrets[name]; !ok {
-				secret, err = certs.GenerateSecret(name, certificate.Spec.Subject, certificate.Spec.Hosts, 0, caSecret)
+				secret, err = certs.GenerateSecret(name, certificate.Spec.Subject, certificate.Spec.Hosts, expiration, caSecret)
 				if err != nil {
 					return err
 				}
@@ -449,7 +458,7 @@ func (c *FileSystemConfigurationRenderer) createTlsCertificates(siteState *api.S
 		} else if certificate.Spec.Server {
 			purpose = "server"
 			if secret, ok = siteState.Secrets[name]; !ok {
-				secret, err = certs.GenerateSecret(name, certificate.Spec.Subject, certificate.Spec.Hosts, 0, caSecret)
+				secret, err = certs.GenerateSecret(name, certificate.Spec.Subject, certificate.Spec.Hosts, expiration, caSecret)
 				if err != nil {
 					return err
 				}

@@ -43,6 +43,7 @@ type SecuredAccessFactory interface {
 type securedAccessSpec struct {
 	AccessType             string
 	Issuer                 string
+	RemoteIssuer           bool
 	GenerateTlsCredentials bool
 	TlsCredentials         string
 	Ports                  []securedAccessPort
@@ -290,13 +291,31 @@ func (s *Site) reconcile(siteDef *skupperv2alpha1.Site, inRecovery bool) error {
 		}
 	}
 	// CAs for local and site access
-	if err := s.certs.EnsureCA(s.namespace, "skupper-site-ca", fmt.Sprintf("%s site CA", s.name), s.ownerReferences()); err != nil {
+	if err := s.certs.EnsureCA(s.namespace, "skupper-site-ca", certificates.Options{
+		Subject: fmt.Sprintf("%s site CA", s.name),
+		Refs:    s.ownerReferences(),
+		Remote:  s.site.Spec.RemoteIssuer,
+	}); err != nil {
 		return err
 	}
-	if err := s.certs.EnsureCA(s.namespace, "skupper-local-ca", fmt.Sprintf("%s local CA", s.name), s.ownerReferences()); err != nil {
+	if err := s.certs.EnsureCA(s.namespace, "skupper-local-ca", certificates.Options{
+		Subject: fmt.Sprintf("%s local CA", s.name),
+		Refs:    s.ownerReferences(),
+		Remote:  s.site.Spec.RemoteIssuer,
+	}); err != nil {
 		return err
 	}
-	if err := s.certs.Ensure(s.namespace, "skupper-local-server", "skupper-local-ca", "skupper-router-local", s.qualified("skupper-router-local"), false, true, s.ownerReferences()); err != nil {
+	if err := s.certs.Ensure(s.namespace, "skupper-local-server", certificates.CertOptions{
+		Options: certificates.Options{
+			Subject: "skupper-router-local",
+			Refs:    s.ownerReferences(),
+			Remote:  s.site.Spec.RemoteIssuer,
+		},
+		CA:     "skupper-local-ca",
+		Hosts:  s.qualified("skupper-router-local"),
+		Client: false,
+		Server: true,
+	}); err != nil {
 		return err
 	}
 	// RouterAccess for router
@@ -429,6 +448,7 @@ func (s *Site) checkDefaultRouterAccess(ctxt context.Context, site *skupperv2alp
 			AccessType:             accessType,
 			TlsCredentials:         "skupper-site-server",
 			Issuer:                 "skupper-site-ca", //TODO: can rely ondefault here
+			RemoteIssuer:           site.Spec.RemoteIssuer,
 			GenerateTlsCredentials: true,
 			Roles: []skupperv2alpha1.RouterAccessRole{
 				{
@@ -1676,6 +1696,7 @@ func routerAccessToSecuredAccessSpec(routerAccess *skupperv2alpha1.RouterAccess)
 	spec := securedAccessSpec{
 		AccessType:             routerAccess.Spec.AccessType,
 		Issuer:                 routerAccess.Spec.Issuer,
+		RemoteIssuer:           routerAccess.Spec.RemoteIssuer,
 		GenerateTlsCredentials: routerAccess.Spec.GenerateTlsCredentials,
 		TlsCredentials:         routerAccess.Spec.TlsCredentials,
 		Settings:               routerAccess.Spec.Settings,
@@ -1693,6 +1714,7 @@ func networkAccessToSecuredAccessSpec(networkAccess *skupperv2alpha1.NetworkAcce
 	spec := securedAccessSpec{
 		AccessType:             networkAccess.Spec.AccessType,
 		Issuer:                 networkAccess.Spec.Issuer,
+		RemoteIssuer:           networkAccess.Spec.RemoteIssuer,
 		GenerateTlsCredentials: networkAccess.Spec.GenerateTlsCredentials,
 		TlsCredentials:         networkAccess.Spec.TlsCredentials,
 		Ports: []securedAccessPort{
@@ -1719,9 +1741,10 @@ func asSecuredAccessSpec(accessSpec securedAccessSpec, group string, defaultIssu
 		Selector: map[string]string{
 			"skupper.io/component": "router",
 		},
-		Certificate: accessSpec.TlsCredentials,
-		Issuer:      issuer,
-		Settings:    accessSpec.Settings,
+		Certificate:  accessSpec.TlsCredentials,
+		Issuer:       issuer,
+		RemoteIssuer: accessSpec.RemoteIssuer,
+		Settings:     accessSpec.Settings,
 	}
 	if group != "" {
 		//add extra label to allow for distinct sets of routers in EnableHA
