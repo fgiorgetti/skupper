@@ -18,7 +18,7 @@ func (m RouterAccessMap) desiredListeners() map[string]qdr.Listener {
 				Name:             name,
 				Role:             qdr.GetRole(role.Name),
 				Host:             ra.Spec.BindHost,
-				Port:             role.GetPort(),
+				Port:             ra.GetPortForRole(role.Name),
 				SslProfile:       ra.Spec.TlsCredentials,
 				SaslMechanisms:   "EXTERNAL",
 				AuthenticatePeer: true,
@@ -40,7 +40,7 @@ func (m RouterAccessMap) desiredConnectors(targetGroups []string) []qdr.Connecto
 				Name:       name,
 				Host:       group,
 				Role:       qdr.RoleInterRouter,
-				Port:       strconv.Itoa(role.Port),
+				Port:       strconv.Itoa(int(ra.GetPortForRole(role.Name))),
 				SslProfile: ra.Spec.TlsCredentials,
 				Cost:       1,
 			}
@@ -91,7 +91,7 @@ type RouterAccessConfig struct {
 
 func (g *RouterAccessConfig) Apply(config *qdr.RouterConfig) bool {
 	changed := false
-	lc := qdr.ListenersDifference(config.GetMatchingListeners(qdr.IsNotProtectedListener), g.listeners)
+	lc := qdr.ListenersDifference(config.GetMatchingListeners(qdr.IsSupportedAndNotProtectedListener), g.listeners)
 	// delete before add with listeners, as changes are handled as delete and add
 	for _, value := range lc.Deleted {
 		if removed, _ := config.RemoveListener(value.Name); removed {
@@ -100,7 +100,8 @@ func (g *RouterAccessConfig) Apply(config *qdr.RouterConfig) bool {
 		}
 	}
 	for _, value := range lc.Added {
-		if config.AddListener(value) && config.AddSslProfile(qdr.ConfigureSslProfile(value.SslProfile, g.profilePath, true)) {
+		if config.AddListener(value) {
+			config.AddSslProfile(qdr.ConfigureSslProfile(value.SslProfile, g.profilePath, true))
 			changed = true
 		}
 	}

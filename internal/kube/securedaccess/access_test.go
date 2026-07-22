@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"testing"
 
@@ -3068,6 +3069,7 @@ func newSecureAccessManagerMocks(namespace string, k8sObjects []runtime.Object, 
 		ingresses:   make(map[string]*networkingv1.Ingress),
 		//httpProxies: make(map[string]*unstructured.Unstructured),
 		certMgr: newMockCertificateManager(),
+		logger:  slog.New(slog.Default().Handler()),
 	}
 	return securedAccessManager, nil
 }

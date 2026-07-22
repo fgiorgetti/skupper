@@ -26,6 +26,7 @@ import (
 	"github.com/skupperproject/skupper/internal/kube/site/resources"
 	"github.com/skupperproject/skupper/internal/kube/site/sizing"
 	"github.com/skupperproject/skupper/internal/kube/watchers"
+	"github.com/skupperproject/skupper/internal/ports"
 	"github.com/skupperproject/skupper/internal/qdr"
 	"github.com/skupperproject/skupper/internal/site"
 	"github.com/skupperproject/skupper/internal/version"
@@ -39,6 +40,20 @@ type SecuredAccessFactory interface {
 	IsValidAccessType(accessType string) bool
 }
 
+type securedAccessSpec struct {
+	AccessType             string
+	Issuer                 string
+	GenerateTlsCredentials bool
+	TlsCredentials         string
+	Ports                  []securedAccessPort
+	Settings               map[string]string
+}
+
+type securedAccessPort struct {
+	Name string
+	Port int
+}
+
 type Labelling interface {
 	SetLabels(namespace string, name string, kind string, labels map[string]string) bool
 	SetAnnotations(namespace string, name string, kind string, annotations map[string]string) bool
@@ -46,41 +61,52 @@ type Labelling interface {
 }
 
 type Site struct {
-	initialised   bool
-	site          *skupperv2alpha1.Site
-	name          string
-	namespace     string
-	clients       *watchers.EventProcessor
-	bindings      *ExtendedBindings
-	links         map[string]*site.Link
-	errors        map[string]string
-	linkAccess    site.RouterAccessMap
-	certs         certificates.CertificateManager
-	access        SecuredAccessFactory
-	accessMapping securedAccessMap
-	sizes         *sizing.Registry
-	routerPods    map[string]*corev1.Pod
-	logger        *slog.Logger
-	currentGroups []string
-	labelling     Labelling
-	profiles      *secrets.ProfilesWatcher
-	disableSecCtx bool
-	leadListeners map[string]string
+	initialised          bool
+	site                 *skupperv2alpha1.Site
+	network              Network
+	name                 string
+	namespace            string
+	clients              *watchers.EventProcessor
+	bindings             *ExtendedBindings
+	links                map[string]*site.Link
+	networkLinks         map[string]*NetworkLink
+	inetIngress          map[string]*InterNetworkIngress
+	errors               map[string]string
+	routerAccessPorts    *ports.FreePorts
+	linkAccess           site.RouterAccessMap
+	networkAccess        site.NetworkAccessMap
+	certs                certificates.CertificateManager
+	access               SecuredAccessFactory
+	accessMapping        accessMap
+	networkAccessMapping accessMap
+	sizes                *sizing.Registry
+	routerPods           map[string]*corev1.Pod
+	logger               *slog.Logger
+	currentGroups        []string
+	labelling            Labelling
+	profiles             *secrets.ProfilesWatcher
+	disableSecCtx        bool
+	leadListeners        map[string]string
 }
 
 func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs certificates.CertificateManager, access SecuredAccessFactory, sizes *sizing.Registry, labelling Labelling, disableSecCtx bool) *Site {
 	logger := slog.New(slog.Default().Handler())
 	site := &Site{
-		bindings:      NewExtendedBindings(eventProcessor, SSL_PROFILE_PATH),
-		namespace:     namespace,
-		clients:       eventProcessor,
-		links:         map[string]*site.Link{},
-		linkAccess:    site.RouterAccessMap{},
-		certs:         certs,
-		access:        access,
-		accessMapping: make(securedAccessMap),
-		sizes:         sizes,
-		routerPods:    map[string]*corev1.Pod{},
+		bindings:             NewExtendedBindings(eventProcessor, SSL_PROFILE_PATH),
+		namespace:            namespace,
+		clients:              eventProcessor,
+		links:                map[string]*site.Link{},
+		networkLinks:         map[string]*NetworkLink{},
+		inetIngress:          map[string]*InterNetworkIngress{},
+		routerAccessPorts:    ports.NewFreePortsForRouterAccess(),
+		linkAccess:           site.RouterAccessMap{},
+		networkAccess:        site.NetworkAccessMap{},
+		certs:                certs,
+		access:               access,
+		accessMapping:        make(accessMap),
+		networkAccessMapping: make(accessMap),
+		sizes:                sizes,
+		routerPods:           map[string]*corev1.Pod{},
 		logger: logger.With(
 			slog.String("component", "kube.site.site"),
 		),
@@ -88,6 +114,7 @@ func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs ce
 		disableSecCtx: disableSecCtx,
 		leadListeners: map[string]string{},
 	}
+
 	site.profiles = secrets.NewProfilesWatcher(
 		sslSecretsWatcher(namespace, eventProcessor),
 		eventProcessor.GetKubeClient(),
@@ -229,6 +256,7 @@ func (s *Site) reconcile(siteDef *skupperv2alpha1.Site, inRecovery bool) error {
 		s.bindings.init(s, routerConfig)
 		s.setBindingsConfiguredStatus(nil)
 		s.checkSecuredAccess()
+		s.network.init(routerConfig)
 	} else if len(s.currentGroups) != len(s.groups()) {
 		s.logger.Info("EnableHA setting changed for site",
 			slog.String("namespace", siteDef.Namespace),
@@ -429,7 +457,17 @@ func (s *Site) checkDefaultRouterAccess(ctxt context.Context, site *skupperv2alp
 	} else {
 		created, err := s.clients.GetSkupperClient().SkupperV2alpha1().RouterAccesses(s.namespace).Create(context.Background(), desired, metav1.CreateOptions{})
 		if err != nil {
-			return err
+			if !errors.IsAlreadyExists(err) {
+				s.logger.Error("Error creating RouterAccess",
+					slog.String("name", desired.Name),
+					slog.String("error", err.Error()))
+				return err
+			}
+			s.logger.Info("Router access already exists - loading latest", slog.String("name", desired.Name))
+			created, err = s.clients.GetSkupperClient().SkupperV2alpha1().RouterAccesses(s.namespace).Get(context.Background(), desired.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
 		}
 		s.linkAccess[name] = created
 		return nil
@@ -770,6 +808,9 @@ func isOwned(service *corev1.Service) bool {
 }
 
 func (s *Site) ownerReferences() []metav1.OwnerReference {
+	if s.site == nil {
+		return []metav1.OwnerReference{}
+	}
 	return []metav1.OwnerReference{
 		{
 			Kind:       "Site",
@@ -887,7 +928,12 @@ func (s *Site) recoverRouterConfig(update bool) ([]*qdr.RouterConfig, error) {
 	for i, group := range groups {
 		if config, ok := byName[group]; ok {
 			if update {
-				op := ConfigUpdateList{s.bindings, s, s.linkAccess.DesiredConfigWithAvailableCredentials(groups[:i], SSL_PROFILE_PATH, s.tlsCredentialSecretPresent)}
+				op := ConfigUpdateList{
+					s.bindings,
+					s,
+					s.linkAccess.DesiredConfigWithAvailableCredentials(groups[:i], SSL_PROFILE_PATH, s.tlsCredentialSecretPresent),
+					s.networkAccess.DesiredConfigWithAvailableCredentials(groups[:i], SSL_PROFILE_PATH, s.tlsCredentialSecretPresent),
+				}
 				if err := kubeqdr.UpdateRouterConfig(s.clients.GetKubeClient(), group, s.namespace, context.TODO(), op, s.labelling); err != nil {
 					s.logger.Error("Failed to update router config map",
 						slog.String("namespace", s.namespace),
@@ -901,6 +947,7 @@ func (s *Site) recoverRouterConfig(update bool) ([]*qdr.RouterConfig, error) {
 			routerConfig := s.initialRouterConfig()
 			s.bindings.Apply(routerConfig)
 			s.linkAccess.DesiredConfigWithAvailableCredentials(groups[:i], SSL_PROFILE_PATH, s.tlsCredentialSecretPresent).Apply(routerConfig)
+			s.networkAccess.DesiredConfigWithAvailableCredentials(groups[:i], SSL_PROFILE_PATH, s.tlsCredentialSecretPresent).Apply(routerConfig)
 			if err := s.createRouterConfigForGroup(group, routerConfig); err != nil {
 				s.logger.Error("Failed to create router config map",
 					slog.String("namespace", s.namespace),
@@ -999,6 +1046,10 @@ func (s *Site) createRouterConfigForGroup(group string, config *qdr.RouterConfig
 func (s *Site) updateRouterConfig(update qdr.ConfigUpdate) error {
 	for _, group := range s.groups() {
 		if err := s.updateRouterConfigForGroup(update, group); err != nil {
+			s.logger.Error("Error updating router config for site",
+				slog.String("namespace", s.namespace),
+				slog.String("name", s.name),
+				slog.Any("error", err))
 			return err
 		}
 	}
@@ -1583,27 +1634,10 @@ func (s *Site) UpdateSiteStatus(site *skupperv2alpha1.Site) (*skupperv2alpha1.Si
 }
 
 func (s *Site) CheckSecuredAccess(name string, sa *skupperv2alpha1.SecuredAccess) error {
-	refs, ok := s.accessMapping[name]
-	if !ok {
-		return nil
+	if _, ok := s.accessMapping[name]; ok {
+		return s.checkRouterAccessMapping(name, sa)
 	}
-	defer func() {
-		if sa == nil {
-			delete(s.accessMapping, name)
-		}
-	}()
-	routerAccess, ok := s.linkAccess[refs.RouterAccessName]
-	if !ok {
-		return nil
-	}
-	var endpoints []skupperv2alpha1.Endpoint
-	if sa != nil {
-		endpoints = sa.Status.Endpoints
-	}
-	if routerAccess.Resolve(endpoints, refs.Group) {
-		return s.updateRouterAccessStatus(routerAccess)
-	}
-	return nil
+	return s.checkNetworkAccessMapping(name, sa)
 }
 
 func (s *Site) updateRouterAccessStatus(la *skupperv2alpha1.RouterAccess) error {
@@ -1622,36 +1656,94 @@ func (s *Site) updateRouterAccessStatus(la *skupperv2alpha1.RouterAccess) error 
 	return err
 }
 
-func asSecuredAccessSpec(routerAccess *skupperv2alpha1.RouterAccess, group string, defaultIssuer string) skupperv2alpha1.SecuredAccessSpec {
+func (s *Site) updateNetworkAccessStatus(na *skupperv2alpha1.NetworkAccess) error {
+	updated, err := s.clients.GetSkupperClient().SkupperV2alpha1().NetworkAccesses(na.Namespace).UpdateStatus(context.TODO(), na, metav1.UpdateOptions{})
+
+	if err != nil {
+		s.logger.Error("Error updating NetworkAccess status",
+			slog.String("namespace", na.Namespace),
+			slog.String("name", na.Name),
+			slog.Any("error", err))
+		err = fmt.Errorf("network access status update failed: %s", err)
+	} else {
+		s.networkAccess[na.Name] = updated
+	}
+
+	return err
+}
+
+func routerAccessToSecuredAccessSpec(routerAccess *skupperv2alpha1.RouterAccess) securedAccessSpec {
+	spec := securedAccessSpec{
+		AccessType:             routerAccess.Spec.AccessType,
+		Issuer:                 routerAccess.Spec.Issuer,
+		GenerateTlsCredentials: routerAccess.Spec.GenerateTlsCredentials,
+		TlsCredentials:         routerAccess.Spec.TlsCredentials,
+		Settings:               routerAccess.Spec.Settings,
+	}
+	for _, role := range routerAccess.Spec.Roles {
+		spec.Ports = append(spec.Ports, securedAccessPort{
+			Name: role.Name,
+			Port: int(routerAccess.GetPortForRole(role.Name)),
+		})
+	}
+	return spec
+}
+
+func networkAccessToSecuredAccessSpec(networkAccess *skupperv2alpha1.NetworkAccess) securedAccessSpec {
+	spec := securedAccessSpec{
+		AccessType:             networkAccess.Spec.AccessType,
+		Issuer:                 networkAccess.Spec.Issuer,
+		GenerateTlsCredentials: networkAccess.Spec.GenerateTlsCredentials,
+		TlsCredentials:         networkAccess.Spec.TlsCredentials,
+		Ports: []securedAccessPort{
+			{
+				Name: "inter-network",
+				Port: networkAccess.GetPort(),
+			},
+		},
+		Settings: networkAccess.Spec.Settings,
+	}
+	return spec
+}
+
+func asSecuredAccessSpec(accessSpec securedAccessSpec, group string, defaultIssuer string) skupperv2alpha1.SecuredAccessSpec {
 	issuer := ""
-	if routerAccess.Spec.GenerateTlsCredentials {
-		issuer = routerAccess.Spec.Issuer
+	if accessSpec.GenerateTlsCredentials {
+		issuer = accessSpec.Issuer
 		if issuer == "" {
 			issuer = defaultIssuer
 		}
 	}
 	spec := skupperv2alpha1.SecuredAccessSpec{
-		AccessType: routerAccess.Spec.AccessType,
+		AccessType: accessSpec.AccessType,
 		Selector: map[string]string{
 			"skupper.io/component": "router",
 		},
-		Certificate: routerAccess.Spec.TlsCredentials,
+		Certificate: accessSpec.TlsCredentials,
 		Issuer:      issuer,
-		Settings:    routerAccess.Spec.Settings,
+		Settings:    accessSpec.Settings,
 	}
 	if group != "" {
 		//add extra label to allow for distinct sets of routers in EnableHA
 		spec.Selector["skupper.io/group"] = group
 	}
-	for _, role := range routerAccess.Spec.Roles {
+	for _, port := range accessSpec.Ports {
 		spec.Ports = append(spec.Ports, skupperv2alpha1.SecuredAccessPort{
-			Name:       role.Name,
-			Port:       role.Port,
-			TargetPort: role.Port,
+			Name:       port.Name,
+			Port:       port.Port,
+			TargetPort: port.Port,
 			Protocol:   "TCP",
 		})
 	}
 	return spec
+}
+
+func routerAccessAsSecuredAccessSpec(routerAccess *skupperv2alpha1.RouterAccess, group string, defaultIssuer string) skupperv2alpha1.SecuredAccessSpec {
+	return asSecuredAccessSpec(routerAccessToSecuredAccessSpec(routerAccess), group, defaultIssuer)
+}
+
+func networkAccessAsSecuredAccessSpec(networkAccess *skupperv2alpha1.NetworkAccess, group string, defaultIssuer string) skupperv2alpha1.SecuredAccessSpec {
+	return asSecuredAccessSpec(networkAccessToSecuredAccessSpec(networkAccess), group, defaultIssuer)
 }
 
 func (s *Site) checkSecuredAccess() error {
@@ -1666,13 +1758,31 @@ func (s *Site) checkSecuredAccess() error {
 				"internal.skupper.io/controlled":   "true",
 				"internal.skupper.io/routeraccess": la.Name,
 			}
-			if err := s.access.Ensure(s.namespace, name, asSecuredAccessSpec(la, group, s.site.DefaultIssuer()), annotations, routerAccessOwner(la)); err != nil {
+			if err := s.access.Ensure(s.namespace, name, routerAccessAsSecuredAccessSpec(la, group, s.site.DefaultIssuer()), annotations, routerAccessOwner(la)); err != nil {
 				//TODO: add message to site status
 				s.logger.Error("Error ensuring SecuredAccess for RouterAccess",
 					slog.String("key", la.Key()),
 					slog.Any("error", err))
 			} else {
-				s.accessMapping[name] = newSecuredAccessMapping(la.Name, group)
+				s.accessMapping[name] = newAccessMapping(la.Name, group)
+			}
+		}
+		for _, na := range s.networkAccess {
+			name := na.Name
+			if i > 0 {
+				name = fmt.Sprintf("%s-%d", na.Name, (i + 1))
+			}
+			annotations := map[string]string{
+				"internal.skupper.io/controlled":    "true",
+				"internal.skupper.io/networkaccess": na.Name,
+			}
+			if err := s.access.Ensure(s.namespace, name, networkAccessAsSecuredAccessSpec(na, group, s.site.DefaultIssuer()), annotations, networkAccessOwner(na)); err != nil {
+				//TODO: add message to site status
+				s.logger.Error("Error ensuring SecuredAccess for NetworkAccess",
+					slog.String("key", na.Key()),
+					slog.Any("error", err))
+			} else {
+				s.networkAccessMapping[name] = newAccessMapping(na.Name, group)
 			}
 		}
 	}
@@ -1680,18 +1790,42 @@ func (s *Site) checkSecuredAccess() error {
 }
 
 func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) error {
+	if !s.initialised {
+		return nil
+	}
+	var allocatedPorts []int32
 	specChanged := false
+	statusChanged := false
 	if la == nil {
+		if existing, ok := s.linkAccess[name]; ok {
+			s.routerAccessPorts.ReleaseAll(existing.GetAllocatedPorts()...)
+		}
 		delete(s.linkAccess, name)
 		specChanged = true
 	} else {
 		if existing, ok := s.linkAccess[name]; ok {
 			specChanged = !reflect.DeepEqual(existing.Spec, la.Spec)
 		}
+		if unusedPorts := la.GetUnusedPorts(); len(unusedPorts) > 0 {
+			s.routerAccessPorts.ReleaseAll(unusedPorts...)
+			la.ReleaseUnusedPorts(unusedPorts)
+			statusChanged = true
+		}
+		var err error
+		for _, role := range la.Spec.Roles {
+			port := int(la.GetPortForRole(role.Name))
+			if port == 0 {
+				port, err = s.routerAccessPorts.NextFreePort()
+				if err != nil {
+					return err
+				}
+				allocatedPorts = append(allocatedPorts, int32(port))
+			}
+			if la.AllocatePort(role.Name, port) {
+				statusChanged = true
+			}
+		}
 		s.linkAccess[name] = la
-	}
-	if !s.initialised {
-		return nil
 	}
 	var configuredErr error
 	if la != nil {
@@ -1722,17 +1856,21 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 			if i > 0 {
 				name = fmt.Sprintf("%s-%d", la.Name, (i + 1))
 			}
-			annotations := map[string]string{
-				"internal.skupper.io/controlled":   "true",
-				"internal.skupper.io/routeraccess": la.Name,
-			}
-			if err := s.access.Ensure(s.namespace, name, asSecuredAccessSpec(la, group, s.site.DefaultIssuer()), annotations, routerAccessOwner(la)); err != nil {
-				s.logger.Error("Error ensuring SecuredAccess for RouterAccess",
-					slog.String("key", la.Key()),
-					slog.Any("error", err))
-				errors = append(errors, err.Error())
+			if _, ok := s.networkAccessMapping[name]; ok {
+				errors = append(errors, fmt.Errorf("A SecuredAccess named %s/%s is already configured for a NetworkAccess", s.namespace, name).Error())
 			} else {
-				s.accessMapping[name] = newSecuredAccessMapping(la.Name, group)
+				annotations := map[string]string{
+					"internal.skupper.io/controlled":   "true",
+					"internal.skupper.io/routeraccess": la.Name,
+				}
+				if err := s.access.Ensure(s.namespace, name, routerAccessAsSecuredAccessSpec(la, group, s.site.DefaultIssuer()), annotations, routerAccessOwner(la)); err != nil {
+					s.logger.Error("Error ensuring SecuredAccess for RouterAccess",
+						slog.String("key", la.Key()),
+						slog.Any("error", err))
+					errors = append(errors, err.Error())
+				} else {
+					s.accessMapping[name] = newAccessMapping(la.Name, group)
+				}
 			}
 		}
 		previousGroups = append(previousGroups, group)
@@ -1744,12 +1882,103 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 	if configuredErr != nil {
 		err = stderrors.Join(configuredErr, err)
 	}
-	if la != nil && la.SetConfigured(err) {
+	if la != nil && (la.SetConfigured(err) || statusChanged) {
 		if err := s.updateRouterAccessStatus(la); err != nil {
+			if len(allocatedPorts) > 0 {
+				la.ReleaseUnusedPorts(allocatedPorts)
+				s.routerAccessPorts.ReleaseAll(allocatedPorts...)
+				s.linkAccess[name] = la
+			}
 			return err
 		}
 	}
 	return s.updateResolved()
+}
+
+func (s *Site) CheckNetworkAccess(name string, na *skupperv2alpha1.NetworkAccess) error {
+	if !s.initialised {
+		return nil
+	}
+	var allocatedPorts []int32
+	specChanged := false
+	statusChanged := false
+	if na == nil {
+		if existing, ok := s.networkAccess[name]; ok && existing.HasAllocatedPort() {
+			s.routerAccessPorts.Release(existing.GetPort())
+		}
+		delete(s.networkAccess, name)
+		specChanged = true
+	} else {
+		if existing, ok := s.networkAccess[name]; ok {
+			specChanged = !reflect.DeepEqual(existing.Spec, na.Spec)
+		}
+		port := na.Spec.Port
+		if na.GetPort() == 0 {
+			var err error
+			port, err = s.routerAccessPorts.NextFreePort()
+			if err != nil {
+				return err
+			}
+			allocatedPorts = append(allocatedPorts, int32(port))
+		}
+		if na.AllocatePort(port) {
+			statusChanged = true
+		}
+		s.networkAccess[name] = na
+	}
+	var previousGroups []string
+	groups := s.groups()
+	var errors []string
+	for i, group := range groups {
+		if specChanged || !na.IsConfigured(s.network.NetworkId) {
+			if err := s.updateRouterConfigForGroup(s.networkAccess.DesiredConfig(previousGroups, SSL_PROFILE_PATH), group); err != nil {
+				s.logger.Error("Error updating router config for network access",
+					slog.String("namespace", s.namespace),
+					slog.String("name", name),
+					slog.Any("error", err))
+				errors = append(errors, err.Error())
+			}
+		}
+
+		if na != nil {
+			accessName := na.Name
+			if i > 0 {
+				accessName = fmt.Sprintf("%s-%d", na.Name, (i + 1))
+			}
+			if _, ok := s.accessMapping[name]; ok {
+				errors = append(errors, fmt.Errorf("A SecuredAccess named %s/%s is already configured for a RouterAccess", s.namespace, name).Error())
+			} else {
+				annotations := map[string]string{
+					"internal.skupper.io/controlled":    "true",
+					"internal.skupper.io/networkaccess": na.Name,
+				}
+				if err := s.access.Ensure(s.namespace, accessName, networkAccessAsSecuredAccessSpec(na, group, s.site.DefaultIssuer()), annotations, networkAccessOwner(na)); err != nil {
+					s.logger.Error("Error ensuring SecuredAccess for NetworkAccess",
+						slog.String("key", na.Key()),
+						slog.Any("error", err))
+					errors = append(errors, err.Error())
+				} else {
+					s.networkAccessMapping[accessName] = newAccessMapping(na.Name, group)
+				}
+			}
+		}
+		previousGroups = append(previousGroups, group)
+	}
+	var err error
+	if len(errors) > 0 {
+		err = fmt.Errorf("%s", strings.Join(errors, ", "))
+	}
+	if na != nil && (na.SetConfigured(s.network.NetworkId, err) || statusChanged) {
+		if err := s.updateNetworkAccessStatus(na); err != nil {
+			if len(allocatedPorts) > 0 {
+				na.Status.Port = 0
+				s.routerAccessPorts.ReleaseAll(allocatedPorts...)
+				s.networkAccess[name] = na
+			}
+			return err
+		}
+	}
+	return err
 }
 
 func (s *Site) CheckAttachedConnectorBinding(namespace string, name string, binding *skupperv2alpha1.AttachedConnectorBinding) error {
@@ -1809,6 +2038,220 @@ func (s *Site) TLSPriorValidRevisions() uint64 {
 		}
 	}
 	return revisions
+}
+
+func (s *Site) CheckNetwork(name string, network *skupperv2alpha1.Network) error {
+	const expectedName = "network"
+	var err error
+	cli := s.clients.GetSkupperClient().SkupperV2alpha1().Networks(s.namespace)
+
+	if name != expectedName {
+		if network != nil {
+			if network.SetError(expectedName) {
+				s.logger.Info("Networks are handled as a singleton and it must be named: network",
+					slog.String("namespace", s.namespace),
+					slog.String("name", name))
+				_, err = cli.UpdateStatus(context.Background(), network, metav1.UpdateOptions{})
+			}
+		}
+		return err
+	}
+
+	if !s.IsInitialised() {
+		if network == nil {
+			return nil
+		}
+		if network.SetConfigured(false) {
+			s.logger.Info("Network set to pending as site is not initialised", slog.String("namespace", s.namespace), slog.String("name", name))
+			_, err = cli.UpdateStatus(context.Background(), network, metav1.UpdateOptions{})
+		}
+		return err
+	}
+	if s.network.Update(s.namespace, name, network) {
+		err = s.updateRouterConfig(&s.network)
+	}
+	if network == nil {
+		return err
+	}
+	if network.SetConfigured(true) {
+		_, updErr := cli.UpdateStatus(context.Background(), network, metav1.UpdateOptions{})
+		if updErr != nil {
+			err = stderrors.Join(err, updErr)
+			s.logger.Error("unable to set Network status to Ready",
+				slog.String("namespace", s.namespace),
+				slog.String("name", name),
+				slog.Any("error", err))
+		}
+	}
+	return err
+}
+
+func (s *Site) CheckNetworkLink(name string, link *skupperv2alpha1.NetworkLink) error {
+	var err error
+	cli := s.clients.GetSkupperClient().SkupperV2alpha1().NetworkLinks(s.namespace)
+	logger := s.logger.With(
+		slog.String("namespace", s.namespace),
+		slog.String("name", name),
+	)
+	if !s.IsInitialised() {
+		if link == nil {
+			return nil
+		}
+		if link.SetConfigured(false) && link.Status.SetStatusMessage("Site is not initialized") {
+			logger.Info("NetworkLink set to pending as site is not initialised")
+			_, err = cli.UpdateStatus(context.Background(), link, metav1.UpdateOptions{})
+		}
+		return err
+	}
+	var update qdr.ConfigUpdate
+	if existing, ok := s.networkLinks[name]; ok {
+		if existing.Update(s.network.NetworkId, link) {
+			update = existing
+		}
+	} else {
+		newLink := &NetworkLink{
+			Name:      name,
+			Link:      link,
+			NetworkId: s.network.NetworkId,
+		}
+		s.networkLinks[name] = newLink
+		if s.network.NetworkId != "" {
+			update = newLink
+		}
+	}
+	if update == nil {
+		return nil
+	}
+	logger.Info("NetworkLink has changed, updating router config")
+	err = s.updateRouterConfig(update)
+	if link == nil {
+		delete(s.networkLinks, name)
+		return err
+	}
+	if err != nil {
+		link.SetError(err)
+	} else {
+		if s.network.NetworkId != "" {
+			link.SetConfigured(true)
+		} else {
+			link.SetConfigured(false)
+			link.Status.SetStatusMessage("Network Id is not yet defined")
+		}
+	}
+	if _, updErr := cli.UpdateStatus(context.Background(), link, metav1.UpdateOptions{}); updErr != nil {
+		logger.Error("error updating NetworkLink status",
+			slog.Any("error", err),
+		)
+	}
+	return err
+}
+
+func (s *Site) CheckInterNetworkIngress(name string, ingress *skupperv2alpha1.InterNetworkIngress) error {
+	var err error
+	cli := s.clients.GetSkupperClient().SkupperV2alpha1().InterNetworkIngresses(s.namespace)
+	logger := s.logger.With(
+		slog.String("namespace", s.namespace),
+		slog.String("name", name),
+	)
+	if !s.IsInitialised() {
+		if ingress == nil {
+			return nil
+		}
+		if ingress.SetConfigured(false) && ingress.Status.SetStatusMessage("Site is not initialized") {
+			logger.Info("InterNetworkIngress set to pending as site is not initialised")
+			_, err = cli.UpdateStatus(context.Background(), ingress, metav1.UpdateOptions{})
+		}
+		return err
+	}
+	var update qdr.ConfigUpdate
+	var existingLink *NetworkLink
+	if existing, ok := s.inetIngress[name]; ok {
+		var networkLink *NetworkLink
+		var networkAccess *skupperv2alpha1.NetworkAccess
+		if ingress != nil {
+			networkLink = s.networkLinks[ingress.Spec.NetworkLink]
+			networkAccess = s.networkAccess[ingress.Spec.NetworkAccess]
+		}
+		if existing.Update(ingress, networkLink, networkAccess) {
+			update = existing
+		}
+		existingLink = existing.Link
+	} else if ingress != nil {
+		newIngress := NewInterNetworkIngress(ingress, s.networkLinks[ingress.Spec.NetworkLink], s.networkAccess[ingress.Spec.NetworkAccess])
+		s.inetIngress[name] = newIngress
+		existingLink = newIngress.Link
+		if newIngress.Link != nil {
+			update = newIngress
+		}
+	}
+	if update == nil {
+		if ingress != nil && existingLink == nil && ingress.SetError(fmt.Errorf("invalid network link")) {
+			_, err = cli.UpdateStatus(context.Background(), ingress, metav1.UpdateOptions{})
+			return err
+		}
+		return nil
+	}
+	logger.Info("InterNetworkIngress has changed, updating router config")
+	err = s.updateRouterConfig(update)
+	if ingress == nil {
+		delete(s.inetIngress, name)
+		return err
+	}
+	ingress.SetError(err)
+	if _, updErr := cli.UpdateStatus(context.Background(), ingress, metav1.UpdateOptions{}); updErr != nil {
+		logger.Error("error updating InterNetworkIngress status",
+			slog.Any("error", err),
+		)
+	}
+	return err
+}
+
+func (s *Site) checkRouterAccessMapping(name string, sa *skupperv2alpha1.SecuredAccess) error {
+	refs, ok := s.accessMapping[name]
+	if !ok {
+		return nil
+	}
+	defer func() {
+		if sa == nil {
+			delete(s.accessMapping, name)
+		}
+	}()
+	routerAccess, ok := s.linkAccess[refs.AccessName]
+	if !ok {
+		return nil
+	}
+	var endpoints []skupperv2alpha1.Endpoint
+	if sa != nil {
+		endpoints = sa.Status.Endpoints
+	}
+	if routerAccess.Resolve(endpoints, refs.Group) {
+		return s.updateRouterAccessStatus(routerAccess)
+	}
+	return nil
+}
+
+func (s *Site) checkNetworkAccessMapping(name string, sa *skupperv2alpha1.SecuredAccess) error {
+	refs, ok := s.networkAccessMapping[name]
+	if !ok {
+		return nil
+	}
+	defer func() {
+		if sa == nil {
+			delete(s.networkAccessMapping, name)
+		}
+	}()
+	networkAccess, ok := s.networkAccess[refs.AccessName]
+	if !ok {
+		return nil
+	}
+	var endpoints []skupperv2alpha1.Endpoint
+	if sa != nil {
+		endpoints = sa.Status.Endpoints
+	}
+	if networkAccess.Resolve(endpoints, refs.Group) {
+		return s.updateNetworkAccessStatus(networkAccess)
+	}
+	return nil
 }
 
 func podState(pod *corev1.Pod) skupperv2alpha1.ConditionState {
@@ -1935,6 +2378,17 @@ func routerAccessOwner(ra *skupperv2alpha1.RouterAccess) []metav1.OwnerReference
 			APIVersion: "skupper.io/v2alpha1",
 			Name:       ra.Name,
 			UID:        ra.ObjectMeta.UID,
+		},
+	}
+}
+
+func networkAccessOwner(na *skupperv2alpha1.NetworkAccess) []metav1.OwnerReference {
+	return []metav1.OwnerReference{
+		{
+			Kind:       "NetworkAccess",
+			APIVersion: "skupper.io/v2alpha1",
+			Name:       na.Name,
+			UID:        na.ObjectMeta.UID,
 		},
 	}
 }
