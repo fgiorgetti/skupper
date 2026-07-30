@@ -1020,11 +1020,15 @@ func (r *RouterAccess) AllocatePort(role string, port int) bool {
 
 func (r *RouterAccess) ReleaseUnusedPorts(unusedPorts []int32) {
 	var ports []RouterAccessRole
-	for _, port := range unusedPorts {
-		for _, portStatus := range r.Status.Roles {
+	for _, portStatus := range r.Status.Roles {
+		keep := true
+		for _, port := range unusedPorts {
 			if portStatus.Port == int(port) {
-				continue
+				keep = false
+				break
 			}
+		}
+		if keep {
 			ports = append(ports, portStatus)
 		}
 	}
