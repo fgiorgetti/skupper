@@ -40,8 +40,8 @@ spec:
                   additionalProperties:
                     type: string
               x-kubernetes-validations:
-                - message: At least one of networkLink or networkAccess must be set
-                  rule: has(self.networkLink) || has(self.networkAccess)
+                - message: At least one of 'networkLink' or 'networkAccess' must be provided and non-empty.
+                  rule: (has(self.networkLink) && self.networkLink != ”) || (has(self.networkAccess) && self.networkAccess != ”)
               required:
                 - routingKey
             status:

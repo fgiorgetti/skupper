@@ -924,38 +924,7 @@ func (r *RouterAccess) IsConfigured() bool {
 
 // endpoints are assumed all to be from one group
 func (s *RouterAccessStatus) UpdateEndpointsForGroup(endpoints []Endpoint, group string) bool {
-	all := []Endpoint{}
-	updated := false
-	byName := map[string]Endpoint{}
-	for _, endpoint := range endpoints {
-		endpoint.Group = group
-		byName[endpoint.Name] = endpoint
-	}
-	for _, endpoint := range s.Endpoints {
-		if endpoint.Group != group {
-			all = append(all, endpoint)
-		} else if desired, ok := byName[endpoint.Name]; ok {
-			if desired.MatchHostPort(&endpoint) {
-				all = append(all, endpoint)
-			} else {
-				all = append(all, desired)
-				updated = true
-			}
-			delete(byName, endpoint.Name)
-		} else {
-			// endpoint is in group, but not in desired list so don't add it
-			updated = true
-		}
-	}
-	for _, endpoint := range byName {
-		all = append(all, endpoint)
-		updated = true
-	}
-	if updated {
-		s.Endpoints = all
-		return true
-	}
-	return false
+	return updateEndpointsForGroup(endpoints, group, s)
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -1019,7 +988,8 @@ func (r *RouterAccess) GetAllocatedPorts() []int32 {
 func (r *RouterAccess) GetUnusedPorts() []int32 {
 	var ports []int32
 	for _, role := range r.Status.Roles {
-		if r.FindRole(role.Name) == nil {
+		specRole := r.FindRole(role.Name)
+		if specRole == nil || (specRole.Port > 0 && role.Port > 0 && specRole.Port != role.Port) {
 			ports = append(ports, int32(role.Port))
 		}
 	}
@@ -1076,6 +1046,14 @@ type RouterAccessStatus struct {
 	Status    `json:",inline"`
 	Roles     []RouterAccessRole `json:"roles,omitempty"`
 	Endpoints []Endpoint         `json:"endpoints,omitempty"`
+}
+
+func (s *RouterAccessStatus) GetEndpoints() []Endpoint {
+	return s.Endpoints
+}
+
+func (s *RouterAccessStatus) SetEndpoints(endpoints []Endpoint) {
+	s.Endpoints = endpoints
 }
 
 // +genclient
@@ -1321,13 +1299,13 @@ type InterNetworkIngressList struct {
 }
 
 // InterNetworkIngressSpec
-// +kubebuilder:validation:XValidation:rule="has(self.networkLink) || has(self.networkAccess)",message="At least one of networkLink or networkAccess must be set"
+// +kubebuilder:validation:XValidation:rule="(has(self.networkLink) && self.networkLink != ”) || (has(self.networkAccess) && self.networkAccess != ”)",message="At least one of 'networkLink' or 'networkAccess' must be provided and non-empty."
 type InterNetworkIngressSpec struct {
 	RoutingKey string `json:"routingKey"`
 	// +optional
-	NetworkLink string `json:"networkLink"`
+	NetworkLink string `json:"networkLink,omitempty"`
 	// +optional
-	NetworkAccess string            `json:"networkAccess"`
+	NetworkAccess string            `json:"networkAccess,omitempty"`
 	Settings      map[string]string `json:"settings,omitempty"`
 }
 
@@ -1380,6 +1358,15 @@ func (r *NetworkAccess) IsConfigured(networkId string) bool {
 
 // endpoints are assumed all to be from one group
 func (s *NetworkAccessStatus) UpdateEndpointsForGroup(endpoints []Endpoint, group string) bool {
+	return updateEndpointsForGroup(endpoints, group, s)
+}
+
+type EndpointsHandler interface {
+	GetEndpoints() []Endpoint
+	SetEndpoints(endpoints []Endpoint)
+}
+
+func updateEndpointsForGroup(endpoints []Endpoint, group string, h EndpointsHandler) bool {
 	all := []Endpoint{}
 	updated := false
 	byName := map[string]Endpoint{}
@@ -1387,7 +1374,7 @@ func (s *NetworkAccessStatus) UpdateEndpointsForGroup(endpoints []Endpoint, grou
 		endpoint.Group = group
 		byName[endpoint.Name] = endpoint
 	}
-	for _, endpoint := range s.Endpoints {
+	for _, endpoint := range h.GetEndpoints() {
 		if endpoint.Group != group {
 			all = append(all, endpoint)
 		} else if desired, ok := byName[endpoint.Name]; ok {
@@ -1408,7 +1395,7 @@ func (s *NetworkAccessStatus) UpdateEndpointsForGroup(endpoints []Endpoint, grou
 		updated = true
 	}
 	if updated {
-		s.Endpoints = all
+		h.SetEndpoints(all)
 		return true
 	}
 	return false
@@ -1440,6 +1427,14 @@ type NetworkAccessStatus struct {
 	Port      int        `json:"port,omitempty"`
 	NetworkId string     `json:"networkId"`
 	Endpoints []Endpoint `json:"endpoints,omitempty"`
+}
+
+func (s *NetworkAccessStatus) GetEndpoints() []Endpoint {
+	return s.Endpoints
+}
+
+func (s *NetworkAccessStatus) SetEndpoints(endpoints []Endpoint) {
+	s.Endpoints = endpoints
 }
 
 func (n *NetworkAccess) GetPort() int {
