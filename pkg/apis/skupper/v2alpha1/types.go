@@ -1303,7 +1303,7 @@ type InterNetworkIngressList struct {
 }
 
 // InterNetworkIngressSpec
-// +kubebuilder:validation:XValidation:rule="(has(self.networkLink) && self.networkLink != ”) || (has(self.networkAccess) && self.networkAccess != ”)",message="At least one of 'networkLink' or 'networkAccess' must be provided and non-empty."
+// +kubebuilder:validation:XValidation:rule="(has(self.networkLink) && self.networkLink != \"\") || (has(self.networkAccess) && self.networkAccess != \"\")",message="At least one of 'networkLink' or 'networkAccess' must be provided and non-empty."
 type InterNetworkIngressSpec struct {
 	RoutingKey string `json:"routingKey"`
 	// +optional
