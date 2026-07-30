@@ -117,7 +117,7 @@ spec:
 
                      - `Configured`: The output resources for this resource have been created.
                      - `Resolved`: The connection endpoints are available.
-                     - `Ready`: The router access is ready for use. All other conditions are true.
+                     - `Ready`: The network access is ready for use. All other conditions are true.
                   items:
                     type: object
                     properties:
