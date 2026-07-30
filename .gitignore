@@ -32,12 +32,16 @@ vendor/
 manifest.json
 oci-archives/
 skupper-cluster-scope.yaml
+skupper-crds.yaml
+skupper-multi-van-crds.yaml
 skupper-namespace-scope.yaml
 skupper-network-observer*.yaml
 bundle.Dockerfile
 ./bundle/
 !charts/skupper/README.md
 charts/skupper/
+charts/skupper-crds/templates/crds.yaml
+charts/skupper-crds/templates/multi-van-crds.yaml
 skupper-*.tgz
 artifacthub-repo.yml
 network-observer-*.tgz

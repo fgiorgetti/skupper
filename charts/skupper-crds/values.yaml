@@ -1,0 +1,6 @@
+# When set to true, install the base CRDs
+base: true
+# When set to true, the 4 multi-VAN CRDs (Network, NetworkLink,
+# InterNetworkIngress, NetworkAccess) are installed/upgraded on every
+# helm install and helm upgrade. Set to false (the default) to omit them.
+multiVan: false

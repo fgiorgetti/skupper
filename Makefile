@@ -160,6 +160,9 @@ generate-docs: generate-doc
 generate-skupper-helm-chart:
 	./scripts/skupper-helm-chart-generator.sh ${IMAGE_TAG} ${ROUTER_IMAGE_TAG}
 
+generate-skupper-crds-helm-chart:
+	./scripts/skupper-crds-helm-chart-generator.sh ${IMAGE_TAG}
+
 generate-skupper-deployment-cluster-scoped:
 	./scripts/skupper-deployment-generator.sh cluster ${IMAGE_TAG} ${ROUTER_IMAGE_TAG} false > skupper-cluster-scope.yaml
 
@@ -168,9 +171,13 @@ generate-skupper-deployment-namespace-scoped:
 
 generate-crd-manifest:
 	kubectl kustomize config/crd > skupper-crds.yaml
+	kubectl kustomize config/crd/multi-van > skupper-multi-van-crds.yaml
 
 pack-skupper-helm-chart: generate-skupper-helm-chart
 	helm package ./charts/skupper
+
+pack-skupper-crds-helm-chart: generate-skupper-crds-helm-chart
+	helm package ./charts/skupper-crds
 
 pack-network-observer-helm-chart:
 	helm package ./charts/network-observer

@@ -1,0 +1,5 @@
+resources:
+- skupper_inter_network_ingress_crd.yaml
+- skupper_network_access_crd.yaml
+- skupper_network_crd.yaml
+- skupper_network_link_crd.yaml

@@ -1,0 +1,9 @@
+===========================================================
+  skupper-crds chart is now installed in the cluster.
+  Skupper CRDs are available cluster-wide.
+{{- if .Values.multiVan }}
+
+  Multi-VAN CRDs (Network, NetworkLink, InterNetworkIngress,
+  NetworkAccess) have been installed.
+{{- end }}
+===========================================================

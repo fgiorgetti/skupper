@@ -1,0 +1,5 @@
+apiVersion: v2
+name: skupper-crds
+description: Helm chart for installing and upgrading Skupper CRDs.
+version: 0.1.0-dev
+appVersion: v2-dev
