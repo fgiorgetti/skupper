@@ -156,6 +156,14 @@ rules:
       - securedaccesses/status
       - certificates
       - certificates/status
+      - networkaccesses
+      - networkaccesses/status
+      - networks
+      - networks/status
+      - networklinks
+      - networklinks/status
+      - internetworkingresses
+      - internetworkingresses/status
     verbs:
       - get
       - list
