@@ -420,3 +420,48 @@ func (t *counterHandler) GetRemovedCount(basePath string) int {
 func (t *counterHandler) Filter(name string) bool {
 	return t.filter(name)
 }
+
+func TestFileWatcher_AddDuringShutdown(t *testing.T) {
+	const numGoroutines = 50
+	dirs := make([]string, numGoroutines)
+	for i := range dirs {
+		dirs[i] = t.TempDir()
+	}
+
+	w, err := NewWatcher(slog.String("owner", "test.shutdown"))
+	assert.Assert(t, err)
+
+	stop := make(chan struct{})
+	w.Start(stop)
+
+	handler := newCounterHandler(func(string) bool { return true })
+
+	waitCh := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		dir := dirs[i]
+		go func() {
+			defer wg.Done()
+			<-waitCh
+			w.Add(dir, handler)
+		}()
+	}
+
+	// Release all calls to w.Add and immediately close stop channel to force a race.
+	close(waitCh)
+	close(stop)
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// completed without deadlock
+	case <-time.After(3 * time.Second):
+		t.Fatal("Add blocked after shutdown: possible deadlock on w.refresh")
+	}
+}

@@ -109,33 +109,39 @@ func (w *FileWatcher) processEvents(stopCh <-chan struct{}) {
 				for _, handler := range handlers {
 					//go handler.OnCreate(event.Name)
 					w.logger.Info("OnCreate", slog.String("name", event.Name))
-					w.triggerCh <- eventTrigger{
-						operation: handler.OnCreate,
-						name:      event.Name,
+					select {
+					case w.triggerCh <- eventTrigger{operation: handler.OnCreate, name: event.Name}:
+					case <-stopCh:
+						return
 					}
 				}
 			case event.Has(fsnotify.Write):
 				for _, handler := range handlers {
 					w.logger.Info("OnUpdate", slog.String("name", event.Name))
 					//go handler.OnUpdate(event.Name)
-					w.triggerCh <- eventTrigger{
-						operation: handler.OnUpdate,
-						name:      event.Name,
+					select {
+					case w.triggerCh <- eventTrigger{operation: handler.OnUpdate, name: event.Name}:
+					case <-stopCh:
+						return
 					}
 				}
 			case event.Has(fsnotify.Remove):
 				for _, handler := range handlers {
 					w.logger.Info("OnRemove", slog.String("name", event.Name))
 					//go handler.OnRemove(event.Name)
-					w.triggerCh <- eventTrigger{
-						operation: handler.OnRemove,
-						name:      event.Name,
+					select {
+					case w.triggerCh <- eventTrigger{operation: handler.OnRemove, name: event.Name}:
+					case <-stopCh:
+						return
 					}
 				}
 				// if object being watched is removed, watch for it to show up again
 				w.handlerLock.RLock()
 				if _, ok := w.handlerMap[event.Name]; ok {
-					w.refresh <- true
+					select {
+					case w.refresh <- true:
+					default:
+					}
 				}
 				w.handlerLock.RUnlock()
 			}
@@ -256,14 +262,14 @@ func (w *FileWatcher) monitorPaths(stopCh <-chan struct{}) {
 	handlersCount := len(w.handlerMap)
 	w.handlerLock.RUnlock()
 	if handlersCount > 0 {
-		w.manageWatchers()
+		w.manageWatchers(stopCh)
 	}
 	for {
 		select {
 		case <-w.refresh:
-			w.manageWatchers()
+			w.manageWatchers(stopCh)
 		case <-ticker.C:
-			w.manageWatchers()
+			w.manageWatchers(stopCh)
 		case <-stopCh:
 			w.logger.Info("Stop monitoring paths")
 			return
@@ -271,7 +277,7 @@ func (w *FileWatcher) monitorPaths(stopCh <-chan struct{}) {
 	}
 }
 
-func (w *FileWatcher) manageWatchers() {
+func (w *FileWatcher) manageWatchers(stopCh <-chan struct{}) {
 	w.watcherLock.Lock()
 	defer w.watcherLock.Unlock()
 	w.handlerLock.RLock()
@@ -324,15 +330,17 @@ func (w *FileWatcher) manageWatchers() {
 			existingFilesAndDirectories = append(existingFilesAndDirectories, path)
 		}
 		for _, handler := range handlers {
-			w.triggerCh <- eventTrigger{
-				operation: handler.OnBasePathAdded,
-				name:      path,
+			select {
+			case w.triggerCh <- eventTrigger{operation: handler.OnBasePathAdded, name: path}:
+			case <-stopCh:
+				return
 			}
 			for _, existingPath := range existingFilesAndDirectories {
 				if handler.Filter(existingPath) {
-					w.triggerCh <- eventTrigger{
-						operation: handler.OnCreate,
-						name:      existingPath,
+					select {
+					case w.triggerCh <- eventTrigger{operation: handler.OnCreate, name: existingPath}:
+					case <-stopCh:
+						return
 					}
 				}
 			}
@@ -355,6 +363,9 @@ func (w *FileWatcher) Add(name string, handler FSChangeHandler) {
 	started := w.started
 	w.runningLock.Unlock()
 	if started {
-		w.refresh <- true
+		select {
+		case w.refresh <- true:
+		default:
+		}
 	}
 }
