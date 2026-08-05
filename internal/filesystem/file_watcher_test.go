@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
+	goslices "slices"
 	"strings"
 	"sync"
 	"testing"
@@ -30,6 +32,32 @@ const (
 	updated
 	removed
 )
+
+func TestFileWatcher_Add(t *testing.T) {
+	var w *FileWatcher
+	var err error
+
+	stop := make(chan struct{})
+	w, err = NewWatcher(slog.String("owner", "test.watcher"))
+	assert.Assert(t, err)
+	w.Start(stop)
+
+	handler := newCounterHandler(func(name string) bool { return true })
+	var paths []string
+	for i := 0; i < 100; i++ {
+		tmpPath := t.TempDir()
+		paths = append(paths, tmpPath)
+		w.Add(tmpPath, handler)
+	}
+	keys := goslices.Collect(maps.Keys(w.handlerMap))
+	goslices.Sort(paths)
+	goslices.Sort(keys)
+	assert.Assert(t, slices.Equal(paths, keys))
+	for _, path := range paths {
+		_ = w.watcher.Remove(path)
+	}
+	close(stop)
+}
 
 func TestFileWatcher(t *testing.T) {
 	stop := make(chan struct{})

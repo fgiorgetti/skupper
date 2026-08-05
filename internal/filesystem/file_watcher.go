@@ -159,8 +159,10 @@ func (w *FileWatcher) processEvents(stopCh <-chan struct{}) {
 				}
 			}
 		case <-stopCh:
+			w.runningLock.Lock()
 			_ = w.watcher.Close()
-			w.setStarted(false)
+			w.started = false
+			w.runningLock.Unlock()
 			return
 		}
 	}
@@ -251,10 +253,11 @@ func (w *FileWatcher) monitorPaths(stopCh <-chan struct{}) {
 	interval := time.Second
 	ticker := time.NewTicker(interval)
 	w.handlerLock.RLock()
-	if len(w.handlerMap) > 0 {
+	handlersCount := len(w.handlerMap)
+	w.handlerLock.RUnlock()
+	if handlersCount > 0 {
 		w.manageWatchers()
 	}
-	w.handlerLock.RUnlock()
 	for {
 		select {
 		case <-w.refresh:
@@ -338,10 +341,7 @@ func (w *FileWatcher) manageWatchers() {
 }
 
 func (w *FileWatcher) Add(name string, handler FSChangeHandler) {
-	w.runningLock.Lock()
-	defer w.runningLock.Unlock()
 	w.handlerLock.Lock()
-	defer w.handlerLock.Unlock()
 	handlers, ok := w.handlerMap[name]
 	if !ok {
 		w.handlerMap[name] = []FSChangeHandler{handler}
@@ -350,7 +350,11 @@ func (w *FileWatcher) Add(name string, handler FSChangeHandler) {
 		slog.String("path", name))
 
 	w.handlerMap[name] = append(handlers, handler)
-	if w.started {
+	w.handlerLock.Unlock()
+	w.runningLock.Lock()
+	started := w.started
+	w.runningLock.Unlock()
+	if started {
 		w.refresh <- true
 	}
 }
