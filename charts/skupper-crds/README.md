@@ -58,9 +58,11 @@ multiVan: true
 ```
 
 > **Note:** Once CRDs are installed, removing them (by running `helm upgrade`
-> with a flag set to `false`) will **not** delete the CRDs from the cluster.
-> Helm never deletes CRDs during an upgrade or uninstall. Remove them manually
-> with `kubectl delete crd` if needed.
+> with a flag set to `false`) will **delete** the CRDs from the cluster, if they
+> were installed via this helm chart.
+> If the CRDs were installed using a different mechanism, Helm will not delete
+> those CRDs during an upgrade or uninstall. If you want to delete them, you have
+> to do it manually, with `kubectl delete crd`.
 
 ## Upgrading the chart
 
