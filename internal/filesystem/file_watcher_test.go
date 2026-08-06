@@ -422,46 +422,41 @@ func (t *counterHandler) Filter(name string) bool {
 }
 
 func TestFileWatcher_AddDuringShutdown(t *testing.T) {
-	const numGoroutines = 50
-	dirs := make([]string, numGoroutines)
-	for i := range dirs {
-		dirs[i] = t.TempDir()
-	}
-
 	w, err := NewWatcher(slog.String("owner", "test.shutdown"))
 	assert.Assert(t, err)
 
 	stop := make(chan struct{})
 	w.Start(stop)
 
-	handler := newCounterHandler(func(string) bool { return true })
-
-	waitCh := make(chan struct{})
-	var wg sync.WaitGroup
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		dir := dirs[i]
-		go func() {
-			defer wg.Done()
-			<-waitCh
-			w.Add(dir, handler)
-		}()
-	}
-
-	// Release all calls to w.Add and immediately close stop channel to force a race.
-	close(waitCh)
+	// Stop the watcher and wait for started to reflect it is down
 	close(stop)
+	assert.Assert(t, utils.RetryError(time.Millisecond*10, 100, func() error {
+		w.runningLock.Lock()
+		defer w.runningLock.Unlock()
+		if w.started {
+			return fmt.Errorf("watcher still running")
+		}
+		return nil
+	}))
+
+	// Force started to true, to simulate Add called after channel consumers are down
+	w.runningLock.Lock()
+	w.started = true
+	w.runningLock.Unlock()
+
+	handler := newCounterHandler(func(string) bool { return true })
+	dir := t.TempDir()
 
 	done := make(chan struct{})
 	go func() {
-		wg.Wait()
+		w.Add(dir, handler)
 		close(done)
 	}()
 
 	select {
 	case <-done:
-		// completed without deadlock
-	case <-time.After(3 * time.Second):
-		t.Fatal("Add blocked after shutdown: possible deadlock on w.refresh")
+		// Add returned without blocking — fix is working correctly
+	case <-time.After(time.Second):
+		t.Fatal("Add blocked after shutdown: deadlock on w.refresh")
 	}
 }
