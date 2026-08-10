@@ -1848,6 +1848,9 @@ func (s *Site) checkSecuredAccess() error {
 
 func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) error {
 	if !s.initialised {
+		if s.linkAccess != nil && la != nil {
+			s.linkAccess[name] = la
+		}
 		return nil
 	}
 	var allocatedPorts []int32
@@ -1954,6 +1957,9 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 
 func (s *Site) CheckNetworkAccess(name string, na *skupperv2alpha1.NetworkAccess) error {
 	if !s.initialised {
+		if s.networkAccess != nil && na != nil {
+			s.networkAccess[name] = na
+		}
 		return nil
 	}
 	var allocatedPorts []int32

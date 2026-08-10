@@ -1602,7 +1602,6 @@ func Test_CheckSecuredAccess(t *testing.T) {
 					s.site.Spec.HA = true
 				}
 				s.StartRecovery(s.site)
-				s.reconcile(s.site, false)
 				routerAccessList, err := s.clients.GetSkupperClient().SkupperV2alpha1().RouterAccesses(namespace).List(context.TODO(), metav1.ListOptions{})
 				if err != nil {
 					t.Fatal(err)

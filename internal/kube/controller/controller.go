@@ -286,6 +286,21 @@ func (c *Controller) init(stopCh <-chan struct{}) error {
 		routerAccessCount++
 	}
 	log.Info("Router access seeded", slog.Int("count", routerAccessCount))
+	// seed network access before site recovery
+	networkAccessCount := 0
+	for _, na := range c.networkAccessWatcher.List() {
+		if !c.namespaces.isControlled(na.Namespace) {
+			continue
+		}
+		site := c.getSite(na.ObjectMeta.Namespace)
+		log.Debug("Recovering network access",
+			slog.String("namespace", na.Namespace),
+			slog.String("name", na.Name),
+		)
+		site.CheckNetworkAccess(na.ObjectMeta.Name, na)
+		networkAccessCount++
+	}
+	log.Info("Network access seeded", slog.Int("count", networkAccessCount))
 	//recover existing sites & bindings
 	siteRecovery := site.NewSiteRecovery(c.eventProcessor.GetKubeClient())
 	for _, site := range c.siteWatcher.List() {
