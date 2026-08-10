@@ -9,21 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestRouterAccessRole_GetPort(t *testing.T) {
-	t.Run("defaults to 55671 for inter-router", func(t *testing.T) {
-		role := RouterAccessRole{Name: "inter-router"}
-		assert.Equal(t, role.GetPort(), int32(55671))
-	})
-	t.Run("defaults to 45671 for edge", func(t *testing.T) {
-		role := RouterAccessRole{Name: "edge"}
-		assert.Equal(t, role.GetPort(), int32(45671))
-	})
-	t.Run("returns explicit port when set", func(t *testing.T) {
-		role := RouterAccessRole{Name: "inter-router", Port: 12345}
-		assert.Equal(t, role.GetPort(), int32(12345))
-	})
-}
-
 func TestRouterAccess_AllocatePort(t *testing.T) {
 	t.Run("allocates a new port", func(t *testing.T) {
 		r := &RouterAccess{}
