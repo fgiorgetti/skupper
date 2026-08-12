@@ -2314,3 +2314,461 @@ func TestMultiKeyListenerCRDNotInstalled(t *testing.T) {
 	assert.Assert(t, listenerConfigured != nil)
 	assert.Equal(t, listenerConfigured.Status, metav1.ConditionTrue)
 }
+
+func (*factory) network(name string, namespace string, networkId string) *skupperv2alpha1.Network {
+	return &skupperv2alpha1.Network{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "skupper.io/v2alpha1",
+			Kind:       "Network",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: skupperv2alpha1.NetworkSpec{
+			NetworkId: networkId,
+		},
+	}
+}
+
+func (*factory) networkLink(name string, namespace string, hostname string, port int, tlsCredentials string) *skupperv2alpha1.NetworkLink {
+	return &skupperv2alpha1.NetworkLink{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "skupper.io/v2alpha1",
+			Kind:       "NetworkLink",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: skupperv2alpha1.NetworkLinkSpec{
+			Hostname:       hostname,
+			Port:           port,
+			TlsCredentials: tlsCredentials,
+		},
+	}
+}
+
+func (*factory) networkAccess(name string, namespace string, tlsCredentials string) *skupperv2alpha1.NetworkAccess {
+	return &skupperv2alpha1.NetworkAccess{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "skupper.io/v2alpha1",
+			Kind:       "NetworkAccess",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: skupperv2alpha1.NetworkAccessSpec{
+			TlsCredentials: tlsCredentials,
+		},
+	}
+}
+
+func (*factory) interNetworkIngress(name string, namespace string, routingKey string, linkName string, accessName string) *skupperv2alpha1.InterNetworkIngress {
+	return &skupperv2alpha1.InterNetworkIngress{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "skupper.io/v2alpha1",
+			Kind:       "InterNetworkIngress",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: skupperv2alpha1.InterNetworkIngressSpec{
+			RoutingKey:    routingKey,
+			NetworkLink:   linkName,
+			NetworkAccess: accessName,
+		},
+	}
+}
+
+func (*factory) networkStatus(name string, namespace string, statusType skupperv2alpha1.StatusType, message string, conditions ...metav1.Condition) *skupperv2alpha1.Network {
+	n := &skupperv2alpha1.Network{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "skupper.io/v2alpha1",
+			Kind:       "Network",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+	n.Status.Status = fixtures.Status(statusType, message, conditions...)
+	return n
+}
+
+func (*factory) networkLinkStatus(name string, namespace string, statusType skupperv2alpha1.StatusType, message string, conditions ...metav1.Condition) *skupperv2alpha1.NetworkLink {
+	nl := &skupperv2alpha1.NetworkLink{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "skupper.io/v2alpha1",
+			Kind:       "NetworkLink",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+	nl.Status.Status = fixtures.Status(statusType, message, conditions...)
+	return nl
+}
+
+func (*factory) networkAccessStatus(name string, namespace string, statusType skupperv2alpha1.StatusType, message string, conditions ...metav1.Condition) *skupperv2alpha1.NetworkAccess {
+	na := &skupperv2alpha1.NetworkAccess{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "skupper.io/v2alpha1",
+			Kind:       "NetworkAccess",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+	na.Status.Status = fixtures.Status(statusType, message, conditions...)
+	return na
+}
+
+func (*factory) interNetworkIngressStatus(name string, namespace string, statusType skupperv2alpha1.StatusType, message string, conditions ...metav1.Condition) *skupperv2alpha1.InterNetworkIngress {
+	i := &skupperv2alpha1.InterNetworkIngress{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "skupper.io/v2alpha1",
+			Kind:       "InterNetworkIngress",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+	i.Status.Status = fixtures.Status(statusType, message, conditions...)
+	return i
+}
+
+func (rc *RouterConfig) inetListener(name string, port int32, sslProfile string) *RouterConfig {
+	rc.config.Listeners[name] = qdr.Listener{
+		Name:             name,
+		Role:             qdr.RoleInterNetwork,
+		Port:             port,
+		SslProfile:       sslProfile,
+		SaslMechanisms:   "EXTERNAL",
+		AuthenticatePeer: true,
+	}
+	return rc
+}
+
+func (rc *RouterConfig) inetConnector(name string, host string, port string, sslProfile string) *RouterConfig {
+	rc.config.Connectors[name] = qdr.Connector{
+		Name:           name,
+		Role:           qdr.RoleInterNetwork,
+		Host:           host,
+		Port:           port,
+		VerifyHostname: true,
+		SslProfile:     sslProfile,
+	}
+	return rc
+}
+
+func (rc *RouterConfig) autoLink(name string, address string, externalAddress string, direction string, connection string) *RouterConfig {
+	if rc.config.AutoLinks == nil {
+		rc.config.AutoLinks = map[string]qdr.AutoLink{}
+	}
+	rc.config.AutoLinks[name] = qdr.AutoLink{
+		Name:            name,
+		Address:         address,
+		ExternalAddress: externalAddress,
+		Direction:       direction,
+		Connection:      connection,
+	}
+	return rc
+}
+
+func (rc *RouterConfig) networkId(id string) *RouterConfig {
+	rc.config.Network.NetworkId = id
+	return rc
+}
+
+func TestMultiVANCRDs(t *testing.T) {
+	testTable := []struct {
+		name                                string
+		k8sObjects                          []runtime.Object
+		skupperObjects                      []runtime.Object
+		waitFunctions                       []WaitFunction
+		expectedRouterConfig                []*RouterConfig
+		expectedSiteStatuses                []*skupperv2alpha1.Site
+		expectedNetworkStatuses             []*skupperv2alpha1.Network
+		expectedNetworkLinkStatuses         []*skupperv2alpha1.NetworkLink
+		expectedNetworkAccessStatuses       []*skupperv2alpha1.NetworkAccess
+		expectedInterNetworkIngressStatuses []*skupperv2alpha1.InterNetworkIngress
+	}{
+		{
+			name: "site with network",
+			skupperObjects: []runtime.Object{
+				f.site("mysite", "test", "", false, false),
+				f.network("network", "test", "my-van"),
+			},
+			expectedSiteStatuses: []*skupperv2alpha1.Site{
+				f.siteStatus("mysite", "test", skupperv2alpha1.StatusPending, "Not Running",
+					f.condition(skupperv2alpha1.CONDITION_TYPE_CONFIGURED, metav1.ConditionTrue, "Ready", "OK")),
+			},
+			expectedRouterConfig: []*RouterConfig{
+				f.routerConfig("skupper-router", "test").networkId("my-van"),
+			},
+			expectedNetworkStatuses: []*skupperv2alpha1.Network{
+				f.networkStatus("network", "test", skupperv2alpha1.StatusReady, "OK",
+					f.condition(skupperv2alpha1.CONDITION_TYPE_CONFIGURED, metav1.ConditionTrue, "Ready", "OK")),
+			},
+		},
+		{
+			name: "site with network and network link",
+			skupperObjects: []runtime.Object{
+				f.site("mysite", "test", "", false, false),
+				f.network("network", "test", "my-van"),
+				f.networkLink("link1", "test", "remote.example.com", 55555, "link1-creds"),
+			},
+			waitFunctions: []WaitFunction{
+				func(t *testing.T, clients internalclient.Clients) bool {
+					cm, err := clients.GetKubeClient().CoreV1().ConfigMaps("test").Get(context.Background(), "skupper-router", metav1.GetOptions{})
+					if err != nil {
+						return false
+					}
+					config, err := qdr.GetRouterConfigFromConfigMap(cm)
+					if err != nil {
+						return false
+					}
+					_, ok := config.Connectors["link1-networklink-connector"]
+					return ok
+				},
+			},
+			expectedSiteStatuses: []*skupperv2alpha1.Site{
+				f.siteStatus("mysite", "test", skupperv2alpha1.StatusPending, "Not Running",
+					f.condition(skupperv2alpha1.CONDITION_TYPE_CONFIGURED, metav1.ConditionTrue, "Ready", "OK")),
+			},
+			expectedRouterConfig: []*RouterConfig{
+				f.routerConfig("skupper-router", "test").
+					networkId("my-van").
+					inetConnector("link1-networklink-connector", "remote.example.com", "55555", "link1-creds-profile"),
+			},
+			expectedNetworkLinkStatuses: []*skupperv2alpha1.NetworkLink{
+				f.networkLinkStatus("link1", "test", skupperv2alpha1.StatusReady, "OK",
+					f.condition(skupperv2alpha1.CONDITION_TYPE_CONFIGURED, metav1.ConditionTrue, "Ready", "OK")),
+			},
+		},
+		{
+			name: "site with network and network access",
+			skupperObjects: []runtime.Object{
+				f.site("mysite", "test", "", false, false),
+				f.network("network", "test", "my-van"),
+				f.networkAccess("na1", "test", "na1-creds"),
+			},
+			waitFunctions: []WaitFunction{
+				func(t *testing.T, clients internalclient.Clients) bool {
+					na, err := clients.GetSkupperClient().SkupperV2alpha1().NetworkAccesses("test").Get(context.Background(), "na1", metav1.GetOptions{})
+					assert.Assert(t, err)
+					return meta.IsStatusConditionTrue(na.Status.Conditions, skupperv2alpha1.CONDITION_TYPE_CONFIGURED)
+				},
+			},
+			expectedSiteStatuses: []*skupperv2alpha1.Site{
+				f.siteStatus("mysite", "test", skupperv2alpha1.StatusPending, "Not Running",
+					f.condition(skupperv2alpha1.CONDITION_TYPE_CONFIGURED, metav1.ConditionTrue, "Ready", "OK")),
+			},
+			expectedRouterConfig: []*RouterConfig{
+				f.routerConfig("skupper-router", "test").
+					networkId("my-van").
+					inetListener("na1-inter-network", 0, "na1-creds"),
+			},
+			expectedNetworkAccessStatuses: []*skupperv2alpha1.NetworkAccess{
+				f.networkAccessStatus("na1", "test", skupperv2alpha1.StatusPending, "Not Resolved",
+					f.condition(skupperv2alpha1.CONDITION_TYPE_CONFIGURED, metav1.ConditionTrue, "Ready", "OK")),
+			},
+		},
+		{
+			name: "network link without network",
+			skupperObjects: []runtime.Object{
+				f.site("mysite", "test", "", false, false),
+				f.networkLink("link1", "test", "remote.example.com", 55555, "link1-creds"),
+			},
+			waitFunctions: []WaitFunction{
+				isSiteStatusConditionTrue("mysite", "test", skupperv2alpha1.CONDITION_TYPE_CONFIGURED),
+				func(t *testing.T, clients internalclient.Clients) bool {
+					nl, err := clients.GetSkupperClient().SkupperV2alpha1().NetworkLinks("test").Get(context.Background(), "link1", metav1.GetOptions{})
+					assert.Assert(t, err)
+					if !meta.IsStatusConditionFalse(nl.Status.Conditions, skupperv2alpha1.CONDITION_TYPE_CONFIGURED) {
+						return false
+					}
+					return true
+				},
+			},
+			expectedSiteStatuses: []*skupperv2alpha1.Site{
+				f.siteStatus("mysite", "test", skupperv2alpha1.StatusPending, "Not Running",
+					f.condition(skupperv2alpha1.CONDITION_TYPE_CONFIGURED, metav1.ConditionTrue, "Ready", "OK")),
+			},
+			expectedNetworkLinkStatuses: []*skupperv2alpha1.NetworkLink{
+				f.networkLinkStatus("link1", "test", skupperv2alpha1.StatusPending, "Network is not defined",
+					f.condition(skupperv2alpha1.CONDITION_TYPE_CONFIGURED, metav1.ConditionFalse, "Pending", "Pending")),
+			},
+			expectedRouterConfig: []*RouterConfig{
+				f.routerConfig("skupper-router", "test"),
+			},
+		},
+		{
+			name: "site with internet ingress via network link",
+			skupperObjects: []runtime.Object{
+				f.site("mysite", "test", "", false, false),
+				f.network("network", "test", "my-van"),
+				f.networkLink("link1", "test", "remote.example.com", 55555, "link1-creds"),
+				f.interNetworkIngress("ing1", "test", "mykey", "link1", ""),
+			},
+			waitFunctions: []WaitFunction{
+				func(t *testing.T, clients internalclient.Clients) bool {
+					ing, err := clients.GetSkupperClient().SkupperV2alpha1().InterNetworkIngresses("test").Get(context.Background(), "ing1", metav1.GetOptions{})
+					assert.Assert(t, err)
+					if !meta.IsStatusConditionTrue(ing.Status.Conditions, skupperv2alpha1.CONDITION_TYPE_CONFIGURED) {
+						return false
+					}
+					cm, err := clients.GetKubeClient().CoreV1().ConfigMaps("test").Get(context.Background(), "skupper-router", metav1.GetOptions{})
+					if err != nil {
+						return false
+					}
+					config, err := qdr.GetRouterConfigFromConfigMap(cm)
+					if err != nil {
+						return false
+					}
+					_, ok := config.Connectors["link1-networklink-connector"]
+					return ok
+				},
+			},
+			expectedSiteStatuses: []*skupperv2alpha1.Site{
+				f.siteStatus("mysite", "test", skupperv2alpha1.StatusPending, "Not Running",
+					f.condition(skupperv2alpha1.CONDITION_TYPE_CONFIGURED, metav1.ConditionTrue, "Ready", "OK")),
+			},
+			expectedRouterConfig: []*RouterConfig{
+				f.routerConfig("skupper-router", "test").
+					networkId("my-van").
+					inetConnector("link1-networklink-connector", "remote.example.com", "55555", "link1-creds-profile").
+					autoLink("link1-connector-autoLink", "", "_xtopo/my-van", qdr.DirectionIn, "link1-networklink-connector").
+					autoLink("ing1-networklink-ingress", "mykey", "", qdr.DirectionIn, "link1-networklink-connector"),
+			},
+		},
+		{
+			name: "wrongly named network",
+			skupperObjects: []runtime.Object{
+				f.site("mysite", "test", "", false, false),
+				f.network("not-network", "test", "my-van"),
+			},
+			expectedSiteStatuses: []*skupperv2alpha1.Site{
+				f.siteStatus("mysite", "test", skupperv2alpha1.StatusPending, "Not Running",
+					f.condition(skupperv2alpha1.CONDITION_TYPE_CONFIGURED, metav1.ConditionTrue, "Ready", "OK")),
+			},
+			expectedNetworkStatuses: []*skupperv2alpha1.Network{
+				f.networkStatus("not-network", "test", skupperv2alpha1.StatusError, "name must be 'network'",
+					f.condition(skupperv2alpha1.CONDITION_TYPE_CONFIGURED, metav1.ConditionFalse, "Error", "name must be 'network'")),
+			},
+		},
+		{
+			name: "network access gets port allocated",
+			skupperObjects: []runtime.Object{
+				f.site("mysite", "test", "", false, false),
+				f.networkAccess("na1", "test", "na1-creds"),
+			},
+			waitFunctions: []WaitFunction{
+				func(t *testing.T, clients internalclient.Clients) bool {
+					na, err := clients.GetSkupperClient().SkupperV2alpha1().NetworkAccesses("test").Get(context.Background(), "na1", metav1.GetOptions{})
+					assert.Assert(t, err)
+					return na.Status.Port > 0
+				},
+			},
+		},
+	}
+	eventProcessorResyncShort := []watchers.EventProcessorCustomizer{
+		func(e *watchers.EventProcessor) {
+			e.SetResyncShort(time.Second)
+		},
+	}
+	for _, tt := range testTable {
+		t.Run(tt.name, func(t *testing.T) {
+			flags := &flag.FlagSet{}
+			config, err := BoundConfig(flags)
+			assert.Assert(t, err)
+			clients, err := fakeclient.NewFakeClient(config.Namespace, tt.k8sObjects, tt.skupperObjects, "")
+			assert.Assert(t, err)
+			enableSSA(clients.GetDynamicClient())
+			controller, err := NewController(clients, config, eventProcessorResyncShort...)
+			assert.Assert(t, err)
+			stopCh := make(chan struct{})
+			err = controller.init(stopCh)
+			assert.Assert(t, err)
+			for i := 0; i < len(tt.k8sObjects)+len(tt.skupperObjects); i++ {
+				controller.eventProcessor.TestProcess()
+			}
+			for _, wf := range tt.waitFunctions {
+				for !wf(t, clients) {
+					controller.eventProcessor.TestProcess()
+				}
+			}
+			for _, expected := range tt.expectedSiteStatuses {
+				actual, err := clients.GetSkupperClient().SkupperV2alpha1().Sites(expected.Namespace).Get(context.Background(), expected.Name, metav1.GetOptions{})
+				assert.Assert(t, err)
+				verifyStatus(t, expected.Status.Status, actual.Status.Status)
+			}
+			for _, expected := range tt.expectedRouterConfig {
+				actual, err := clients.GetKubeClient().CoreV1().ConfigMaps(expected.namespace).Get(context.Background(), expected.name, metav1.GetOptions{})
+				assert.Assert(t, err)
+				actualConfig, err := qdr.GetRouterConfigFromConfigMap(actual)
+				assert.Assert(t, err)
+				assert.Equal(t, expected.config.Network.NetworkId, actualConfig.Network.NetworkId)
+				for key, expectedListener := range expected.config.Listeners {
+					actualListener, ok := actualConfig.Listeners[key]
+					assert.Assert(t, ok, "no listener found for %s", key)
+					assert.Equal(t, expectedListener.Role, actualListener.Role)
+					assert.Equal(t, expectedListener.SslProfile, actualListener.SslProfile)
+					if expectedListener.Port != 0 {
+						assert.Equal(t, expectedListener.Port, actualListener.Port)
+					}
+				}
+				assert.Equal(t, len(expected.config.Listeners)+3, len(actualConfig.Listeners))
+				for key, expectedConnector := range expected.config.Connectors {
+					actualConnector, ok := actualConfig.Connectors[key]
+					assert.Assert(t, ok, "no connector found for %s", key)
+					assert.Equal(t, expectedConnector.Role, actualConnector.Role)
+					assert.Equal(t, expectedConnector.Host, actualConnector.Host)
+					assert.Equal(t, expectedConnector.Port, actualConnector.Port)
+					assert.Equal(t, expectedConnector.SslProfile, actualConnector.SslProfile)
+				}
+				for key, expectedAutoLink := range expected.config.AutoLinks {
+					actualAutoLink, ok := actualConfig.AutoLinks[key]
+					assert.Assert(t, ok, "no autolink found for %s", key)
+					assert.Equal(t, expectedAutoLink.Address, actualAutoLink.Address)
+					assert.Equal(t, expectedAutoLink.Connection, actualAutoLink.Connection)
+					assert.Equal(t, expectedAutoLink.Direction, actualAutoLink.Direction)
+				}
+				for key, expected := range expected.config.Bridges.TcpListeners {
+					actual, ok := actualConfig.Bridges.TcpListeners[key]
+					assert.Assert(t, ok, "no tcp listener found for %s", key)
+					assert.Equal(t, actual, expected)
+				}
+			}
+			for _, expected := range tt.expectedNetworkStatuses {
+				actual, err := clients.GetSkupperClient().SkupperV2alpha1().Networks(expected.Namespace).Get(context.Background(), expected.Name, metav1.GetOptions{})
+				assert.Assert(t, err)
+				verifyStatus(t, expected.Status.Status, actual.Status.Status)
+			}
+			for _, expected := range tt.expectedNetworkLinkStatuses {
+				actual, err := clients.GetSkupperClient().SkupperV2alpha1().NetworkLinks(expected.Namespace).Get(context.Background(), expected.Name, metav1.GetOptions{})
+				assert.Assert(t, err)
+				verifyStatus(t, expected.Status.Status, actual.Status.Status)
+			}
+			for _, expected := range tt.expectedNetworkAccessStatuses {
+				actual, err := clients.GetSkupperClient().SkupperV2alpha1().NetworkAccesses(expected.Namespace).Get(context.Background(), expected.Name, metav1.GetOptions{})
+				assert.Assert(t, err)
+				verifyStatus(t, expected.Status.Status, actual.Status.Status)
+			}
+			for _, expected := range tt.expectedInterNetworkIngressStatuses {
+				actual, err := clients.GetSkupperClient().SkupperV2alpha1().InterNetworkIngresses(expected.Namespace).Get(context.Background(), expected.Name, metav1.GetOptions{})
+				assert.Assert(t, err)
+				verifyStatus(t, expected.Status.Status, actual.Status.Status)
+			}
+			deps, err := clients.GetKubeClient().AppsV1().Deployments("test").List(context.Background(), metav1.ListOptions{})
+			assert.Assert(t, err)
+			t.Logf("Deployments: %d", len(deps.Items))
+		})
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"strconv"
 	"testing"
 
 	"github.com/skupperproject/skupper/internal/kube/certificates"
@@ -22,6 +23,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -1658,17 +1660,21 @@ func newSiteMocks(namespace string, k8sObjects []runtime.Object, skupperObjects 
 
 	controller := watchers.NewEventProcessor("test", client)
 	newSite := &Site{
-		clients:           controller,
-		bindings:          NewExtendedBindings(controller, ""),
-		links:             make(map[string]*site1.Link),
-		errors:            make(map[string]string),
-		routerAccessPorts: ports.NewFreePortsForRouterAccess(),
-		linkAccess:        make(map[string]*skupperv2alpha1.RouterAccess),
-		certs:             certificates.NewCertificateManager(controller),
-		access:            securedaccess.NewSecuredAccessManager(client, nil, &securedaccess.Config{DefaultAccessType: "loadbalancer"}, nil),
-		accessMapping:     make(accessMap),
-		routerPods:        make(map[string]*corev1.Pod),
-		sizes:             sizing.NewRegistry(),
+		clients:              controller,
+		bindings:             NewExtendedBindings(controller, ""),
+		links:                make(map[string]*site1.Link),
+		errors:               make(map[string]string),
+		routerAccessPorts:    ports.NewFreePortsForRouterAccess(),
+		linkAccess:           make(map[string]*skupperv2alpha1.RouterAccess),
+		networkLinks:         make(map[string]*NetworkLink),
+		inetIngress:          make(map[string]*InterNetworkIngress),
+		networkAccess:        make(site1.NetworkAccessMap),
+		certs:                certificates.NewCertificateManager(controller),
+		access:               securedaccess.NewSecuredAccessManager(client, nil, &securedaccess.Config{DefaultAccessType: "loadbalancer"}, nil),
+		accessMapping:        make(accessMap),
+		networkAccessMapping: make(accessMap),
+		routerPods:           make(map[string]*corev1.Pod),
+		sizes:                sizing.NewRegistry(),
 		logger: slog.New(slog.Default().Handler()).With(
 			slog.String("component", "kube.site.site"),
 		),
@@ -1886,6 +1892,619 @@ func Test_updateAccessTokensForDeletedSite(t *testing.T) {
 				if token.Status.StatusType == "Error" && token.Status.Message == "Already redeemed for a deleted site" {
 					t.Errorf("Token %s: should not have been updated but was", tokenName)
 				}
+			}
+		})
+	}
+}
+
+func TestSite_CheckNetwork(t *testing.T) {
+	type args struct {
+		name    string
+		network *skupperv2alpha1.Network
+	}
+	tests := []struct {
+		name           string
+		args           args
+		want           string
+		wantErr        bool
+		wantReady      bool
+		wantRouterCfg  bool
+		skupperObjects []runtime.Object
+	}{
+		{
+			name: "wrong name sets error status",
+			args: args{
+				name: "not-network",
+				network: &skupperv2alpha1.Network{
+					ObjectMeta: metav1.ObjectMeta{Name: "not-network", Namespace: "test"},
+					Spec:       skupperv2alpha1.NetworkSpec{NetworkId: "my-van"},
+				},
+			},
+			skupperObjects: []runtime.Object{
+				&skupperv2alpha1.Network{
+					ObjectMeta: metav1.ObjectMeta{Name: "not-network", Namespace: "test"},
+				},
+			},
+			want:    "initialized",
+			wantErr: true,
+		},
+		{
+			name: "not initialized sets pending status",
+			args: args{
+				name: "network",
+				network: &skupperv2alpha1.Network{
+					ObjectMeta: metav1.ObjectMeta{Name: "network", Namespace: "test"},
+					Spec:       skupperv2alpha1.NetworkSpec{NetworkId: "my-van"},
+				},
+			},
+			skupperObjects: []runtime.Object{
+				&skupperv2alpha1.Network{
+					ObjectMeta: metav1.ObjectMeta{Name: "network", Namespace: "test"},
+				},
+			},
+			want: "",
+		},
+		{
+			name: "valid network triggers router config update",
+			args: args{
+				name: "network",
+				network: &skupperv2alpha1.Network{
+					ObjectMeta: metav1.ObjectMeta{Name: "network", Namespace: "test"},
+					Spec:       skupperv2alpha1.NetworkSpec{NetworkId: "my-van"},
+				},
+			},
+			skupperObjects: []runtime.Object{
+				&skupperv2alpha1.Network{
+					ObjectMeta: metav1.ObjectMeta{Name: "network", Namespace: "test"},
+				},
+			},
+			want:          "initialized",
+			wantReady:     true,
+			wantRouterCfg: true,
+		},
+		{
+			name: "nil network clears networkId",
+			args: args{
+				name:    "network",
+				network: nil,
+			},
+			skupperObjects: []runtime.Object{},
+			want:           "initialized",
+		},
+		{
+			name: "same spec does not update router config",
+			args: args{
+				name: "network",
+				network: &skupperv2alpha1.Network{
+					ObjectMeta: metav1.ObjectMeta{Name: "network", Namespace: "test"},
+					Spec:       skupperv2alpha1.NetworkSpec{NetworkId: ""},
+				},
+			},
+			skupperObjects: []runtime.Object{
+				&skupperv2alpha1.Network{
+					ObjectMeta: metav1.ObjectMeta{Name: "network", Namespace: "test"},
+				},
+			},
+			want:          "initialized",
+			wantReady:     true,
+			wantRouterCfg: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, err := newSiteMocks("test", nil, tt.skupperObjects, "", true)
+			assert.Assert(t, err)
+
+			if tt.want == "initialized" {
+				s.initialised = true
+			}
+			err = createRouterConfigMock(s)
+			assert.Assert(t, err)
+
+			assert.Assert(t, s.CheckNetwork(tt.args.name, tt.args.network))
+			networks, err := s.clients.GetSkupperClient().SkupperV2alpha1().Networks("test").List(context.Background(), metav1.ListOptions{})
+			assert.Assert(t, err)
+			assert.Assert(t, len(networks.Items) == len(tt.skupperObjects))
+
+			cm, err := s.clients.GetKubeClient().CoreV1().ConfigMaps("test").Get(context.Background(), "skupper-router", metav1.GetOptions{})
+			assert.Assert(t, err)
+			config, err := qdr.GetRouterConfigFromConfigMap(cm)
+			assert.Assert(t, err)
+
+			if len(networks.Items) > 0 {
+				actual := networks.Items[0]
+				if tt.wantErr {
+					assert.Assert(t, meta.IsStatusConditionFalse(actual.Status.Conditions, skupperv2alpha1.CONDITION_TYPE_CONFIGURED))
+					actualCondition := meta.FindStatusCondition(actual.Status.Conditions, skupperv2alpha1.CONDITION_TYPE_CONFIGURED)
+					assert.Equal(t, actualCondition.Message, "name must be 'network'")
+				}
+				meta.IsStatusConditionPresentAndEqual(actual.Status.Conditions, skupperv2alpha1.CONDITION_TYPE_READY, metav1.ConditionStatus(strconv.FormatBool(tt.wantReady)))
+				if tt.wantRouterCfg {
+					assert.Assert(t, config.Network.NetworkId != "")
+				} else {
+					assert.Equal(t, config.Network.NetworkId, "")
+				}
+			} else {
+				assert.Equal(t, config.Network.NetworkId, "")
+			}
+		})
+	}
+}
+
+func TestSite_CheckNetworkLink(t *testing.T) {
+	type args struct {
+		name string
+		link *skupperv2alpha1.NetworkLink
+	}
+	tests := []struct {
+		name             string
+		args             args
+		want             string
+		wantErr          bool
+		wantNetworkLinks int
+		wantReady        bool
+		wantStatusMsg    string
+		skupperObjects   []runtime.Object
+	}{
+		{
+			name: "not initialized sets pending status",
+			args: args{
+				name: "link1",
+				link: &skupperv2alpha1.NetworkLink{
+					ObjectMeta: metav1.ObjectMeta{Name: "link1", Namespace: "test"},
+					Spec: skupperv2alpha1.NetworkLinkSpec{
+						Hostname: "remote.example.com",
+						Port:     55555,
+					},
+				},
+			},
+			skupperObjects: []runtime.Object{
+				&skupperv2alpha1.NetworkLink{
+					ObjectMeta: metav1.ObjectMeta{Name: "link1", Namespace: "test"},
+				},
+			},
+			want:             "",
+			wantErr:          false,
+			wantNetworkLinks: 0,
+			wantReady:        false,
+			wantStatusMsg:    "Site is not initialized",
+		},
+		{
+			name: "new link without networkId sets configured false",
+			args: args{
+				name: "link1",
+				link: &skupperv2alpha1.NetworkLink{
+					ObjectMeta: metav1.ObjectMeta{Name: "link1", Namespace: "test"},
+					Spec: skupperv2alpha1.NetworkLinkSpec{
+						Hostname: "remote.example.com",
+						Port:     55555,
+					},
+				},
+			},
+			skupperObjects: []runtime.Object{
+				&skupperv2alpha1.NetworkLink{
+					ObjectMeta: metav1.ObjectMeta{Name: "link1", Namespace: "test"},
+				},
+			},
+			want:             "initialized",
+			wantErr:          false,
+			wantNetworkLinks: 1,
+			wantReady:        false,
+			wantStatusMsg:    "Network is not defined",
+		},
+		{
+			name: "new link with networkId updates router config and sets configured true",
+			args: args{
+				name: "link1",
+				link: &skupperv2alpha1.NetworkLink{
+					ObjectMeta: metav1.ObjectMeta{Name: "link1", Namespace: "test"},
+					Spec: skupperv2alpha1.NetworkLinkSpec{
+						Hostname: "remote.example.com",
+						Port:     55555,
+					},
+				},
+			},
+			skupperObjects: []runtime.Object{
+				&skupperv2alpha1.NetworkLink{
+					ObjectMeta: metav1.ObjectMeta{Name: "link1", Namespace: "test"},
+				},
+			},
+			want:             "initialized-with-network",
+			wantErr:          false,
+			wantNetworkLinks: 1,
+			wantReady:        true,
+			wantStatusMsg:    "OK",
+		},
+		{
+			name: "nil link removes pre-existing entry from networkLinks",
+			args: args{
+				name: "link1",
+				link: nil,
+			},
+			skupperObjects:   []runtime.Object{},
+			want:             "initialized-with-network",
+			wantErr:          false,
+			wantNetworkLinks: 0,
+		},
+		{
+			name: "link is updated",
+			args: args{
+				name: "link1",
+				link: &skupperv2alpha1.NetworkLink{
+					ObjectMeta: metav1.ObjectMeta{Name: "link1", Namespace: "test"},
+					Spec: skupperv2alpha1.NetworkLinkSpec{
+						Hostname: "remote.example.com",
+						Port:     55555,
+					},
+				},
+			},
+			skupperObjects: []runtime.Object{
+				&skupperv2alpha1.NetworkLink{
+					ObjectMeta: metav1.ObjectMeta{Name: "link1", Namespace: "test"},
+				},
+			},
+			want:             "initialized-with-network",
+			wantErr:          false,
+			wantNetworkLinks: 1,
+			wantReady:        true,
+			wantStatusMsg:    "OK",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, err := newSiteMocks("test", nil, tt.skupperObjects, "", true)
+			assert.Assert(t, err)
+
+			if tt.want == "initialized" || tt.want == "initialized-with-network" {
+				s.initialised = true
+				err = createRouterConfigMock(s)
+				assert.Assert(t, err)
+			}
+			if tt.want == "initialized-with-network" {
+				s.network.NetworkId = "my-van"
+			}
+
+			if tt.name == "nil link removes pre-existing entry from networkLinks" {
+				s.networkLinks["link1"] = &NetworkLink{
+					Name:      "link1",
+					NetworkId: "my-van",
+					Link: &skupperv2alpha1.NetworkLink{
+						ObjectMeta: metav1.ObjectMeta{Name: "link1", Namespace: "test"},
+						Spec:       skupperv2alpha1.NetworkLinkSpec{Hostname: "remote.example.com", Port: 55555},
+					},
+				}
+			}
+
+			if err = s.CheckNetworkLink(tt.args.name, tt.args.link); (err != nil) != tt.wantErr {
+				t.Errorf("Site.CheckNetworkLink() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if len(s.networkLinks) != tt.wantNetworkLinks {
+				t.Errorf("expected %d networkLinks, got %d", tt.wantNetworkLinks, len(s.networkLinks))
+			}
+
+			if tt.wantNetworkLinks > 0 {
+				link := s.networkLinks["link1"].Link
+				meta.IsStatusConditionPresentAndEqual(link.Status.Conditions,
+					skupperv2alpha1.CONDITION_TYPE_READY, metav1.ConditionStatus(strconv.FormatBool(tt.wantReady)))
+				if tt.wantStatusMsg != "" {
+					assert.Equal(t, link.Status.Message, tt.wantStatusMsg)
+				}
+			}
+		})
+	}
+}
+
+func TestSite_CheckNetworkAccess(t *testing.T) {
+	type args struct {
+		name   string
+		access *skupperv2alpha1.NetworkAccess
+	}
+	tests := []struct {
+		name              string
+		args              args
+		want              string
+		wantErr           bool
+		wantUpdStatusErr  bool
+		wantNetworkAccess int
+		skupperObjects    []runtime.Object
+	}{
+		{
+			name: "not initialized stores in map silently",
+			args: args{
+				name: "na1",
+				access: &skupperv2alpha1.NetworkAccess{
+					ObjectMeta: metav1.ObjectMeta{Name: "na1", Namespace: "test"},
+					Spec: skupperv2alpha1.NetworkAccessSpec{
+						BindHost: "0.0.0.0",
+						Port:     55555,
+					},
+				},
+			},
+			skupperObjects:    []runtime.Object{},
+			want:              "",
+			wantErr:           false,
+			wantNetworkAccess: 1,
+		},
+		{
+			name: "new access allocates port dynamically",
+			args: args{
+				name: "na1",
+				access: &skupperv2alpha1.NetworkAccess{
+					ObjectMeta: metav1.ObjectMeta{Name: "na1", Namespace: "test"},
+					Spec: skupperv2alpha1.NetworkAccessSpec{
+						BindHost: "0.0.0.0",
+					},
+				},
+			},
+			skupperObjects: []runtime.Object{
+				&skupperv2alpha1.NetworkAccess{
+					ObjectMeta: metav1.ObjectMeta{Name: "na1", Namespace: "test"},
+				},
+			},
+			want:              "initialized",
+			wantErr:           false,
+			wantNetworkAccess: 1,
+		},
+		{
+			name: "nil access removes entry and releases port",
+			args: args{
+				name:   "na1",
+				access: nil,
+			},
+			skupperObjects:    []runtime.Object{},
+			want:              "initialized",
+			wantErr:           false,
+			wantNetworkAccess: 0,
+			wantUpdStatusErr:  true,
+		},
+		{
+			name: "new access with update status error releases allocated port",
+			args: args{
+				name: "na1",
+				access: &skupperv2alpha1.NetworkAccess{
+					ObjectMeta: metav1.ObjectMeta{Name: "na1", Namespace: "test"},
+					Spec: skupperv2alpha1.NetworkAccessSpec{
+						BindHost: "0.0.0.0",
+					},
+				},
+			},
+			skupperObjects: []runtime.Object{
+				&skupperv2alpha1.NetworkAccess{
+					ObjectMeta: metav1.ObjectMeta{Name: "na1", Namespace: "test"},
+				},
+			},
+			want:              "initialized",
+			wantErr:           true,
+			wantNetworkAccess: 1,
+			wantUpdStatusErr:  true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, err := newSiteMocks("test", nil, tt.skupperObjects, "", true)
+			assert.Assert(t, err)
+
+			if tt.want == "initialized" {
+				s.initialised = true
+				err = createRouterConfigMock(s)
+				assert.Assert(t, err)
+			}
+
+			if tt.name == "nil access removes entry and releases port" {
+				existing := &skupperv2alpha1.NetworkAccess{
+					ObjectMeta: metav1.ObjectMeta{Name: "na1", Namespace: "test"},
+				}
+				existing.AllocatePort(65025)
+				s.networkAccess["na1"] = existing
+			}
+
+			if tt.wantUpdStatusErr {
+				s.clients.GetSkupperClient().(*skupperclientfake.Clientset).PrependReactor("update", "networkaccesses/status", func(action k8stesting.Action) (bool, runtime.Object, error) {
+					update := action.(k8stesting.UpdateAction)
+					na := update.GetObject().(*skupperv2alpha1.NetworkAccess)
+					return true, na, fmt.Errorf("forced updatestatus error")
+				})
+			}
+
+			if err = s.CheckNetworkAccess(tt.args.name, tt.args.access); (err != nil) != tt.wantErr {
+				t.Errorf("Site.CheckNetworkAccess() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if len(s.networkAccess) != tt.wantNetworkAccess {
+				t.Errorf("expected %d networkAccess entries, got %d", tt.wantNetworkAccess, len(s.networkAccess))
+			}
+
+			if tt.name == "new access allocates port dynamically" {
+				if s.networkAccess["na1"].GetPort() == 0 {
+					t.Errorf("expected port to be allocated, got 0")
+				}
+			}
+
+			if tt.name == "nil access removes entry and releases port" {
+				if s.routerAccessPorts.Available[0].Start != ports.MIN_ROUTER_PORT {
+					t.Errorf("expected port to be released back to pool")
+				}
+			}
+
+			if tt.wantUpdStatusErr {
+				assert.Equal(t, fmt.Sprintf("[(%d-%d)]", ports.MIN_ROUTER_PORT, ports.MAX_ROUTER_PORT), s.routerAccessPorts.String())
+			}
+		})
+	}
+}
+
+func TestSite_CheckInterNetworkIngress(t *testing.T) {
+	type args struct {
+		name    string
+		ingress *skupperv2alpha1.InterNetworkIngress
+	}
+	tests := []struct {
+		name            string
+		args            args
+		want            string
+		wantErr         bool
+		wantInetIngress int
+		skupperObjects  []runtime.Object
+	}{
+		{
+			name: "not initialized sets pending status",
+			args: args{
+				name: "ing1",
+				ingress: &skupperv2alpha1.InterNetworkIngress{
+					ObjectMeta: metav1.ObjectMeta{Name: "ing1", Namespace: "test"},
+					Spec: skupperv2alpha1.InterNetworkIngressSpec{
+						RoutingKey:  "mykey",
+						NetworkLink: "link1",
+					},
+				},
+			},
+			skupperObjects: []runtime.Object{
+				&skupperv2alpha1.InterNetworkIngress{
+					ObjectMeta: metav1.ObjectMeta{Name: "ing1", Namespace: "test"},
+				},
+			},
+			want:            "",
+			wantErr:         false,
+			wantInetIngress: 0,
+		},
+		{
+			name: "no matching network link sets error status",
+			args: args{
+				name: "ing1",
+				ingress: &skupperv2alpha1.InterNetworkIngress{
+					ObjectMeta: metav1.ObjectMeta{Name: "ing1", Namespace: "test"},
+					Spec: skupperv2alpha1.InterNetworkIngressSpec{
+						RoutingKey:  "mykey",
+						NetworkLink: "missing-link",
+					},
+				},
+			},
+			skupperObjects: []runtime.Object{
+				&skupperv2alpha1.InterNetworkIngress{
+					ObjectMeta: metav1.ObjectMeta{Name: "ing1", Namespace: "test"},
+				},
+			},
+			want:            "initialized",
+			wantErr:         false,
+			wantInetIngress: 1,
+		},
+		{
+			name: "valid ingress with link updates router config",
+			args: args{
+				name: "ing1",
+				ingress: &skupperv2alpha1.InterNetworkIngress{
+					ObjectMeta: metav1.ObjectMeta{Name: "ing1", Namespace: "test"},
+					Spec: skupperv2alpha1.InterNetworkIngressSpec{
+						RoutingKey:  "mykey",
+						NetworkLink: "link1",
+					},
+				},
+			},
+			skupperObjects: []runtime.Object{
+				&skupperv2alpha1.InterNetworkIngress{
+					ObjectMeta: metav1.ObjectMeta{Name: "ing1", Namespace: "test"},
+				},
+			},
+			want:            "initialized-with-link",
+			wantErr:         false,
+			wantInetIngress: 1,
+		},
+		{
+			name: "valid ingress with updated network link",
+			args: args{
+				name: "ing1",
+				ingress: &skupperv2alpha1.InterNetworkIngress{
+					ObjectMeta: metav1.ObjectMeta{Name: "ing1", Namespace: "test"},
+					Spec: skupperv2alpha1.InterNetworkIngressSpec{
+						RoutingKey:  "mykey",
+						NetworkLink: "link2",
+					},
+				},
+			},
+			skupperObjects: []runtime.Object{
+				&skupperv2alpha1.InterNetworkIngress{
+					ObjectMeta: metav1.ObjectMeta{Name: "ing1", Namespace: "test"},
+					Spec: skupperv2alpha1.InterNetworkIngressSpec{
+						RoutingKey:  "mykey",
+						NetworkLink: "link1",
+					},
+				},
+			},
+			want:            "initialized-with-link",
+			wantErr:         false,
+			wantInetIngress: 1,
+		},
+		{
+			name: "nil ingress removes entry from inetIngress",
+			args: args{
+				name:    "ing1",
+				ingress: nil,
+			},
+			skupperObjects:  []runtime.Object{},
+			want:            "initialized-with-link",
+			wantErr:         false,
+			wantInetIngress: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, err := newSiteMocks("test", nil, tt.skupperObjects, "", true)
+			assert.Assert(t, err)
+
+			if tt.want == "initialized" || tt.want == "initialized-with-link" {
+				s.initialised = true
+				err = createRouterConfigMock(s)
+				assert.Assert(t, err)
+			}
+
+			if tt.want == "initialized-with-link" {
+				s.networkLinks["link1"] = &NetworkLink{
+					Name:      "link1",
+					NetworkId: "my-van",
+					Link: &skupperv2alpha1.NetworkLink{
+						ObjectMeta: metav1.ObjectMeta{Name: "link1", Namespace: "test"},
+						Spec: skupperv2alpha1.NetworkLinkSpec{
+							Hostname: "remote.example.com",
+							Port:     55555,
+						},
+					},
+				}
+				s.networkLinks["link2"] = &NetworkLink{
+					Name:      "link2",
+					NetworkId: "my-van",
+					Link: &skupperv2alpha1.NetworkLink{
+						ObjectMeta: metav1.ObjectMeta{Name: "link2", Namespace: "test"},
+						Spec: skupperv2alpha1.NetworkLinkSpec{
+							Hostname: "remote2.example.com",
+							Port:     55555,
+						},
+					},
+				}
+			}
+
+			if tt.name == "nil ingress removes entry from inetIngress" {
+				s.inetIngress["ing1"] = &InterNetworkIngress{
+					Name:    "ing1",
+					Ingress: &skupperv2alpha1.InterNetworkIngress{ObjectMeta: metav1.ObjectMeta{Name: "ing1", Namespace: "test"}},
+					Link:    s.networkLinks["link1"],
+				}
+			}
+
+			if tt.name == "valid ingress with updated network link" {
+				s.inetIngress["ing1"] = &InterNetworkIngress{
+					Name:    "ing1",
+					Ingress: (tt.skupperObjects[0]).(*skupperv2alpha1.InterNetworkIngress),
+					Link:    s.networkLinks["link1"],
+				}
+			}
+
+			if err = s.CheckInterNetworkIngress(tt.args.name, tt.args.ingress); (err != nil) != tt.wantErr {
+				t.Errorf("Site.CheckInterNetworkIngress() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if len(s.inetIngress) != tt.wantInetIngress {
+				t.Errorf("expected %d inetIngress entries, got %d", tt.wantInetIngress, len(s.inetIngress))
 			}
 		})
 	}

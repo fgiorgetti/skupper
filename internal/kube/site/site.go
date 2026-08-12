@@ -284,6 +284,7 @@ func (s *Site) reconcile(siteDef *skupperv2alpha1.Site, inRecovery bool) error {
 		s.initialised = !inRecovery
 		s.currentGroups = s.groups()
 		s.bindings.init(s, routerConfig)
+		s.recoverAccessPorts(routerConfig)
 		s.setBindingsConfiguredStatus(nil)
 		s.checkSecuredAccess()
 		s.network.init(routerConfig)
@@ -2198,12 +2199,18 @@ func (s *Site) CheckNetworkLink(name string, link *skupperv2alpha1.NetworkLink) 
 		s.networkLinks[name] = newLink
 		if s.network.NetworkId != "" {
 			update = newLink
+		} else {
+			if link.SetConfigured(false) && link.Status.SetStatusMessage("Network is not defined") {
+				logger.Info("NetworkLink set to pending as network is not defined")
+				_, err = cli.UpdateStatus(context.Background(), link, metav1.UpdateOptions{})
+			}
+			return err
 		}
 	}
 	if update == nil {
 		return nil
 	}
-	logger.Info("NetworkLink has changed, updating router config")
+	logger.Debug("NetworkLink has changed, updating router config")
 	err = s.updateRouterConfig(update)
 	if link == nil {
 		delete(s.networkLinks, name)
@@ -2246,6 +2253,7 @@ func (s *Site) CheckInterNetworkIngress(name string, ingress *skupperv2alpha1.In
 	}
 	var update qdr.ConfigUpdate
 	var existingLink *NetworkLink
+	var existingAccess *skupperv2alpha1.NetworkAccess
 	if existing, ok := s.inetIngress[name]; ok {
 		var networkLink *NetworkLink
 		var networkAccess *skupperv2alpha1.NetworkAccess
@@ -2257,22 +2265,26 @@ func (s *Site) CheckInterNetworkIngress(name string, ingress *skupperv2alpha1.In
 			update = existing
 		}
 		existingLink = existing.Link
+		existingAccess = existing.Access
 	} else if ingress != nil {
 		newIngress := NewInterNetworkIngress(ingress, s.networkLinks[ingress.Spec.NetworkLink], s.networkAccess[ingress.Spec.NetworkAccess])
 		s.inetIngress[name] = newIngress
 		existingLink = newIngress.Link
-		if newIngress.Link != nil {
+		existingAccess = newIngress.Access
+		if newIngress.Link != nil || newIngress.Access != nil {
 			update = newIngress
 		}
 	}
 	if update == nil {
-		if ingress != nil && existingLink == nil && ingress.SetError(fmt.Errorf("invalid network link")) {
-			_, err = cli.UpdateStatus(context.Background(), ingress, metav1.UpdateOptions{})
-			return err
+		if ingress != nil && existingLink == nil && existingAccess == nil {
+			if ingress.SetError(fmt.Errorf("invalid network link")) {
+				_, err = cli.UpdateStatus(context.Background(), ingress, metav1.UpdateOptions{})
+				return err
+			}
 		}
 		return nil
 	}
-	logger.Info("InterNetworkIngress has changed, updating router config")
+	logger.Debug("InterNetworkIngress has changed, updating router config")
 	err = s.updateRouterConfig(update)
 	if ingress == nil {
 		delete(s.inetIngress, name)
@@ -2333,6 +2345,14 @@ func (s *Site) checkNetworkAccessMapping(name string, sa *skupperv2alpha1.Secure
 		return s.updateNetworkAccessStatus(networkAccess)
 	}
 	return nil
+}
+
+func (s *Site) recoverAccessPorts(config *qdr.RouterConfig) {
+	if config != nil {
+		for _, l := range config.Listeners {
+			s.routerAccessPorts.InUse(int(l.Port))
+		}
+	}
 }
 
 func podState(pod *corev1.Pod) skupperv2alpha1.ConditionState {

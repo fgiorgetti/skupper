@@ -557,7 +557,7 @@ func (c *EventProcessor) WatchNetworkAccesses(namespace string, handler NetworkA
 	informer := skupperv2alpha1informer.NewNetworkAccessInformer(
 		c.skupperClient,
 		namespace,
-		time.Second*30,
+		c.resyncShort,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
 }
@@ -584,7 +584,7 @@ func (c *EventProcessor) WatchNetwork(namespace string, handler NetworkHandler) 
 	informer := skupperv2alpha1informer.NewNetworkInformer(
 		c.skupperClient,
 		namespace,
-		time.Second*30,
+		c.resyncShort,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
 }
@@ -593,7 +593,7 @@ func (c *EventProcessor) WatchNetworkLink(namespace string, handler NetworkLinkH
 	informer := skupperv2alpha1informer.NewNetworkLinkInformer(
 		c.skupperClient,
 		namespace,
-		time.Second*30,
+		c.resyncShort,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
 }
@@ -602,7 +602,7 @@ func (c *EventProcessor) WatchInterNetworkIngress(namespace string, handler Inte
 	informer := skupperv2alpha1informer.NewInterNetworkIngressInformer(
 		c.skupperClient,
 		namespace,
-		time.Second*30,
+		c.resyncShort,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 	return addEventProcessorWatcher(c, handler, v2alpha1.SchemeGroupVersion, informer)
 }

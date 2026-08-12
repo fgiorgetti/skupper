@@ -253,3 +253,54 @@ func TestMergePortRangeFailed(t *testing.T) {
 		t.Errorf(`merge should not succeed`)
 	}
 }
+
+func TestNewFreePortsForRouterAccess(t *testing.T) {
+	ports := NewFreePortsForRouterAccess()
+	if len(ports.Available) != 1 {
+		t.Errorf("expected 1 available range, got %d", len(ports.Available))
+	}
+	if ports.Available[0].Start != MIN_ROUTER_PORT {
+		t.Errorf("expected range to start at %d, got %d", MIN_ROUTER_PORT, ports.Available[0].Start)
+	}
+	if ports.Available[0].End != MAX_ROUTER_PORT {
+		t.Errorf("expected range to end at %d, got %d", MAX_ROUTER_PORT, ports.Available[0].End)
+	}
+	first, err := ports.NextFreePort()
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if first != MIN_ROUTER_PORT {
+		t.Errorf("expected first free port to be %d, got %d", MIN_ROUTER_PORT, first)
+	}
+	second, err := ports.NextFreePort()
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if second != MIN_ROUTER_PORT+1 {
+		t.Errorf("expected second free port to be %d, got %d", MIN_ROUTER_PORT+1, second)
+	}
+}
+
+func TestReleaseAll(t *testing.T) {
+	ports := NewFreePortsForRouterAccess()
+	a, _ := ports.NextFreePort()
+	b, _ := ports.NextFreePort()
+	c, _ := ports.NextFreePort()
+
+	if ports.String() != "[(65028-65535)]" {
+		t.Errorf("unexpected state before ReleaseAll: %s", ports)
+	}
+
+	result := ports.ReleaseAll(int32(a), int32(b), int32(c))
+	if !result {
+		t.Errorf("expected ReleaseAll to return true")
+	}
+	if ports.String() != "[(65025-65535)]" {
+		t.Errorf("expected full range after ReleaseAll, got: %s", ports)
+	}
+
+	result = ports.ReleaseAll()
+	if result {
+		t.Errorf("expected ReleaseAll to return false for empty input")
+	}
+}

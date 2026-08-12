@@ -32,6 +32,9 @@ func NewInterNetworkIngress(ingress *v2alpha1.InterNetworkIngress, networkLink *
 
 func (m *InterNetworkIngress) Update(desired *v2alpha1.InterNetworkIngress, networkLink *NetworkLink, networkAccess *v2alpha1.NetworkAccess) bool {
 	if desired == nil {
+		if m.Ingress == nil {
+			return false
+		}
 		m.Ingress = nil
 		return true
 	}

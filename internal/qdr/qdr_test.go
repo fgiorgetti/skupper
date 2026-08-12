@@ -851,3 +851,296 @@ func TestTcpEndpointEquivalentHttpModes(t *testing.T) {
 		t.Errorf("expected http1 vs none to be not equivalent")
 	}
 }
+
+func TestIsInterNetworkConnector(t *testing.T) {
+	tests := []struct {
+		name string
+		role Role
+		want bool
+	}{
+		{
+			name: "inter-network",
+			role: RoleInterNetwork,
+			want: true,
+		},
+		{
+			name: "inter-router",
+			role: RoleInterRouter,
+			want: false,
+		},
+		{
+			name: "edge",
+			role: RoleEdge,
+			want: false,
+		},
+		{
+			name: "normal",
+			role: RoleNormal,
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := Connector{Role: tt.role}
+			if got := c.IsInterNetworkConnector(); got != tt.want {
+				t.Errorf("IsInterNetworkConnector() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsInterNetworkNotProtectedListener(t *testing.T) {
+	tests := []struct {
+		name         string
+		listenerName string
+		role         Role
+		want         bool
+	}{
+		{
+			name:         "inter-network listener",
+			listenerName: "my-listener",
+			role:         RoleInterNetwork,
+			want:         true,
+		},
+		{
+			name:         "inter-router listener",
+			listenerName: "my-listener",
+			role:         RoleInterRouter,
+			want:         false,
+		},
+		{
+			name:         "edge listener",
+			listenerName: "my-listener",
+			role:         RoleEdge,
+			want:         false,
+		},
+		{
+			name:         "protected amqp",
+			listenerName: "amqp",
+			role:         RoleInterNetwork,
+			want:         false,
+		},
+		{
+			name:         "protected amqps",
+			listenerName: "amqps",
+			role:         RoleInterNetwork,
+			want:         false,
+		},
+		{
+			name:         "protected metrics",
+			listenerName: "@9090",
+			role:         RoleInterNetwork,
+			want:         false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := Listener{Name: tt.listenerName, Role: tt.role}
+			if got := IsInterNetworkNotProtectedListener(l); got != tt.want {
+				t.Errorf("IsInterNetworkNotProtectedListener() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetMatchingListeners(t *testing.T) {
+	config := InitialConfig("foo", "bar", "undefined", false, 3)
+	config.AddListener(Listener{Name: "inet-1", Role: RoleInterNetwork})
+	config.AddListener(Listener{Name: "inet-2", Role: RoleInterNetwork})
+	config.AddListener(Listener{Name: "ir-1", Role: RoleInterRouter})
+
+	got := config.GetMatchingListeners(IsInterNetworkNotProtectedListener)
+	if len(got) != 2 {
+		t.Errorf("expected 2 inter-network listeners, got %d", len(got))
+	}
+	if _, ok := got["inet-1"]; !ok {
+		t.Errorf("expected inet-1 in result")
+	}
+	if _, ok := got["inet-2"]; !ok {
+		t.Errorf("expected inet-2 in result")
+	}
+	if _, ok := got["ir-1"]; ok {
+		t.Errorf("did not expect ir-1 in result")
+	}
+}
+
+func TestListenersDifference(t *testing.T) {
+	l1 := Listener{Name: "l1", Role: RoleInterNetwork, Port: 1234}
+	l2 := Listener{Name: "l2", Role: RoleInterNetwork, Port: 5678}
+
+	t.Run("no change", func(t *testing.T) {
+		actual := map[string]Listener{"l1": l1}
+		desired := map[string]Listener{"l1": l1}
+		diff := ListenersDifference(actual, desired)
+		if len(diff.Added) != 0 {
+			t.Errorf("expected no added listeners, got %d", len(diff.Added))
+		}
+		if len(diff.Deleted) != 0 {
+			t.Errorf("expected no deleted listeners, got %d", len(diff.Deleted))
+		}
+	})
+
+	t.Run("new listener", func(t *testing.T) {
+		actual := map[string]Listener{}
+		desired := map[string]Listener{"l2": l2}
+		diff := ListenersDifference(actual, desired)
+		if len(diff.Added) != 1 {
+			t.Errorf("expected 1 added listener, got %d", len(diff.Added))
+		}
+		if len(diff.Deleted) != 0 {
+			t.Errorf("expected no deleted listeners, got %d", len(diff.Deleted))
+		}
+	})
+
+	t.Run("removed listener", func(t *testing.T) {
+		actual := map[string]Listener{"l1": l1}
+		desired := map[string]Listener{}
+		diff := ListenersDifference(actual, desired)
+		if len(diff.Added) != 0 {
+			t.Errorf("expected no added listeners, got %d", len(diff.Added))
+		}
+		if len(diff.Deleted) != 1 {
+			t.Errorf("expected 1 deleted listener, got %d", len(diff.Deleted))
+		}
+	})
+
+	t.Run("changed listener triggers delete and add", func(t *testing.T) {
+		changed := Listener{Name: "l1", Role: RoleInterNetwork, Port: 9999}
+		actual := map[string]Listener{"l1": l1}
+		desired := map[string]Listener{"l1": changed}
+		diff := ListenersDifference(actual, desired)
+		if len(diff.Added) != 1 {
+			t.Errorf("expected 1 added listener, got %d", len(diff.Added))
+		}
+		if len(diff.Deleted) != 1 {
+			t.Errorf("expected 1 deleted listener, got %d", len(diff.Deleted))
+		}
+	})
+}
+
+func TestAddRemoveAutoLink(t *testing.T) {
+	config := InitialConfig("foo", "bar", "v2-dev", false, 3)
+
+	a := AutoLink{
+		Name:      "al1",
+		Address:   "mykey",
+		Direction: DirectionIn,
+	}
+
+	if !config.AddAutoLink(a) {
+		t.Errorf("expected AddAutoLink to return true for new autolink")
+	}
+	if len(config.AutoLinks) != 1 {
+		t.Errorf("expected 1 autolink, got %d", len(config.AutoLinks))
+	}
+
+	if config.AddAutoLink(a) {
+		t.Errorf("expected AddAutoLink to return false for duplicate autolink")
+	}
+	if len(config.AutoLinks) != 1 {
+		t.Errorf("expected 1 autolink after duplicate add, got %d", len(config.AutoLinks))
+	}
+
+	if !config.RemoveAutoLink("al1") {
+		t.Errorf("expected RemoveAutoLink to return true for existing autolink")
+	}
+	if len(config.AutoLinks) != 0 {
+		t.Errorf("expected 0 autolinks after removal, got %d", len(config.AutoLinks))
+	}
+
+	if config.RemoveAutoLink("al1") {
+		t.Errorf("expected RemoveAutoLink to return false for non-existent autolink")
+	}
+}
+
+func TestUnreferencedSslProfiles(t *testing.T) {
+	config := InitialConfig("foo", "bar", "undefined", false, 3)
+	config.AddSslProfile(SslProfile{Name: "used-by-listener"})
+	config.AddSslProfile(SslProfile{Name: "used-by-connector"})
+	config.AddSslProfile(SslProfile{Name: "unused"})
+	config.AddListener(Listener{Name: "l1", SslProfile: "used-by-listener"})
+	config.AddConnector(Connector{Name: "c1", SslProfile: "used-by-connector"})
+
+	unreferenced := config.UnreferencedSslProfiles()
+	if _, ok := unreferenced["unused"]; !ok {
+		t.Errorf("expected unused profile to be unreferenced")
+	}
+	if _, ok := unreferenced["used-by-listener"]; ok {
+		t.Errorf("did not expect used-by-listener to be unreferenced")
+	}
+	if _, ok := unreferenced["used-by-connector"]; ok {
+		t.Errorf("did not expect used-by-connector to be unreferenced")
+	}
+}
+
+func TestNetwork_IsSet(t *testing.T) {
+	tests := []struct {
+		name    string
+		network Network
+		want    bool
+	}{
+		{
+			name:    "empty",
+			network: Network{},
+			want:    false,
+		},
+		{
+			name:    "networkId set",
+			network: Network{NetworkId: "my-van"},
+			want:    true,
+		},
+		{
+			name:    "tenantId set",
+			network: Network{TenantId: "tenant-1"},
+			want:    true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.network.IsSet(); got != tt.want {
+				t.Errorf("Network.IsSet() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNetwork_Equals(t *testing.T) {
+	tests := []struct {
+		name string
+		a    Network
+		b    Network
+		want bool
+	}{
+		{
+			name: "both empty",
+			a:    Network{},
+			b:    Network{},
+			want: true,
+		},
+		{
+			name: "same networkId",
+			a:    Network{NetworkId: "my-van"},
+			b:    Network{NetworkId: "my-van"},
+			want: true,
+		},
+		{
+			name: "different networkId",
+			a:    Network{NetworkId: "van-a"},
+			b:    Network{NetworkId: "van-b"},
+			want: false,
+		},
+		{
+			name: "different tenantId",
+			a:    Network{TenantId: "t1"},
+			b:    Network{TenantId: "t2"},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.a.Equals(tt.b); got != tt.want {
+				t.Errorf("Network.Equals() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
