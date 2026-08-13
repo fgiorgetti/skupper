@@ -1144,3 +1144,108 @@ func TestNetwork_Equals(t *testing.T) {
 		})
 	}
 }
+
+func TestAsAutoLink(t *testing.T) {
+	tests := []struct {
+		name   string
+		record Record
+		want   AutoLink
+	}{
+		{
+			name:   "empty record",
+			record: Record{},
+			want:   AutoLink{},
+		},
+		{
+			name: "all fields",
+			record: Record{
+				"name":            "link1-autolink",
+				"address":         "mykey",
+				"externalAddress": "ext-addr",
+				"direction":       "in",
+				"connection":      "link1-connector",
+				"containerId":     "container-1",
+				"operStatus":      "active",
+			},
+			want: AutoLink{
+				Name:            "link1-autolink",
+				Address:         "mykey",
+				ExternalAddress: "ext-addr",
+				Direction:       "in",
+				Connection:      "link1-connector",
+				ContainerId:     "container-1",
+				operStatus:      OperStatusActive,
+			},
+		},
+		{
+			name: "missing optional fields",
+			record: Record{
+				"name":    "link1-autolink",
+				"address": "mykey",
+			},
+			want: AutoLink{
+				Name:    "link1-autolink",
+				Address: "mykey",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := asAutoLink(tt.record)
+			if got != tt.want {
+				t.Errorf("asAutoLink() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAsNetwork(t *testing.T) {
+	tests := []struct {
+		name   string
+		record Record
+		want   Network
+	}{
+		{
+			name:   "empty record",
+			record: Record{},
+			want:   Network{},
+		},
+		{
+			name: "all fields",
+			record: Record{
+				"networkId": "my-van",
+				"tenantId":  "tenant-1",
+			},
+			want: Network{
+				NetworkId: "my-van",
+				TenantId:  "tenant-1",
+			},
+		},
+		{
+			name: "networkId only",
+			record: Record{
+				"networkId": "my-van",
+			},
+			want: Network{
+				NetworkId: "my-van",
+			},
+		},
+		{
+			name: "tenantId only",
+			record: Record{
+				"tenantId": "tenant-1",
+			},
+			want: Network{
+				TenantId: "tenant-1",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := asNetwork(tt.record)
+			if got != tt.want {
+				t.Errorf("asNetwork() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
