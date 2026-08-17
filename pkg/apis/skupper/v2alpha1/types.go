@@ -199,6 +199,7 @@ type SiteSpec struct {
 	DefaultIssuer  string            `json:"defaultIssuer,omitempty"`
 	Edge           bool              `json:"edge,omitempty"`
 	HA             bool              `json:"ha,omitempty"`
+	NetworkId      string            `json:"networkId,omitempty"`
 	Settings       map[string]string `json:"settings,omitempty"`
 }
 
@@ -572,6 +573,11 @@ func (l *Link) IsReady() bool {
 		meta.IsStatusConditionTrue(l.Status.Conditions, CONDITION_TYPE_OPERATIONAL)
 }
 
+func (l *Link) IsInterVAN() bool {
+	_, found := l.Spec.GetEndpointForRole("inter-network")
+	return found
+}
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // LinkList contains a List of Link instances
@@ -585,6 +591,7 @@ type LinkSpec struct {
 	Endpoints      []Endpoint        `json:"endpoints"`
 	TlsCredentials string            `json:"tlsCredentials,omitempty"`
 	Cost           int               `json:"cost,omitempty"`
+	RoutingKeys    []string          `json:"routingKeys,omitempty"`
 	Settings       map[string]string `json:"settings,omitempty"`
 }
 
@@ -972,14 +979,88 @@ type RouterAccessRole struct {
 	Port int    `json:"port,omitempty"`
 }
 
-func (role RouterAccessRole) GetPort() int32 {
-	if role.Port != 0 {
-		return int32(role.Port)
-	} else if role.Name == "edge" {
-		return 45671
-	} else {
-		return 55671
+func (r *RouterAccess) GetPortForRole(name string) int32 {
+	for _, role := range r.Spec.Roles {
+		if role.Name == name {
+			if role.Port > 0 {
+				return int32(role.Port)
+			}
+			return r.GetAllocatedPortForRole(name)
+		}
 	}
+	return 0
+}
+
+func (r *RouterAccess) GetAllocatedPortForRole(name string) int32 {
+	for _, role := range r.Status.Roles {
+		if role.Name == name {
+			return int32(role.Port)
+		}
+	}
+	return 0
+}
+
+func (r *RouterAccess) GetAllocatedPorts() []int32 {
+	var ports []int32
+	for _, role := range r.Spec.Roles {
+		if role.Port != 0 {
+			continue
+		}
+		if allocatedPort := r.GetAllocatedPortForRole(role.Name); allocatedPort != 0 {
+			ports = append(ports, allocatedPort)
+		}
+	}
+	return ports
+}
+
+func (r *RouterAccess) GetUnusedPorts() []int32 {
+	var ports []int32
+	for _, role := range r.Status.Roles {
+		specRole := r.FindRole(role.Name)
+		if specRole == nil || (specRole.Port > 0 && role.Port > 0 && specRole.Port != role.Port) {
+			ports = append(ports, int32(role.Port))
+		}
+	}
+	return ports
+}
+
+func (r *RouterAccess) AllocatePort(role string, port int) bool {
+	if port == 0 {
+		return false
+	}
+	var ports []RouterAccessRole
+	for _, portStatus := range r.Status.Roles {
+		if portStatus.Name == role {
+			if portStatus.Port == port {
+				return false
+			}
+			continue
+		}
+		ports = append(ports, portStatus)
+	}
+	ports = append(ports, RouterAccessRole{
+		Name: role,
+		Port: port,
+	})
+	r.Status.Roles = ports
+	return true
+}
+
+func (r *RouterAccess) ReleaseUnusedPorts(unusedPorts []int32) {
+	var ports []RouterAccessRole
+	for _, portStatus := range r.Status.Roles {
+		keep := true
+		for _, port := range unusedPorts {
+			if portStatus.Port == int(port) {
+				keep = false
+				break
+			}
+		}
+		if keep {
+			ports = append(ports, portStatus)
+		}
+	}
+	r.Status.Roles = ports
 }
 
 type RouterAccessSpec struct {
@@ -990,12 +1071,22 @@ type RouterAccessSpec struct {
 	Issuer                  string             `json:"issuer,omitempty"`
 	BindHost                string             `json:"bindHost,omitempty"`
 	SubjectAlternativeNames []string           `json:"subjectAlternativeNames,omitempty"`
+	RoutingKeys             []string           `json:"routingKeys,omitempty"`
 	Settings                map[string]string  `json:"settings,omitempty"`
 }
 
 type RouterAccessStatus struct {
 	Status    `json:",inline"`
-	Endpoints []Endpoint `json:"endpoints,omitempty"`
+	Roles     []RouterAccessRole `json:"roles,omitempty"`
+	Endpoints []Endpoint         `json:"endpoints,omitempty"`
+}
+
+func (s *RouterAccessStatus) GetEndpoints() []Endpoint {
+	return s.Endpoints
+}
+
+func (s *RouterAccessStatus) SetEndpoints(endpoints []Endpoint) {
+	s.Endpoints = endpoints
 }
 
 // +genclient

@@ -1,6 +1,7 @@
 package site
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/skupperproject/skupper/internal/qdr"
@@ -18,7 +19,7 @@ func (m RouterAccessMap) desiredListeners() map[string]qdr.Listener {
 				Name:             name,
 				Role:             qdr.GetRole(role.Name),
 				Host:             ra.Spec.BindHost,
-				Port:             role.GetPort(),
+				Port:             ra.GetPortForRole(role.Name),
 				SslProfile:       ra.Spec.TlsCredentials,
 				SaslMechanisms:   "EXTERNAL",
 				AuthenticatePeer: true,
@@ -40,7 +41,7 @@ func (m RouterAccessMap) desiredConnectors(targetGroups []string) []qdr.Connecto
 				Name:       name,
 				Host:       group,
 				Role:       qdr.RoleInterRouter,
-				Port:       strconv.Itoa(role.Port),
+				Port:       strconv.Itoa(int(ra.GetPortForRole(role.Name))),
 				SslProfile: ra.Spec.TlsCredentials,
 				Cost:       1,
 			}
@@ -48,6 +49,25 @@ func (m RouterAccessMap) desiredConnectors(targetGroups []string) []qdr.Connecto
 		}
 	}
 	return connectors
+}
+
+func (m RouterAccessMap) desiredAutoLinks() map[string]qdr.AutoLink {
+	var autoLinks = map[string]qdr.AutoLink{}
+	for raName, ra := range m {
+		if ra.FindRole(qdr.RoleInterNetwork) == nil {
+			continue
+		}
+		for _, routingKey := range ra.Spec.RoutingKeys {
+			autoLinkName := fmt.Sprintf("routerAccess/%s/%s", raName, routingKey)
+			autoLinks[autoLinkName] = qdr.AutoLink{
+				Name:       autoLinkName,
+				Address:    routingKey,
+				Direction:  qdr.DirectionIn,
+				Connection: fmt.Sprintf("%s-inter-network", raName),
+			}
+		}
+	}
+	return autoLinks
 }
 
 func (m RouterAccessMap) findInterRouterRole() (*skupperv2alpha1.RouterAccessRole, *skupperv2alpha1.RouterAccess) {
@@ -79,6 +99,7 @@ func (m RouterAccessMap) DesiredConfigWithAvailableCredentials(targetGroups []st
 	return &RouterAccessConfig{
 		listeners:   source.desiredListeners(),
 		connectors:  source.desiredConnectors(targetGroups),
+		autoLinks:   source.desiredAutoLinks(),
 		profilePath: profilePath,
 	}
 }
@@ -86,6 +107,7 @@ func (m RouterAccessMap) DesiredConfigWithAvailableCredentials(targetGroups []st
 type RouterAccessConfig struct {
 	listeners   map[string]qdr.Listener
 	connectors  []qdr.Connector
+	autoLinks   map[string]qdr.AutoLink
 	profilePath string
 }
 
@@ -100,7 +122,8 @@ func (g *RouterAccessConfig) Apply(config *qdr.RouterConfig) bool {
 		}
 	}
 	for _, value := range lc.Added {
-		if config.AddListener(value) && config.AddSslProfile(qdr.ConfigureSslProfile(value.SslProfile, g.profilePath, true)) {
+		if config.AddListener(value) {
+			config.AddSslProfile(qdr.ConfigureSslProfile(value.SslProfile, g.profilePath, true))
 			changed = true
 		}
 	}
@@ -114,5 +137,34 @@ func (g *RouterAccessConfig) Apply(config *qdr.RouterConfig) bool {
 		config.RemoveSslProfile(name)
 		changed = true
 	}
+	// Check if networkId related autoLinks are needed for inter-network listeners
+	if config.Network.IsSet() {
+		for listenerName := range qdr.FilterListeners(config.Listeners, qdr.IsInterVANListener) {
+			al := AutoLinkForListener(listenerName, config.Network.NetworkId)
+			g.autoLinks[al.Name] = al
+		}
+	}
+	// Update listener related autoLinks
+	autoLinksDiff := qdr.AutoLinksDifference(qdr.FilterAutoLinks(config.AutoLinks, qdr.FilterAutoLinkListeners), g.autoLinks)
+	for _, ld := range autoLinksDiff.Deleted {
+		if config.RemoveAutoLink(ld.Name) {
+			changed = true
+		}
+	}
+	for _, la := range autoLinksDiff.Added {
+		if config.AddAutoLink(la) {
+			changed = true
+		}
+	}
 	return changed
+}
+
+func AutoLinkForListener(listenerName, networkId string) qdr.AutoLink {
+	autoLinkName := fmt.Sprintf("routerAccess/%s", listenerName)
+	return qdr.AutoLink{
+		Name:            autoLinkName,
+		ExternalAddress: fmt.Sprintf("_xtopo/%s", networkId),
+		Direction:       qdr.DirectionIn,
+		Connection:      listenerName,
+	}
 }

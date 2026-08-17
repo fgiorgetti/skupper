@@ -16,15 +16,26 @@ type FreePorts struct {
 
 const (
 	MIN_PORT = 1024
-	MAX_PORT = 65535
+	MAX_PORT = 65435
+	// Ports reserved for dynamic allocation to router accesses
+	MIN_ROUTER_PORT = 65436
+	MAX_ROUTER_PORT = 65535
 )
 
 func NewFreePorts() *FreePorts {
+	return newFreePortsForRange(MIN_PORT, MAX_PORT)
+}
+
+func NewFreePortsForRouterAccess() *FreePorts {
+	return newFreePortsForRange(MIN_ROUTER_PORT, MAX_ROUTER_PORT)
+}
+
+func newFreePortsForRange(start, end int) *FreePorts {
 	return &FreePorts{
 		Available: []PortRange{
 			PortRange{
-				Start: MIN_PORT,
-				End:   MAX_PORT,
+				Start: start,
+				End:   end,
 			},
 		},
 	}
@@ -126,6 +137,16 @@ func (ports *FreePorts) String() string {
 		parts = append(parts, r.String())
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+func (ports *FreePorts) ReleaseAll(portsToRelease ...int32) bool {
+	var changed bool
+	for _, port := range portsToRelease {
+		if ports.Release(int(port)) {
+			changed = true
+		}
+	}
+	return changed
 }
 
 func (ports *FreePorts) Release(port int) bool {

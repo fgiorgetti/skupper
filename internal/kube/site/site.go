@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	internalnetwork "github.com/skupperproject/skupper/internal/network"
+	"github.com/skupperproject/skupper/internal/ports"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -47,47 +48,51 @@ type Labelling interface {
 }
 
 type Site struct {
-	initialised   bool
-	site          *skupperv2alpha1.Site
-	name          string
-	namespace     string
-	clients       *watchers.EventProcessor
-	bindings      *ExtendedBindings
-	links         map[string]*site.Link
-	errors        map[string]string
-	linkAccess    site.RouterAccessMap
-	certs         certificates.CertificateManager
-	access        SecuredAccessFactory
-	accessMapping securedAccessMap
-	sizes         *sizing.Registry
-	routerPods    map[string]*corev1.Pod
-	logger        *slog.Logger
-	currentGroups []string
-	labelling     Labelling
-	profiles      *secrets.ProfilesWatcher
-	disableSecCtx bool
-	leadListeners map[string]string
+	initialised         bool
+	site                *skupperv2alpha1.Site
+	name                string
+	namespace           string
+	clients             *watchers.EventProcessor
+	bindings            *ExtendedBindings
+	links               map[string]*site.Link
+	errors              map[string]string
+	routerAccessPorts   *ports.FreePorts
+	linkAccess          site.RouterAccessMap
+	certs               certificates.CertificateManager
+	access              SecuredAccessFactory
+	accessMapping       securedAccessMap
+	sizes               *sizing.Registry
+	routerPods          map[string]*corev1.Pod
+	logger              *slog.Logger
+	currentGroups       []string
+	labelling           Labelling
+	profiles            *secrets.ProfilesWatcher
+	disableSecCtx       bool
+	dynamicIngressPorts bool
+	leadListeners       map[string]string
 }
 
-func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs certificates.CertificateManager, access SecuredAccessFactory, sizes *sizing.Registry, labelling Labelling, disableSecCtx bool) *Site {
+func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs certificates.CertificateManager, access SecuredAccessFactory, sizes *sizing.Registry, labelling Labelling, dynamicIngressPorts bool, disableSecCtx bool) *Site {
 	logger := slog.New(slog.Default().Handler())
 	site := &Site{
-		bindings:      NewExtendedBindings(eventProcessor, SSL_PROFILE_PATH),
-		namespace:     namespace,
-		clients:       eventProcessor,
-		links:         map[string]*site.Link{},
-		linkAccess:    site.RouterAccessMap{},
-		certs:         certs,
-		access:        access,
-		accessMapping: make(securedAccessMap),
-		sizes:         sizes,
-		routerPods:    map[string]*corev1.Pod{},
+		bindings:          NewExtendedBindings(eventProcessor, SSL_PROFILE_PATH),
+		namespace:         namespace,
+		clients:           eventProcessor,
+		links:             map[string]*site.Link{},
+		linkAccess:        site.RouterAccessMap{},
+		routerAccessPorts: ports.NewFreePortsForRouterAccess(),
+		certs:             certs,
+		access:            access,
+		accessMapping:     make(securedAccessMap),
+		sizes:             sizes,
+		routerPods:        map[string]*corev1.Pod{},
 		logger: logger.With(
 			slog.String("component", "kube.site.site"),
 		),
-		labelling:     labelling,
-		disableSecCtx: disableSecCtx,
-		leadListeners: map[string]string{},
+		labelling:           labelling,
+		disableSecCtx:       disableSecCtx,
+		dynamicIngressPorts: dynamicIngressPorts,
+		leadListeners:       map[string]string{},
 	}
 	site.profiles = secrets.NewProfilesWatcher(
 		sslSecretsWatcher(namespace, eventProcessor),
@@ -196,6 +201,13 @@ func (s *Site) routerMode() qdr.Mode {
 	}
 }
 
+func (s *Site) networkId() string {
+	if s.site != nil {
+		return s.site.Spec.NetworkId
+	}
+	return ""
+}
+
 const SSL_PROFILE_PATH = "/etc/skupper-router-certs"
 const PROXY_PROFILE_PATH = "/etc/skupper-router-proxies"
 
@@ -257,6 +269,7 @@ func (s *Site) reconcile(siteDef *skupperv2alpha1.Site, inRecovery bool) error {
 		s.initialised = !inRecovery
 		s.currentGroups = s.groups()
 		s.bindings.init(s, routerConfig)
+		s.recoverAccessPorts(routerConfig)
 		s.setBindingsConfiguredStatus(nil)
 		s.checkSecuredAccess()
 	} else if len(s.currentGroups) != len(s.groups()) {
@@ -335,6 +348,7 @@ func (s *Site) initialRouterConfig() *qdr.RouterConfig {
 	// IsNotProtectedListener to include the complete list of "protected" listeners.
 	//
 	rc := qdr.InitialConfig(s.name+"-${HOSTNAME}", s.site.GetSiteId(), version.Version, s.isEdge(), 3)
+	rc.Network.NetworkId = s.networkId()
 	rc.AddAddress(qdr.Address{
 		Prefix:       "mc",
 		Distribution: "multicast",
@@ -605,6 +619,22 @@ func (s *Site) Apply(config *qdr.RouterConfig) bool {
 	if mode := s.routerMode(); config.Metadata.Mode != mode {
 		updated = true
 		config.Metadata.Mode = mode
+	}
+	if networkId := s.networkId(); config.Network.NetworkId != networkId {
+		updated = true
+		config.Network.NetworkId = networkId
+		if networkId == "" {
+			for name := range qdr.FilterAutoLinks(config.AutoLinks, qdr.FilterAutoLinkExternalAddress) {
+				config.RemoveAutoLink(name)
+			}
+		} else {
+			for name := range qdr.FilterListeners(config.Listeners, qdr.IsInterVANListener) {
+				config.AddAutoLink(site.AutoLinkForListener(name, networkId))
+			}
+			for name := range qdr.FilterConnectors(config.Connectors, qdr.IsInterVANConnector) {
+				config.AddAutoLink(site.AutoLinkForConnector(name, networkId))
+			}
+		}
 	}
 	if dcc := s.site.Spec.GetRouterDataConnectionCount(); config.Metadata.DataConnectionCount != dcc {
 		updated = true
@@ -1355,7 +1385,8 @@ func (s *Site) link(linkconfig *skupperv2alpha1.Link) error {
 			config = existing
 		}
 	} else {
-		config, err := s.newLink(linkconfig)
+		var err error
+		config, err = s.newLink(linkconfig)
 		if err == nil {
 			s.links[linkconfig.ObjectMeta.Name] = config
 		} else {
@@ -1364,7 +1395,11 @@ func (s *Site) link(linkconfig *skupperv2alpha1.Link) error {
 	}
 	if s.initialised {
 		if config != nil {
-			s.logger.Info("Connecting site using token",
+			connectionTarget := "site"
+			if config.Definition().IsInterVAN() {
+				connectionTarget = "van"
+			}
+			s.logger.Info(fmt.Sprintf("Connecting %s using token", connectionTarget),
 				slog.String("namespace", s.namespace),
 				slog.String("token", linkconfig.ObjectMeta.Name))
 			if currentProxyProfileName != "" && prevProxyProfileName != "" && currentProxyProfileName != prevProxyProfileName {
@@ -1703,8 +1738,8 @@ func asSecuredAccessSpec(routerAccess *skupperv2alpha1.RouterAccess, group strin
 	for _, role := range routerAccess.Spec.Roles {
 		spec.Ports = append(spec.Ports, skupperv2alpha1.SecuredAccessPort{
 			Name:       role.Name,
-			Port:       role.Port,
-			TargetPort: role.Port,
+			Port:       int(routerAccess.GetPortForRole(role.Name)),
+			TargetPort: int(routerAccess.GetPortForRole(role.Name)),
 			Protocol:   "TCP",
 		})
 	}
@@ -1737,18 +1772,48 @@ func (s *Site) checkSecuredAccess() error {
 }
 
 func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) error {
+	if !s.initialised {
+		if s.linkAccess != nil && la != nil {
+			s.linkAccess[name] = la
+		}
+		return nil
+	}
+	var allocatedPorts []int32
+	statusChanged := false
 	specChanged := false
 	if la == nil {
+		if existing, ok := s.linkAccess[name]; ok {
+			s.routerAccessPorts.ReleaseAll(existing.GetAllocatedPorts()...)
+		}
 		delete(s.linkAccess, name)
 		specChanged = true
 	} else {
 		if existing, ok := s.linkAccess[name]; ok {
 			specChanged = !reflect.DeepEqual(existing.Spec, la.Spec)
 		}
+		if unusedPorts := la.GetUnusedPorts(); len(unusedPorts) > 0 {
+			s.routerAccessPorts.ReleaseAll(unusedPorts...)
+			la.ReleaseUnusedPorts(unusedPorts)
+			statusChanged = true
+		}
+		var err error
+		for _, role := range la.Spec.Roles {
+			port := int(la.GetPortForRole(role.Name))
+			if port == 0 {
+				if !s.dynamicIngressPorts {
+					return fmt.Errorf("dynamic port allocation support is not available")
+				}
+				port, err = s.routerAccessPorts.NextFreePort()
+				if err != nil {
+					return err
+				}
+				allocatedPorts = append(allocatedPorts, int32(port))
+			}
+			if s.dynamicIngressPorts && la.AllocatePort(role.Name, port) {
+				statusChanged = true
+			}
+		}
 		s.linkAccess[name] = la
-	}
-	if !s.initialised {
-		return nil
 	}
 	var configuredErr error
 	if la != nil {
@@ -1801,8 +1866,13 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 	if configuredErr != nil {
 		err = stderrors.Join(configuredErr, err)
 	}
-	if la != nil && la.SetConfigured(err) {
+	if la != nil && (la.SetConfigured(err) || statusChanged) {
 		if err := s.updateRouterAccessStatus(la); err != nil {
+			if len(allocatedPorts) > 0 {
+				la.ReleaseUnusedPorts(allocatedPorts)
+				s.routerAccessPorts.ReleaseAll(allocatedPorts...)
+				s.linkAccess[name] = la
+			}
 			return err
 		}
 	}
@@ -1884,6 +1954,14 @@ func (s *Site) TLSPriorValidRevisions() uint64 {
 		}
 	}
 	return revisions
+}
+
+func (s *Site) recoverAccessPorts(config *qdr.RouterConfig) {
+	if config != nil {
+		for _, l := range config.Listeners {
+			s.routerAccessPorts.InUse(int(l.Port))
+		}
+	}
 }
 
 func podState(pod *corev1.Pod) skupperv2alpha1.ConditionState {
