@@ -87,10 +87,11 @@ type Site struct {
 	labelling            Labelling
 	profiles             *secrets.ProfilesWatcher
 	disableSecCtx        bool
+	hasDynamicPortInCrd  bool
 	leadListeners        map[string]string
 }
 
-func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs certificates.CertificateManager, access SecuredAccessFactory, sizes *sizing.Registry, labelling Labelling, disableSecCtx bool) *Site {
+func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs certificates.CertificateManager, access SecuredAccessFactory, sizes *sizing.Registry, labelling Labelling, hasDynamicPortInCrd bool, disableSecCtx bool) *Site {
 	logger := slog.New(slog.Default().Handler())
 	site := &Site{
 		bindings:             NewExtendedBindings(eventProcessor, SSL_PROFILE_PATH),
@@ -111,9 +112,10 @@ func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs ce
 		logger: logger.With(
 			slog.String("component", "kube.site.site"),
 		),
-		labelling:     labelling,
-		disableSecCtx: disableSecCtx,
-		leadListeners: map[string]string{},
+		labelling:           labelling,
+		disableSecCtx:       disableSecCtx,
+		hasDynamicPortInCrd: hasDynamicPortInCrd,
+		leadListeners:       map[string]string{},
 	}
 
 	site.profiles = secrets.NewProfilesWatcher(
@@ -1876,13 +1878,16 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 		for _, role := range la.Spec.Roles {
 			port := int(la.GetPortForRole(role.Name))
 			if port == 0 {
+				if !s.hasDynamicPortInCrd {
+					return fmt.Errorf("dynamic port allocation support is not available")
+				}
 				port, err = s.routerAccessPorts.NextFreePort()
 				if err != nil {
 					return err
 				}
 				allocatedPorts = append(allocatedPorts, int32(port))
 			}
-			if la.AllocatePort(role.Name, port) {
+			if s.hasDynamicPortInCrd && la.AllocatePort(role.Name, port) {
 				statusChanged = true
 			}
 		}

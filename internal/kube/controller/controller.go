@@ -58,6 +58,8 @@ type Controller struct {
 	labellingWatcher                *watchers.ConfigMapWatcher
 	attachableConnectors            map[string]*skupperv2alpha1.AttachedConnector
 	disableSecContext               bool
+	hasMultiVANResources            bool
+	hasDynamicPortInCrd             bool
 	log                             *slog.Logger
 	namespaces                      *NamespaceConfig
 	observedServices                map[string]string
@@ -99,6 +101,20 @@ func labelling() internalinterfaces.TweakListOptionsFunc {
 	}
 }
 
+func hasMultiVANCRDs(cli internalclient.Clients) bool {
+	crds := []string{"networks.skupper.io", "networkaccesses.skupper.io", "networklinks.skupper.io", "internetworkingresses.skupper.io"}
+	for _, crd := range crds {
+		if !internalclient.IsCrdAvailable(cli.GetCrdClient(), crd) {
+			return false
+		}
+	}
+	return true
+}
+
+func canAllocateDynamicPorts(cli internalclient.Clients) bool {
+	return internalclient.IsCrdPathAvailable(cli.GetCrdClient(), "routeraccesses.skupper.io", "status.roles")
+}
+
 func NewController(cli internalclient.Clients, config *Config, options ...watchers.EventProcessorCustomizer) (*Controller, error) {
 	controller := &Controller{
 		eventProcessor:       watchers.NewEventProcessor("Controller", cli, options...),
@@ -109,6 +125,8 @@ func NewController(cli internalclient.Clients, config *Config, options ...watche
 		log:                  slog.New(slog.Default().Handler()).With(slog.String("component", "kube.controller")),
 		observedServices:     map[string]string{},
 		disableSecContext:    config.DisableSecurityContext,
+		hasDynamicPortInCrd:  canAllocateDynamicPorts(cli),
+		hasMultiVANResources: hasMultiVANCRDs(cli),
 	}
 
 	hostname := os.Getenv("HOSTNAME")
@@ -142,13 +160,15 @@ func NewController(cli internalclient.Clients, config *Config, options ...watche
 	controller.serviceWatcher = controller.eventProcessor.WatchServices(sansSkupperListenerServices(), config.WatchNamespace, filter(controller, controller.checkObservedService))
 	controller.connectorWatcher = controller.eventProcessor.WatchConnectors(config.WatchNamespace, filter(controller, controller.checkConnector))
 	controller.linkAccessWatcher = controller.eventProcessor.WatchRouterAccesses(config.WatchNamespace, filter(controller, controller.checkRouterAccess))
-	controller.networkAccessWatcher = controller.eventProcessor.WatchNetworkAccesses(config.WatchNamespace, filter(controller, controller.checkNetworkAccess))
 	controller.attachedConnectorWatcher = controller.eventProcessor.WatchAttachedConnectors(config.WatchNamespace, filter(controller, controller.checkAttachedConnector))
 	controller.attachedConnectorBindingWatcher = controller.eventProcessor.WatchAttachedConnectorBindings(config.WatchNamespace, filter(controller, controller.checkAttachedConnectorBinding))
 	controller.eventProcessor.WatchLinks(config.WatchNamespace, filter(controller, controller.checkLink))
-	controller.eventProcessor.WatchNetwork(config.WatchNamespace, filter(controller, controller.checkNetwork))
-	controller.eventProcessor.WatchNetworkLink(config.WatchNamespace, filter(controller, controller.checkNetworkLink))
-	controller.eventProcessor.WatchInterNetworkIngress(config.WatchNamespace, filter(controller, controller.checkInterNetworkIngress))
+	if controller.hasMultiVANResources && controller.hasDynamicPortInCrd {
+		controller.networkAccessWatcher = controller.eventProcessor.WatchNetworkAccesses(config.WatchNamespace, filter(controller, controller.checkNetworkAccess))
+		controller.eventProcessor.WatchNetwork(config.WatchNamespace, filter(controller, controller.checkNetwork))
+		controller.eventProcessor.WatchNetworkLink(config.WatchNamespace, filter(controller, controller.checkNetworkLink))
+		controller.eventProcessor.WatchInterNetworkIngress(config.WatchNamespace, filter(controller, controller.checkInterNetworkIngress))
+	}
 	controller.networkStatusWatcher = controller.eventProcessor.WatchConfigMaps(skupperNetworkStatus(), config.WatchNamespace, filter(controller, controller.networkStatusUpdate))
 	controller.eventProcessor.WatchConfigMaps(skupperRouterConfig(), config.WatchNamespace, filter(controller, controller.routerConfigUpdate))
 	controller.eventProcessor.WatchAccessTokens(config.WatchNamespace, filter(controller, controller.checkAccessToken))
@@ -233,6 +253,7 @@ func (c *Controller) init(stopCh <-chan struct{}) error {
 	log.Info("Initialising controller", slog.String("version", c.self.Version))
 	errCount := 0
 
+	log.Info("Multi-VAN", slog.Bool("enabled", c.hasMultiVANResources && c.hasDynamicPortInCrd))
 	c.eventProcessor.StartWatchers(stopCh)
 	c.stopCh = stopCh
 	syncStart := time.Now()
@@ -287,20 +308,22 @@ func (c *Controller) init(stopCh <-chan struct{}) error {
 	}
 	log.Info("Router access seeded", slog.Int("count", routerAccessCount))
 	// seed network access before site recovery
-	networkAccessCount := 0
-	for _, na := range c.networkAccessWatcher.List() {
-		if !c.namespaces.isControlled(na.Namespace) {
-			continue
+	if c.hasMultiVANResources {
+		networkAccessCount := 0
+		for _, na := range c.networkAccessWatcher.List() {
+			if !c.namespaces.isControlled(na.Namespace) {
+				continue
+			}
+			site := c.getSite(na.ObjectMeta.Namespace)
+			log.Debug("Recovering network access",
+				slog.String("namespace", na.Namespace),
+				slog.String("name", na.Name),
+			)
+			site.CheckNetworkAccess(na.ObjectMeta.Name, na)
+			networkAccessCount++
 		}
-		site := c.getSite(na.ObjectMeta.Namespace)
-		log.Debug("Recovering network access",
-			slog.String("namespace", na.Namespace),
-			slog.String("name", na.Name),
-		)
-		site.CheckNetworkAccess(na.ObjectMeta.Name, na)
-		networkAccessCount++
+		log.Info("Network access seeded", slog.Int("count", networkAccessCount))
 	}
-	log.Info("Network access seeded", slog.Int("count", networkAccessCount))
 	//recover existing sites & bindings
 	siteRecovery := site.NewSiteRecovery(c.eventProcessor.GetKubeClient())
 	for _, site := range c.siteWatcher.List() {
@@ -486,7 +509,7 @@ func (c *Controller) getSite(namespace string) *site.Site {
 	if existing, ok := c.sites[namespace]; ok {
 		return existing
 	}
-	site := site.NewSite(namespace, c.eventProcessor, c.certMgr, c.accessMgr, c.siteSizing, c, c.disableSecContext)
+	site := site.NewSite(namespace, c.eventProcessor, c.certMgr, c.accessMgr, c.siteSizing, c, c.hasDynamicPortInCrd, c.disableSecContext)
 	c.sites[namespace] = site
 	return site
 }
