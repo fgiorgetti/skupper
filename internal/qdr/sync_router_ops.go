@@ -60,6 +60,24 @@ func SyncBridgeConfig(agentPool *AgentPool, desired *BridgeConfig) error {
 	return nil
 }
 
+func SyncNetwork(agentPool *AgentPool, desired Network) error {
+	agent, err := agentPool.Get()
+	if err != nil {
+		return fmt.Errorf("Could not get management agent : %s", err)
+	}
+	defer agentPool.Put(agent)
+	actual, err := agent.GetNetwork()
+	if err != nil {
+		return fmt.Errorf("error retrieving network: %s", err)
+	}
+	if !actual.Equals(desired) {
+		if err = agent.UpdateNetworkConfig(desired); err != nil {
+			return fmt.Errorf("error updating network config: %s", err)
+		}
+	}
+	return nil
+}
+
 func SyncRouterConfig(agentPool *AgentPool, desired *RouterConfig, checkCertFilesExist bool) error {
 	if err := syncConnectors(agentPool, desired, checkCertFilesExist); err != nil {
 		return err

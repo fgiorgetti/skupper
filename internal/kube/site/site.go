@@ -196,6 +196,13 @@ func (s *Site) routerMode() qdr.Mode {
 	}
 }
 
+func (s *Site) networkId() string {
+	if s.site != nil && s.site.Spec.Settings != nil {
+		return s.site.Spec.Settings["networkId"]
+	}
+	return ""
+}
+
 const SSL_PROFILE_PATH = "/etc/skupper-router-certs"
 const PROXY_PROFILE_PATH = "/etc/skupper-router-proxies"
 
@@ -335,6 +342,7 @@ func (s *Site) initialRouterConfig() *qdr.RouterConfig {
 	// IsNotProtectedListener to include the complete list of "protected" listeners.
 	//
 	rc := qdr.InitialConfig(s.name+"-${HOSTNAME}", s.site.GetSiteId(), version.Version, s.isEdge(), 3)
+	rc.Network.NetworkId = s.networkId()
 	rc.AddAddress(qdr.Address{
 		Prefix:       "mc",
 		Distribution: "multicast",
@@ -605,6 +613,10 @@ func (s *Site) Apply(config *qdr.RouterConfig) bool {
 	if mode := s.routerMode(); config.Metadata.Mode != mode {
 		updated = true
 		config.Metadata.Mode = mode
+	}
+	if networkId := s.networkId(); config.Network.NetworkId != networkId {
+		updated = true
+		config.Network.NetworkId = networkId
 	}
 	if dcc := s.site.Spec.GetRouterDataConnectionCount(); config.Metadata.DataConnectionCount != dcc {
 		updated = true

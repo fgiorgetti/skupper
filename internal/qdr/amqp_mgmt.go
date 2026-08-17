@@ -6,11 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
-
-	"slices"
 
 	amqp "github.com/interconnectedcloud/go-amqp"
 	"github.com/skupperproject/skupper/api/types"
@@ -1216,6 +1215,12 @@ func asConnector(record Record) Connector {
 	}
 }
 
+func asNetwork(record Record) Network {
+	return Network{
+		NetworkId: record.AsString("networkId"),
+	}
+}
+
 func asInt32(s string) int32 {
 	ival, _ := strconv.Atoi(s)
 	return int32(ival)
@@ -1374,6 +1379,18 @@ func (a *Agent) UpdateListenerConfig(changes *ListenerDifference) error {
 	}
 
 	return nil
+}
+
+func (a *Agent) GetNetwork() (Network, error) {
+	results, err := a.Query("io.skupper.router.network", []string{})
+	if err != nil {
+		return Network{}, err
+	}
+	var network Network
+	for _, record := range results {
+		network = asNetwork(record)
+	}
+	return network, nil
 }
 
 func (a *Agent) GetLocalListeners() (map[string]Listener, error) {
@@ -1541,6 +1558,14 @@ func (a *Agent) ReloadProxyProfile(name string) error {
 		return fmt.Errorf("Error updating Proxy Profile: %s", err)
 	}
 
+	return nil
+}
+
+func (a *Agent) UpdateNetworkConfig(desired Network) error {
+	if err := a.Update("io.skupper.router.network", "network/0", desired); err != nil {
+		return fmt.Errorf("error updating network config: %w", err)
+	}
+	time.Sleep(time.Second * 2)
 	return nil
 }
 
