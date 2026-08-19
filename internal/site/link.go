@@ -42,9 +42,14 @@ func (l *Link) Apply(current *qdr.RouterConfig) bool {
 	if l.definition == nil {
 		return false
 	}
-	role := qdr.RoleInterRouter
-	if current.IsEdge() {
-		role = qdr.RoleEdge
+	var role qdr.Role
+	if !l.definition.IsInterVAN() {
+		role = qdr.RoleInterRouter
+		if current.IsEdge() {
+			role = qdr.RoleEdge
+		}
+	} else {
+		role = qdr.RoleInterNetwork
 	}
 	endpoint, ok := l.definition.Spec.GetEndpointForRole(string(role))
 	if !ok {

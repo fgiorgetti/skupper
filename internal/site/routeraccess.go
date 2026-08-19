@@ -18,7 +18,7 @@ func (m RouterAccessMap) desiredListeners() map[string]qdr.Listener {
 				Name:             name,
 				Role:             qdr.GetRole(role.Name),
 				Host:             ra.Spec.BindHost,
-				Port:             role.GetPort(),
+				Port:             ra.GetPortForRole(role.Name),
 				SslProfile:       ra.Spec.TlsCredentials,
 				SaslMechanisms:   "EXTERNAL",
 				AuthenticatePeer: true,
@@ -40,7 +40,7 @@ func (m RouterAccessMap) desiredConnectors(targetGroups []string) []qdr.Connecto
 				Name:       name,
 				Host:       group,
 				Role:       qdr.RoleInterRouter,
-				Port:       strconv.Itoa(role.Port),
+				Port:       strconv.Itoa(int(ra.GetPortForRole(role.Name))),
 				SslProfile: ra.Spec.TlsCredentials,
 				Cost:       1,
 			}
@@ -100,7 +100,8 @@ func (g *RouterAccessConfig) Apply(config *qdr.RouterConfig) bool {
 		}
 	}
 	for _, value := range lc.Added {
-		if config.AddListener(value) && config.AddSslProfile(qdr.ConfigureSslProfile(value.SslProfile, g.profilePath, true)) {
+		if config.AddListener(value) {
+			config.AddSslProfile(qdr.ConfigureSslProfile(value.SslProfile, g.profilePath, true))
 			changed = true
 		}
 	}

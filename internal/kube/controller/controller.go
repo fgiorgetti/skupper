@@ -57,6 +57,7 @@ type Controller struct {
 	labellingWatcher                *watchers.ConfigMapWatcher
 	attachableConnectors            map[string]*skupperv2alpha1.AttachedConnector
 	disableSecContext               bool
+	hasDynamicPortInCrd             bool
 	log                             *slog.Logger
 	namespaces                      *NamespaceConfig
 	observedServices                map[string]string
@@ -106,6 +107,7 @@ func NewController(cli internalclient.Clients, config *Config, options ...watche
 		attachableConnectors: map[string]*skupperv2alpha1.AttachedConnector{},
 		log:                  slog.New(slog.Default().Handler()).With(slog.String("component", "kube.controller")),
 		observedServices:     map[string]string{},
+		hasDynamicPortInCrd:  internalclient.IsCrdPathAvailable(cli.GetCrdClient(), "routeraccesses.skupper.io", "status.roles"),
 		disableSecContext:    config.DisableSecurityContext,
 	}
 
@@ -465,7 +467,7 @@ func (c *Controller) getSite(namespace string) *site.Site {
 	if existing, ok := c.sites[namespace]; ok {
 		return existing
 	}
-	site := site.NewSite(namespace, c.eventProcessor, c.certMgr, c.accessMgr, c.siteSizing, c, c.disableSecContext)
+	site := site.NewSite(namespace, c.eventProcessor, c.certMgr, c.accessMgr, c.siteSizing, c, c.hasDynamicPortInCrd, c.disableSecContext)
 	c.sites[namespace] = site
 	return site
 }

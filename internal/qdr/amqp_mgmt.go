@@ -1215,6 +1215,18 @@ func asConnector(record Record) Connector {
 	}
 }
 
+func asAutoLink(record Record) AutoLink {
+	return AutoLink{
+		Name:            record.AsString("name"),
+		Address:         record.AsString("address"),
+		ExternalAddress: record.AsString("externalAddress"),
+		Direction:       record.AsString("direction"),
+		Connection:      record.AsString("connection"),
+		ContainerId:     record.AsString("containerId"),
+		operStatus:      OperStatus(record.AsString("operStatus")),
+	}
+}
+
 func asNetwork(record Record) Network {
 	return Network{
 		NetworkId: record.AsString("networkId"),
@@ -1379,6 +1391,19 @@ func (a *Agent) UpdateListenerConfig(changes *ListenerDifference) error {
 	}
 
 	return nil
+}
+
+func (a *Agent) GetAutoLinks() (map[string]AutoLink, error) {
+	results, err := a.Query("io.skupper.router.router.config.autoLink", []string{})
+	if err != nil {
+		return nil, err
+	}
+	autoLinks := map[string]AutoLink{}
+	for _, record := range results {
+		c := asAutoLink(record)
+		autoLinks[c.Name] = c
+	}
+	return autoLinks, nil
 }
 
 func (a *Agent) GetNetwork() (Network, error) {
@@ -1558,6 +1583,21 @@ func (a *Agent) ReloadProxyProfile(name string) error {
 		return fmt.Errorf("Error updating Proxy Profile: %s", err)
 	}
 
+	return nil
+}
+
+func (a *Agent) UpdateAutoLinkConfig(changes *AutoLinkDifference) error {
+	for _, deleted := range changes.Deleted {
+		if err := a.Delete("io.skupper.router.router.config.autoLink", deleted.Name); err != nil {
+			return fmt.Errorf("error deleting autoLink: %s - %w", deleted.Name, err)
+		}
+	}
+
+	for _, added := range changes.Added {
+		if err := a.Create("io.skupper.router.router.config.autoLink", added.Name, &added); err != nil {
+			return fmt.Errorf("error adding autoLink: %s - %w", added.Name, err)
+		}
+	}
 	return nil
 }
 

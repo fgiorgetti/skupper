@@ -7,6 +7,7 @@ import (
 	"net"
 	path_ "path"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -1192,6 +1193,13 @@ func IsNotProtectedListener(l Listener) bool {
 		}
 	}
 	return true
+}
+
+func IsSupportedAndNotProtectedListener(l Listener) bool {
+	if !IsNotProtectedListener(l) {
+		return false
+	}
+	return slices.Contains([]Role{RoleInterRouter, RoleEdge, RoleNormal, RoleInterNetwork}, l.Role)
 }
 
 func FilterListeners(in map[string]Listener, predicate ListenerPredicate) map[string]Listener {

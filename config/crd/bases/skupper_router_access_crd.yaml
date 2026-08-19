@@ -162,6 +162,18 @@ spec:
                     - reason
                     - status
                     - type
+                roles:
+                  type: array
+                  description: |-
+                    List of roles and their allocated ports.
+                    If a role does not specify a port, the controller assigns a dynamic port and reports it here.
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      port:
+                        type: integer
                 endpoints:
                   type: array
                   description: |-
