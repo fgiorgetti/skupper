@@ -711,6 +711,11 @@ func (c *Connector) SetMaxSessionFrames(value int) {
 	c.MaxSessionFrames = value
 }
 
+func (c *Connector) FilterAutoLinks(autoLink AutoLink) bool {
+	return autoLink.Name == "link/"+c.Name ||
+		strings.HasPrefix(autoLink.Name, fmt.Sprintf("link/%s/", c.Name))
+}
+
 type Distribution string
 
 const (
@@ -794,9 +799,9 @@ type AutoLinkDifference struct {
 	Added   []AutoLink
 }
 
-func AutoLinksDifference(actual map[string]AutoLink, desired *RouterConfig) *AutoLinkDifference {
+func AutoLinksDifference(actual map[string]AutoLink, desired map[string]AutoLink) *AutoLinkDifference {
 	result := AutoLinkDifference{}
-	for key, v1 := range desired.AutoLinks {
+	for key, v1 := range desired {
 		actualValue, ok := actual[key]
 		if !ok {
 			result.Added = append(result.Added, v1)
@@ -809,7 +814,7 @@ func AutoLinksDifference(actual map[string]AutoLink, desired *RouterConfig) *Aut
 		}
 	}
 	for key, v1 := range actual {
-		_, ok := desired.AutoLinks[key]
+		_, ok := desired[key]
 		if !ok {
 			result.Deleted = append(result.Deleted, v1)
 		}
@@ -819,6 +824,30 @@ func AutoLinksDifference(actual map[string]AutoLink, desired *RouterConfig) *Aut
 
 func (a *AutoLinkDifference) Empty() bool {
 	return len(a.Deleted) == 0 && len(a.Added) == 0
+}
+
+type AutoLinkFilter func(AutoLink) bool
+
+func FilterAutoLinks(autoLinks map[string]AutoLink, fn AutoLinkFilter) map[string]AutoLink {
+	var res = map[string]AutoLink{}
+	for name, link := range autoLinks {
+		if fn(link) {
+			res[name] = link
+		}
+	}
+	return res
+}
+
+func FilterAutoLinkListeners(autoLink AutoLink) bool {
+	return strings.HasPrefix(autoLink.Name, "routerAccess/")
+}
+
+func FilterAutoLinkConnectors(autoLink AutoLink) bool {
+	return strings.HasPrefix(autoLink.Name, "link/")
+}
+
+func FilterAutoLinkExternalAddress(autoLink AutoLink) bool {
+	return autoLink.ExternalAddress != ""
 }
 
 type TcpEndpoint struct {
@@ -933,6 +962,7 @@ func UnmarshalRouterConfig(config string) (RouterConfig, error) {
 		Metadata:      RouterMetadata{},
 		Network:       Network{},
 		Addresses:     map[string]Address{},
+		AutoLinks:     map[string]AutoLink{},
 		SslProfiles:   map[string]SslProfile{},
 		ProxyProfiles: map[string]ProxyProfile{},
 		Listeners:     map[string]Listener{},
@@ -984,6 +1014,13 @@ func UnmarshalRouterConfig(config string) (RouterConfig, error) {
 				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
 			}
 			result.Addresses[address.Prefix] = address
+		case "autoLink":
+			autoLink := AutoLink{}
+			err = convert(element[1], &autoLink)
+			if err != nil {
+				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
+			}
+			result.AutoLinks[autoLink.Name] = autoLink
 		case "connector":
 			connector := Connector{}
 			err = convert(element[1], &connector)
@@ -1102,6 +1139,13 @@ func MarshalRouterConfig(config RouterConfig) (string, error) {
 		}
 		elements = append(elements, tuple)
 	}
+	for _, e := range config.AutoLinks {
+		tuple := []interface{}{
+			"autoLink",
+			e,
+		}
+		elements = append(elements, tuple)
+	}
 	for _, e := range config.Bridges.TcpConnectors {
 		tuple := []interface{}{
 			"tcpConnector",
@@ -1185,6 +1229,8 @@ func (r *RouterConfig) UpdateConfigMap(configmap *corev1.ConfigMap) (bool, error
 
 type ListenerPredicate func(Listener) bool
 
+type ConnectorPredicate func(Connector) bool
+
 func IsNotProtectedListener(l Listener) bool {
 	protectedNames := [3]string{"@9090", "amqp", "amqps"}
 	for _, name := range protectedNames {
@@ -1202,11 +1248,29 @@ func IsSupportedAndNotProtectedListener(l Listener) bool {
 	return slices.Contains([]Role{RoleInterRouter, RoleEdge, RoleNormal, RoleInterNetwork}, l.Role)
 }
 
+func IsInterVANListener(l Listener) bool {
+	return l.Role == RoleInterNetwork
+}
+
+func IsInterVANConnector(c Connector) bool {
+	return c.Role == RoleInterNetwork
+}
+
 func FilterListeners(in map[string]Listener, predicate ListenerPredicate) map[string]Listener {
 	results := map[string]Listener{}
 	for key, listener := range in {
 		if predicate(listener) {
 			results[key] = listener
+		}
+	}
+	return results
+}
+
+func FilterConnectors(in map[string]Connector, predicate ConnectorPredicate) map[string]Connector {
+	results := map[string]Connector{}
+	for key, connector := range in {
+		if predicate(connector) {
+			results[key] = connector
 		}
 	}
 	return results
@@ -1517,10 +1581,6 @@ func (a *ConnectorDifference) Empty() bool {
 
 func (desired Connector) IsLinkConnector() bool {
 	return desired.Role == "inter-router" || desired.Role == "edge"
-}
-
-func (desired Connector) IsInterNetworkConnector() bool {
-	return desired.Role == "inter-network"
 }
 
 func (desired Connector) Equivalent(actual Connector) bool {

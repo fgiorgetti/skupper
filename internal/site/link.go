@@ -1,6 +1,7 @@
 package site
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -81,7 +82,49 @@ func (l *Link) Apply(current *qdr.RouterConfig) bool {
 	} else if prevProxyProfileName != "" {
 		current.RemoveProxyProfile(prevProxyProfileName)
 	}
+	if l.definition.IsInterVAN() {
+		desired := l.desiredAutoLinks(current.Network.NetworkId)
+		diff := qdr.AutoLinksDifference(qdr.FilterAutoLinks(current.AutoLinks, connector.FilterAutoLinks), desired)
+		for _, autoLinkDel := range diff.Deleted {
+			current.RemoveAutoLink(autoLinkDel.Name)
+		}
+		for _, autoLinkAdd := range diff.Added {
+			current.AddAutoLink(autoLinkAdd)
+		}
+	}
 	return true //TODO: optimise by indicating if no change was actually needed
+}
+
+func (l *Link) desiredAutoLinks(networkId string) map[string]qdr.AutoLink {
+	var res = map[string]qdr.AutoLink{}
+	if networkId != "" {
+		al := AutoLinkForConnector(l.name, networkId)
+		res[al.Name] = al
+	}
+	if l.definition.Spec.Settings != nil {
+		if routingKeyString, ok := l.definition.Spec.Settings["routingKeys"]; ok {
+			for _, routingKey := range strings.Split(routingKeyString, ",") {
+				autoLinkName := fmt.Sprintf("link/%s/%s", l.name, routingKey)
+				res[autoLinkName] = qdr.AutoLink{
+					Name:       autoLinkName,
+					Address:    routingKey,
+					Direction:  qdr.DirectionIn,
+					Connection: l.name,
+				}
+			}
+		}
+	}
+	return res
+}
+
+func AutoLinkForConnector(connectorName, networkId string) qdr.AutoLink {
+	autoLinkName := fmt.Sprintf("link/%s", connectorName)
+	return qdr.AutoLink{
+		Name:            autoLinkName,
+		ExternalAddress: "_xtopo/" + networkId,
+		Direction:       qdr.DirectionIn,
+		Connection:      connectorName,
+	}
 }
 
 func sslProfileName(link *skupperv2alpha1.Link) string {
@@ -105,6 +148,9 @@ func (m LinkMap) Apply(current *qdr.RouterConfig) bool {
 				current.RemoveSslProfile(connector.SslProfile)
 				current.RemoveProxyProfile(connector.ProxyProfile)
 			}
+			for name := range qdr.FilterAutoLinks(current.AutoLinks, connector.FilterAutoLinks) {
+				current.RemoveAutoLink(name)
+			}
 		}
 	}
 	return true //TODO: can optimise by indicating if no change was required
@@ -124,8 +170,15 @@ type RemoveConnector struct {
 	name string
 }
 
+func (o *RemoveConnector) filterAutoLink(autoLink qdr.AutoLink) bool {
+	return autoLink.Name == fmt.Sprintf("link/%s", o.name) ||
+		strings.HasPrefix(autoLink.Name, fmt.Sprintf("link/%s/", o.name))
+}
+
 func (o *RemoveConnector) Apply(current *qdr.RouterConfig) bool {
-	if changed, connector := current.RemoveConnector(o.name); changed {
+	var changed bool
+	var connector qdr.Connector
+	if changed, connector = current.RemoveConnector(o.name); changed {
 		unreferenced := current.UnreferencedSslProfiles()
 		if _, ok := unreferenced[connector.SslProfile]; ok {
 			current.RemoveSslProfile(connector.SslProfile)
@@ -134,9 +187,13 @@ func (o *RemoveConnector) Apply(current *qdr.RouterConfig) bool {
 		if _, ok := unreferencedProxyProfiles[connector.ProxyProfile]; ok {
 			current.RemoveProxyProfile(connector.ProxyProfile)
 		}
-		return true
 	}
-	return false
+	for name := range qdr.FilterAutoLinks(current.AutoLinks, o.filterAutoLink) {
+		if current.RemoveAutoLink(name) {
+			changed = true
+		}
+	}
+	return changed
 }
 
 func NewRemoveConnector(name string) qdr.ConfigUpdate {

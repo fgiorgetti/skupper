@@ -623,6 +623,18 @@ func (s *Site) Apply(config *qdr.RouterConfig) bool {
 	if networkId := s.networkId(); config.Network.NetworkId != networkId {
 		updated = true
 		config.Network.NetworkId = networkId
+		if networkId == "" {
+			for name := range qdr.FilterAutoLinks(config.AutoLinks, qdr.FilterAutoLinkExternalAddress) {
+				config.RemoveAutoLink(name)
+			}
+		} else {
+			for name := range qdr.FilterListeners(config.Listeners, qdr.IsInterVANListener) {
+				config.AddAutoLink(site.AutoLinkForListener(name, networkId))
+			}
+			for name := range qdr.FilterConnectors(config.Connectors, qdr.IsInterVANConnector) {
+				config.AddAutoLink(site.AutoLinkForConnector(name, networkId))
+			}
+		}
 	}
 	if dcc := s.site.Spec.GetRouterDataConnectionCount(); config.Metadata.DataConnectionCount != dcc {
 		updated = true
@@ -1373,7 +1385,8 @@ func (s *Site) link(linkconfig *skupperv2alpha1.Link) error {
 			config = existing
 		}
 	} else {
-		config, err := s.newLink(linkconfig)
+		var err error
+		config, err = s.newLink(linkconfig)
 		if err == nil {
 			s.links[linkconfig.ObjectMeta.Name] = config
 		} else {

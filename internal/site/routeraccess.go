@@ -1,7 +1,9 @@
 package site
 
 import (
+	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/skupperproject/skupper/internal/qdr"
 	skupperv2alpha1 "github.com/skupperproject/skupper/pkg/apis/skupper/v2alpha1"
@@ -50,6 +52,29 @@ func (m RouterAccessMap) desiredConnectors(targetGroups []string) []qdr.Connecto
 	return connectors
 }
 
+func (m RouterAccessMap) desiredAutoLinks() map[string]qdr.AutoLink {
+	var autoLinks = map[string]qdr.AutoLink{}
+	for raName, ra := range m {
+		if ra.FindRole(qdr.RoleInterNetwork) == nil || ra.Spec.Settings == nil {
+			continue
+		}
+		routingKeyString, ok := ra.Spec.Settings["routingKeys"]
+		if !ok {
+			continue
+		}
+		for _, routingKey := range strings.Split(routingKeyString, ",") {
+			autoLinkName := fmt.Sprintf("routerAccess/%s/%s", raName, routingKey)
+			autoLinks[autoLinkName] = qdr.AutoLink{
+				Name:       autoLinkName,
+				Address:    routingKey,
+				Direction:  qdr.DirectionIn,
+				Connection: raName,
+			}
+		}
+	}
+	return autoLinks
+}
+
 func (m RouterAccessMap) findInterRouterRole() (*skupperv2alpha1.RouterAccessRole, *skupperv2alpha1.RouterAccess) {
 	for _, value := range m {
 		if role := value.FindRole("inter-router"); role != nil {
@@ -79,6 +104,7 @@ func (m RouterAccessMap) DesiredConfigWithAvailableCredentials(targetGroups []st
 	return &RouterAccessConfig{
 		listeners:   source.desiredListeners(),
 		connectors:  source.desiredConnectors(targetGroups),
+		autoLinks:   source.desiredAutoLinks(),
 		profilePath: profilePath,
 	}
 }
@@ -86,6 +112,7 @@ func (m RouterAccessMap) DesiredConfigWithAvailableCredentials(targetGroups []st
 type RouterAccessConfig struct {
 	listeners   map[string]qdr.Listener
 	connectors  []qdr.Connector
+	autoLinks   map[string]qdr.AutoLink
 	profilePath string
 }
 
@@ -115,5 +142,34 @@ func (g *RouterAccessConfig) Apply(config *qdr.RouterConfig) bool {
 		config.RemoveSslProfile(name)
 		changed = true
 	}
+	// Check if networkId related autoLinks are needed for inter-network listeners
+	if config.Network.IsSet() {
+		for listenerName := range qdr.FilterListeners(config.Listeners, qdr.IsInterVANListener) {
+			al := AutoLinkForListener(listenerName, config.Network.NetworkId)
+			g.autoLinks[al.Name] = al
+		}
+	}
+	// Update listener related autoLinks
+	autoLinksDiff := qdr.AutoLinksDifference(qdr.FilterAutoLinks(config.AutoLinks, qdr.FilterAutoLinkListeners), g.autoLinks)
+	for _, ld := range autoLinksDiff.Deleted {
+		if config.RemoveAutoLink(ld.Name) {
+			changed = true
+		}
+	}
+	for _, la := range autoLinksDiff.Added {
+		if config.AddAutoLink(la) {
+			changed = true
+		}
+	}
 	return changed
+}
+
+func AutoLinkForListener(listenerName, networkId string) qdr.AutoLink {
+	autoLinkName := fmt.Sprintf("routerAccess/%s", listenerName)
+	return qdr.AutoLink{
+		Name:            autoLinkName,
+		ExternalAddress: fmt.Sprintf("_xtopo/%s", networkId),
+		Direction:       qdr.DirectionIn,
+		Connection:      listenerName,
+	}
 }
