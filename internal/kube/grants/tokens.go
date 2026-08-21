@@ -75,7 +75,7 @@ func (g *TokenGenerator) setValidHostsFromSite(site *skupperv2alpha1.Site) error
 	}
 	var hosts []string
 	for _, endpoint := range site.Status.Endpoints {
-		if slices.Contains([]string{"inter-router", "edge"}, endpoint.Name) {
+		if !slices.Contains([]string{"inter-router", "edge"}, endpoint.Name) {
 			continue
 		}
 		hosts = append(hosts, endpoint.Host)
