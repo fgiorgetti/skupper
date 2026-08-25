@@ -89,6 +89,13 @@ spec:
                     The hostnames and IPs secured by the router TLS certificate.
                   items:
                     type: string
+                routingKeys:
+                  type: array
+                  description: |-
+                    Optional. A list of routing key identifiers available in the local VAN
+                    that are accessible to the remote network over this ingress.
+                  items:
+                    type: string
                 settings:
                   description: |-
                     Advanced. A map containing additional settings. Each map

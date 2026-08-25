@@ -3,7 +3,6 @@ package site
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/skupperproject/skupper/internal/qdr"
 	skupperv2alpha1 "github.com/skupperproject/skupper/pkg/apis/skupper/v2alpha1"
@@ -55,14 +54,10 @@ func (m RouterAccessMap) desiredConnectors(targetGroups []string) []qdr.Connecto
 func (m RouterAccessMap) desiredAutoLinks() map[string]qdr.AutoLink {
 	var autoLinks = map[string]qdr.AutoLink{}
 	for raName, ra := range m {
-		if ra.FindRole(qdr.RoleInterNetwork) == nil || ra.Spec.Settings == nil {
+		if ra.FindRole(qdr.RoleInterNetwork) == nil {
 			continue
 		}
-		routingKeyString, ok := ra.Spec.Settings["routingKeys"]
-		if !ok {
-			continue
-		}
-		for _, routingKey := range strings.Split(routingKeyString, ",") {
+		for _, routingKey := range ra.Spec.RoutingKeys {
 			autoLinkName := fmt.Sprintf("routerAccess/%s/%s", raName, routingKey)
 			autoLinks[autoLinkName] = qdr.AutoLink{
 				Name:       autoLinkName,

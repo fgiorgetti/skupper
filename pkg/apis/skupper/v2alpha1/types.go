@@ -199,6 +199,7 @@ type SiteSpec struct {
 	DefaultIssuer  string            `json:"defaultIssuer,omitempty"`
 	Edge           bool              `json:"edge,omitempty"`
 	HA             bool              `json:"ha,omitempty"`
+	NetworkId      string            `json:"networkId,omitempty"`
 	Settings       map[string]string `json:"settings,omitempty"`
 }
 
@@ -590,6 +591,7 @@ type LinkSpec struct {
 	Endpoints      []Endpoint        `json:"endpoints"`
 	TlsCredentials string            `json:"tlsCredentials,omitempty"`
 	Cost           int               `json:"cost,omitempty"`
+	RoutingKeys    []string          `json:"routingKeys,omitempty"`
 	Settings       map[string]string `json:"settings,omitempty"`
 }
 
@@ -1069,6 +1071,7 @@ type RouterAccessSpec struct {
 	Issuer                  string             `json:"issuer,omitempty"`
 	BindHost                string             `json:"bindHost,omitempty"`
 	SubjectAlternativeNames []string           `json:"subjectAlternativeNames,omitempty"`
+	RoutingKeys             []string           `json:"routingKeys,omitempty"`
 	Settings                map[string]string  `json:"settings,omitempty"`
 }
 

@@ -202,8 +202,8 @@ func (s *Site) routerMode() qdr.Mode {
 }
 
 func (s *Site) networkId() string {
-	if s.site != nil && s.site.Spec.Settings != nil {
-		return s.site.Spec.Settings["networkId"]
+	if s.site != nil {
+		return s.site.Spec.NetworkId
 	}
 	return ""
 }

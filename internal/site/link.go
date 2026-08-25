@@ -101,17 +101,13 @@ func (l *Link) desiredAutoLinks(networkId string) map[string]qdr.AutoLink {
 		al := AutoLinkForConnector(l.name, networkId)
 		res[al.Name] = al
 	}
-	if l.definition.Spec.Settings != nil {
-		if routingKeyString, ok := l.definition.Spec.Settings["routingKeys"]; ok {
-			for _, routingKey := range strings.Split(routingKeyString, ",") {
-				autoLinkName := fmt.Sprintf("link/%s/%s", l.name, routingKey)
-				res[autoLinkName] = qdr.AutoLink{
-					Name:       autoLinkName,
-					Address:    routingKey,
-					Direction:  qdr.DirectionIn,
-					Connection: l.name,
-				}
-			}
+	for _, routingKey := range l.definition.Spec.RoutingKeys {
+		autoLinkName := fmt.Sprintf("link/%s/%s", l.name, routingKey)
+		res[autoLinkName] = qdr.AutoLink{
+			Name:       autoLinkName,
+			Address:    routingKey,
+			Direction:  qdr.DirectionIn,
+			Connection: l.name,
 		}
 	}
 	return res
