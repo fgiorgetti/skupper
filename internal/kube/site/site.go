@@ -68,11 +68,11 @@ type Site struct {
 	labelling           Labelling
 	profiles            *secrets.ProfilesWatcher
 	disableSecCtx       bool
-	hasDynamicPortInCrd bool
+	dynamicIngressPorts bool
 	leadListeners       map[string]string
 }
 
-func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs certificates.CertificateManager, access SecuredAccessFactory, sizes *sizing.Registry, labelling Labelling, hasDynamicPortInCrd bool, disableSecCtx bool) *Site {
+func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs certificates.CertificateManager, access SecuredAccessFactory, sizes *sizing.Registry, labelling Labelling, dynamicIngressPorts bool, disableSecCtx bool) *Site {
 	logger := slog.New(slog.Default().Handler())
 	site := &Site{
 		bindings:          NewExtendedBindings(eventProcessor, SSL_PROFILE_PATH),
@@ -91,7 +91,7 @@ func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs ce
 		),
 		labelling:           labelling,
 		disableSecCtx:       disableSecCtx,
-		hasDynamicPortInCrd: hasDynamicPortInCrd,
+		dynamicIngressPorts: dynamicIngressPorts,
 		leadListeners:       map[string]string{},
 	}
 	site.profiles = secrets.NewProfilesWatcher(
@@ -1800,7 +1800,7 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 		for _, role := range la.Spec.Roles {
 			port := int(la.GetPortForRole(role.Name))
 			if port == 0 {
-				if !s.hasDynamicPortInCrd {
+				if !s.dynamicIngressPorts {
 					return fmt.Errorf("dynamic port allocation support is not available")
 				}
 				port, err = s.routerAccessPorts.NextFreePort()
@@ -1809,7 +1809,7 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 				}
 				allocatedPorts = append(allocatedPorts, int32(port))
 			}
-			if s.hasDynamicPortInCrd && la.AllocatePort(role.Name, port) {
+			if s.dynamicIngressPorts && la.AllocatePort(role.Name, port) {
 				statusChanged = true
 			}
 		}

@@ -356,6 +356,7 @@ func TestRouterAccessMap_DesiredConfig(t *testing.T) {
 						Cost:       1,
 					},
 				},
+				autoLinks: map[string]qdr.AutoLink{},
 			},
 		},
 		{
@@ -399,6 +400,7 @@ func TestRouterAccessMap_DesiredConfig(t *testing.T) {
 					},
 				},
 				connectors: nil,
+				autoLinks:  map[string]qdr.AutoLink{},
 			},
 		},
 		{
@@ -442,13 +444,116 @@ func TestRouterAccessMap_DesiredConfig(t *testing.T) {
 					},
 				},
 				connectors: nil,
+				autoLinks:  map[string]qdr.AutoLink{},
+			},
+		},
+		{
+			name: "inter-network sans routingKeys",
+			m: map[string]*skupperv2alpha1.RouterAccess{
+				"default": &skupperv2alpha1.RouterAccess{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "my-ra",
+						Namespace: "test",
+					},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						AccessType: "loadbalancer",
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{
+								Name: "inter-network",
+								Port: 35671,
+							},
+						},
+						TlsCredentials: "skupper",
+						BindHost:       "10.10.10.1",
+					},
+				},
+			},
+			args: args{
+				targetGroups: []string{"my-target-group"},
+				profilePath:  "",
+			},
+			want: RouterAccessConfig{
+				listeners: map[string]qdr.Listener{
+					"my-ra-inter-network": qdr.Listener{
+						Name:             "my-ra-inter-network",
+						Role:             "inter-network",
+						Host:             "10.10.10.1",
+						Port:             35671,
+						RouteContainer:   false,
+						Http:             false,
+						Cost:             0,
+						SslProfile:       "skupper",
+						SaslMechanisms:   "EXTERNAL",
+						AuthenticatePeer: true,
+					},
+				},
+				connectors: nil,
+				autoLinks:  map[string]qdr.AutoLink{},
+			},
+		},
+		{
+			name: "inter-network with routingKeys",
+			m: map[string]*skupperv2alpha1.RouterAccess{
+				"my-ra": &skupperv2alpha1.RouterAccess{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "my-ra",
+						Namespace: "test",
+					},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						AccessType: "loadbalancer",
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{
+								Name: "inter-network",
+								Port: 35671,
+							},
+						},
+						TlsCredentials: "skupper",
+						BindHost:       "10.10.10.1",
+						RoutingKeys:    []string{"key1", "key2"},
+					},
+				},
+			},
+			args: args{
+				targetGroups: []string{"my-target-group"},
+				profilePath:  "",
+			},
+			want: RouterAccessConfig{
+				listeners: map[string]qdr.Listener{
+					"my-ra-inter-network": qdr.Listener{
+						Name:             "my-ra-inter-network",
+						Role:             "inter-network",
+						Host:             "10.10.10.1",
+						Port:             35671,
+						RouteContainer:   false,
+						Http:             false,
+						Cost:             0,
+						SslProfile:       "skupper",
+						SaslMechanisms:   "EXTERNAL",
+						AuthenticatePeer: true,
+					},
+				},
+				connectors: nil,
+				autoLinks: map[string]qdr.AutoLink{
+					"routerAccess/my-ra/key1": qdr.AutoLink{
+						Name:       "routerAccess/my-ra/key1",
+						Address:    "key1",
+						Direction:  "in",
+						Connection: "my-ra-inter-network",
+					},
+					"routerAccess/my-ra/key2": qdr.AutoLink{
+						Name:       "routerAccess/my-ra/key2",
+						Address:    "key2",
+						Direction:  "in",
+						Connection: "my-ra-inter-network",
+					},
+				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.m.DesiredConfig(tt.args.targetGroups, tt.args.profilePath); !reflect.DeepEqual(*got, tt.want) {
-				t.Errorf("RouterAccessMap.DesiredConfig() = %v, want %v", *got, tt.want)
+				t.Errorf("RouterAccessMap.DesiredConfig() = %+v, want %+v", *got, tt.want)
 			}
 		})
 	}

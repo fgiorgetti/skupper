@@ -63,7 +63,7 @@ func (m RouterAccessMap) desiredAutoLinks() map[string]qdr.AutoLink {
 				Name:       autoLinkName,
 				Address:    routingKey,
 				Direction:  qdr.DirectionIn,
-				Connection: raName,
+				Connection: fmt.Sprintf("%s-inter-network", raName),
 			}
 		}
 	}
