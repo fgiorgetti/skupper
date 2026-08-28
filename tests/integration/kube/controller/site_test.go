@@ -112,6 +112,59 @@ func TestSimpleSite(t *testing.T) {
 		})
 	})
 
+	t.Run("create an inter-van link with exposed routingKeys", func(t *testing.T) {
+		link := fixtures.Link("link-van-1", namespace)
+		link.Spec.Endpoints = []skupperv2alpha1.Endpoint{
+			{
+				Name:  "inter-network",
+				Group: "skupper-router",
+				Host:  "link-host",
+				Port:  "35671",
+			},
+		}
+		link.Spec.RoutingKeys = []string{"key1", "key2"}
+		_, err = tc.clients.GetSkupperClient().SkupperV2alpha1().Links(namespace).Create(ctx, link, metav1.CreateOptions{})
+		assert.NilError(t, err)
+	})
+
+	t.Run("validate inter-network connector and autoLinks created", func(t *testing.T) {
+		expectedAutoLinks := []qdr.AutoLink{
+			{
+				Name:            "link/link-van-1",
+				ExternalAddress: "_xtopo/my-van",
+				Direction:       "in",
+				Connection:      "link-van-1",
+			},
+			{
+				Name:       "link/link-van-1/key1",
+				Address:    "key1",
+				Direction:  "in",
+				Connection: "link-van-1",
+			},
+			{
+				Name:       "link/link-van-1/key2",
+				Address:    "key2",
+				Direction:  "in",
+				Connection: "link-van-1",
+			},
+		}
+		waitForRouterConfigState(t, tc, namespace, func(config *qdr.RouterConfig) bool {
+			connector, ok := config.Connectors["link-van-1"]
+			if !ok {
+				return false
+			}
+			assert.Equal(t, "inter-network", string(connector.Role))
+			for _, wanted := range expectedAutoLinks {
+				got, ok := config.AutoLinks[wanted.Name]
+				if !ok {
+					return false
+				}
+				assert.Equal(t, wanted, got)
+			}
+			return true
+		})
+	})
+
 	t.Run("remove networkId", func(t *testing.T) {
 		actualSite, err = tc.clients.GetSkupperClient().SkupperV2alpha1().Sites(namespace).Get(ctx, actualSite.Name, metav1.GetOptions{})
 		assert.NilError(t, err)
@@ -125,7 +178,7 @@ func TestSimpleSite(t *testing.T) {
 
 	t.Run("ensure topology address autoLink removed", func(t *testing.T) {
 		waitForRouterConfigState(t, tc, namespace, func(config *qdr.RouterConfig) bool {
-			return len(config.AutoLinks) == 2
+			return len(config.AutoLinks) == 4
 		})
 	})
 
@@ -134,18 +187,27 @@ func TestSimpleSite(t *testing.T) {
 		assert.NilError(t, err)
 		ra.Spec.RoutingKeys = nil
 		_, err = tc.clients.GetSkupperClient().SkupperV2alpha1().RouterAccesses(namespace).Update(ctx, ra, metav1.UpdateOptions{})
+		assert.NilError(t, err)
 	})
 
-	t.Run("assert no routerAccess autoLinks left but listener is present", func(t *testing.T) {
+	t.Run("remove inter-van link keys", func(t *testing.T) {
+		link, err := tc.clients.GetSkupperClient().SkupperV2alpha1().Links(namespace).Get(ctx, "link-van-1", metav1.GetOptions{})
+		assert.NilError(t, err)
+		link.Spec.RoutingKeys = nil
+		_, err = tc.clients.GetSkupperClient().SkupperV2alpha1().Links(namespace).Update(ctx, link, metav1.UpdateOptions{})
+		assert.NilError(t, err)
+	})
+
+	t.Run("assert no routerAccess autoLinks left but listener and connector are present", func(t *testing.T) {
 		waitForRouterConfigState(t, tc, namespace, func(config *qdr.RouterConfig) bool {
-			if len(config.AutoLinks) == 0 {
-				for name := range config.Listeners {
-					if name == "inter-van-ra-inter-network" {
-						return true
-					}
-				}
+			if len(config.AutoLinks) > 0 {
+				return false
 			}
-			return false
+			_, listenerFound := config.Listeners["inter-van-ra-inter-network"]
+			_, connectorFound := config.Connectors["link-van-1"]
+			assert.Assert(t, listenerFound)
+			assert.Assert(t, connectorFound)
+			return true
 		})
 	})
 }
