@@ -15,8 +15,9 @@ type FreePorts struct {
 }
 
 const (
-	MIN_PORT        = 1024
-	MAX_PORT        = 65435
+	MIN_PORT = 1024
+	MAX_PORT = 65435
+	// Ports reserved for dynamic allocation to router accesses
 	MIN_ROUTER_PORT = 65436
 	MAX_ROUTER_PORT = 65535
 )

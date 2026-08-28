@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"log"
 	"strings"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -12,9 +11,6 @@ import (
 
 func IsCrdAvailable(client clientset.Interface, name string) bool {
 	crd, err := getCrd(client, name)
-	if err != nil {
-		log.Println("ERROR:", err)
-	}
 	return err == nil && crd != nil
 }
 
@@ -25,6 +21,9 @@ func IsCrdPathAvailable(client clientset.Interface, name string, path string) bo
 	}
 	paths := strings.Split(path, ".")
 	for _, crdVersion := range crd.Spec.Versions {
+		if crdVersion.Schema == nil || crdVersion.Schema.OpenAPIV3Schema == nil {
+			continue
+		}
 		schema := crdVersion.Schema.OpenAPIV3Schema
 		properties := schema.Properties
 		found := true

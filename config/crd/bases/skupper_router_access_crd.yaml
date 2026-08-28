@@ -94,6 +94,7 @@ spec:
                   description: |-
                     Optional. A list of routing key identifiers available in the local VAN
                     that are accessible to the remote network over this ingress.
+                    This is only used in inter-network connections (multi-van).
                   items:
                     type: string
                 settings:

@@ -176,7 +176,7 @@ func TestSimpleSite(t *testing.T) {
 		})
 	})
 
-	t.Run("ensure topology address autoLink removed", func(t *testing.T) {
+	t.Run("ensure topology address autoLinks removed", func(t *testing.T) {
 		waitForRouterConfigState(t, tc, namespace, func(config *qdr.RouterConfig) bool {
 			return len(config.AutoLinks) == 4
 		})
@@ -198,7 +198,7 @@ func TestSimpleSite(t *testing.T) {
 		assert.NilError(t, err)
 	})
 
-	t.Run("assert no routerAccess autoLinks left but listener and connector are present", func(t *testing.T) {
+	t.Run("assert no autoLinks left but listener and connector are present", func(t *testing.T) {
 		waitForRouterConfigState(t, tc, namespace, func(config *qdr.RouterConfig) bool {
 			if len(config.AutoLinks) > 0 {
 				return false
@@ -213,7 +213,7 @@ func TestSimpleSite(t *testing.T) {
 }
 
 func waitForRouterConfigState(t *testing.T, tc *testContext, namespace string, state RouterConfigReadyFn) (routerConfig *qdr.RouterConfig) {
-	waitFor(t, 30*time.Second, 100*time.Millisecond, func() (bool, error) {
+	waitFor(t, 10*time.Second, 100*time.Millisecond, func() (bool, error) {
 		cm, err := tc.clients.GetKubeClient().CoreV1().ConfigMaps(namespace).Get(context.Background(), "skupper-router", metav1.GetOptions{})
 		assert.NilError(t, err)
 		routerConfig, err = qdr.GetRouterConfigFromConfigMap(cm)
