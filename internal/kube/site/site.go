@@ -1768,6 +1768,20 @@ func (s *Site) checkSecuredAccess() error {
 	return nil
 }
 
+func (s *Site) hasPortConflict(ra *skupperv2alpha1.RouterAccess) (bool, string, int) {
+	var usedPorts = s.bindings.GetAllocatedPorts()
+	for _, role := range ra.Spec.Roles {
+		if role.Port == 0 {
+			continue
+		}
+		if name, ok := usedPorts[role.Port]; ok {
+			return true, fmt.Sprintf("routing key: %s", name), role.Port
+		}
+	}
+	return s.linkAccess.HasPortConflict(ra)
+
+}
+
 func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) error {
 	if !s.initialised {
 		if s.linkAccess != nil && la != nil && la.Status.StatusType != skupperv2alpha1.StatusError {
@@ -1784,7 +1798,7 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 		}
 		delete(s.linkAccess, name)
 		specChanged = true
-	} else if conflicts, withName, withPort := s.linkAccess.HasPortConflict(la); conflicts || la.MixesDynamicAndStaticPorts() {
+	} else if conflicts, withName, withPort := s.hasPortConflict(la); conflicts || la.MixesDynamicAndStaticPorts() {
 		if la.Status.StatusType != skupperv2alpha1.StatusError {
 			var err error
 			if la.MixesDynamicAndStaticPorts() {
@@ -1794,7 +1808,7 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 				err = fmt.Errorf("RouterAccess %q conflicts with %q on port %d", name, withName, withPort)
 				s.logger.Error("RouterAccess port conflicts",
 					slog.String("name", name),
-					slog.String("other", withName),
+					slog.String("with", withName),
 					slog.Int("port", withPort),
 				)
 			}

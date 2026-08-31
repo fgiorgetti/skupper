@@ -78,6 +78,10 @@ func (a *ExtendedBindings) GetPool() *ports.FreePorts {
 	return a.mapping.Pool
 }
 
+func (a *ExtendedBindings) GetAllocatedPorts() map[int]string {
+	return a.mapping.GetAllocatedPorts()
+}
+
 func (a *ExtendedBindings) ConnectorUpdated(connector *skupperv2alpha1.Connector) bool {
 	if selector, ok := a.selectors[connector.Name]; ok {
 		if selector.Selector() == connector.Spec.Selector {

@@ -93,7 +93,7 @@ func (m RouterAccessMap) HasPortConflict(ra *skupperv2alpha1.RouterAccess) (bool
 			continue
 		}
 		if name, ok := usedPorts[int32(role.Port)]; ok && name != ra.Name {
-			return true, name, role.Port
+			return true, fmt.Sprintf("router access: %s", name), role.Port
 		}
 	}
 	return false, "", 0

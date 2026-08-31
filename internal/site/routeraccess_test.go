@@ -648,7 +648,7 @@ func TestRouterAccessMap_HasPortConflict(t *testing.T) {
 				},
 			},
 			wantConflict:     true,
-			wantConflictName: "existing-ra",
+			wantConflictName: "router access: existing-ra",
 			wantConflictPort: 55671,
 		},
 		{
@@ -751,7 +751,7 @@ func TestRouterAccessMap_HasPortConflict(t *testing.T) {
 				},
 			},
 			wantConflict:     true,
-			wantConflictName: "existing-ra",
+			wantConflictName: "router access: existing-ra",
 			wantConflictPort: 55671,
 		},
 		{
@@ -783,7 +783,7 @@ func TestRouterAccessMap_HasPortConflict(t *testing.T) {
 				},
 			},
 			wantConflict:     true,
-			wantConflictName: "second-ra",
+			wantConflictName: "router access: second-ra",
 			wantConflictPort: 45671,
 		},
 		{
@@ -808,7 +808,7 @@ func TestRouterAccessMap_HasPortConflict(t *testing.T) {
 				},
 			},
 			wantConflict:     true,
-			wantConflictName: "existing-ra",
+			wantConflictName: "router access: existing-ra",
 			wantConflictPort: 55671,
 		},
 		{
@@ -885,7 +885,7 @@ func TestRouterAccessMap_HasPortConflict(t *testing.T) {
 				},
 			},
 			wantConflict:     true,
-			wantConflictName: "other-ra",
+			wantConflictName: "router access: other-ra",
 			wantConflictPort: 55673,
 		},
 	}

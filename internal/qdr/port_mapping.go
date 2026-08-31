@@ -14,6 +14,14 @@ type PortMapping struct {
 	logger   *slog.Logger
 }
 
+func (p *PortMapping) GetAllocatedPorts() map[int]string {
+	ports := map[int]string{}
+	for key, port := range p.mappings {
+		ports[port] = key
+	}
+	return ports
+}
+
 func (p *PortMapping) GetPortForKey(key string) (int, error) {
 	if existing, ok := p.mappings[key]; ok {
 		return existing, nil
