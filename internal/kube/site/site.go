@@ -56,7 +56,6 @@ type Site struct {
 	bindings            *ExtendedBindings
 	links               map[string]*site.Link
 	errors              map[string]string
-	routerAccessPorts   *ports.FreePorts
 	linkAccess          site.RouterAccessMap
 	certs               certificates.CertificateManager
 	access              SecuredAccessFactory
@@ -75,17 +74,16 @@ type Site struct {
 func NewSite(namespace string, eventProcessor *watchers.EventProcessor, certs certificates.CertificateManager, access SecuredAccessFactory, sizes *sizing.Registry, labelling Labelling, dynamicIngressPorts bool, disableSecCtx bool) *Site {
 	logger := slog.New(slog.Default().Handler())
 	site := &Site{
-		bindings:          NewExtendedBindings(eventProcessor, SSL_PROFILE_PATH),
-		namespace:         namespace,
-		clients:           eventProcessor,
-		links:             map[string]*site.Link{},
-		linkAccess:        site.RouterAccessMap{},
-		routerAccessPorts: ports.NewFreePortsForRouterAccess(),
-		certs:             certs,
-		access:            access,
-		accessMapping:     make(securedAccessMap),
-		sizes:             sizes,
-		routerPods:        map[string]*corev1.Pod{},
+		bindings:      NewExtendedBindings(eventProcessor, SSL_PROFILE_PATH),
+		namespace:     namespace,
+		clients:       eventProcessor,
+		links:         map[string]*site.Link{},
+		linkAccess:    site.RouterAccessMap{},
+		certs:         certs,
+		access:        access,
+		accessMapping: make(securedAccessMap),
+		sizes:         sizes,
+		routerPods:    map[string]*corev1.Pod{},
 		logger: logger.With(
 			slog.String("component", "kube.site.site"),
 		),
@@ -269,7 +267,6 @@ func (s *Site) reconcile(siteDef *skupperv2alpha1.Site, inRecovery bool) error {
 		s.initialised = !inRecovery
 		s.currentGroups = s.groups()
 		s.bindings.init(s, routerConfig)
-		s.recoverAccessPorts(routerConfig)
 		s.setBindingsConfiguredStatus(nil)
 		s.checkSecuredAccess()
 	} else if len(s.currentGroups) != len(s.groups()) {
@@ -1783,7 +1780,7 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 	specChanged := false
 	if la == nil {
 		if existing, ok := s.linkAccess[name]; ok && existing.Status.StatusType != skupperv2alpha1.StatusError {
-			s.routerAccessPorts.ReleaseAll(existing.GetAllocatedPorts()...)
+			s.getPool().ReleaseAll(existing.GetAllocatedPorts()...)
 		}
 		delete(s.linkAccess, name)
 		specChanged = true
@@ -1813,7 +1810,7 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 			specChanged = !reflect.DeepEqual(existing.Spec, la.Spec)
 		}
 		if unusedPorts := la.GetUnusedPorts(); len(unusedPorts) > 0 {
-			s.routerAccessPorts.ReleaseAll(unusedPorts...)
+			s.getPool().ReleaseAll(unusedPorts...)
 			la.ReleaseUnusedPorts(unusedPorts)
 			statusChanged = true
 		}
@@ -1824,13 +1821,13 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 				if !s.dynamicIngressPorts {
 					return fmt.Errorf("dynamic port allocation support is not available")
 				}
-				port, err = s.routerAccessPorts.NextFreePort()
+				port, err = s.getPool().NextFreePort()
 				if err != nil {
 					return err
 				}
 				allocatedPorts = append(allocatedPorts, int32(port))
 			} else {
-				s.routerAccessPorts.InUse(port)
+				s.getPool().InUse(port)
 			}
 			if s.dynamicIngressPorts && la.AllocatePort(role.Name, port) {
 				statusChanged = true
@@ -1893,7 +1890,7 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 		if err := s.updateRouterAccessStatus(la); err != nil {
 			if len(allocatedPorts) > 0 {
 				la.ReleaseUnusedPorts(allocatedPorts)
-				s.routerAccessPorts.ReleaseAll(allocatedPorts...)
+				s.getPool().ReleaseAll(allocatedPorts...)
 				s.linkAccess[name] = la
 			}
 			return err
@@ -1979,12 +1976,11 @@ func (s *Site) TLSPriorValidRevisions() uint64 {
 	return revisions
 }
 
-func (s *Site) recoverAccessPorts(config *qdr.RouterConfig) {
-	if config != nil {
-		for _, l := range config.Listeners {
-			s.routerAccessPorts.InUse(int(l.Port))
-		}
+func (s *Site) getPool() *ports.FreePorts {
+	if s.bindings == nil {
+		return nil
 	}
+	return s.bindings.GetPool()
 }
 
 func podState(pod *corev1.Pod) skupperv2alpha1.ConditionState {
