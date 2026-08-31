@@ -582,3 +582,326 @@ func TestRouterAccessMap_DesiredConfigWithAvailableCredentials(t *testing.T) {
 		t.Fatal("expected listeners when TLS secret allowed")
 	}
 }
+
+func TestRouterAccessMap_HasPortConflict(t *testing.T) {
+	tests := []struct {
+		name             string
+		m                RouterAccessMap
+		ra               *skupperv2alpha1.RouterAccess
+		wantConflict     bool
+		wantConflictName string
+		wantConflictPort int
+	}{
+		{
+			name: "empty map — no conflict",
+			m:    RouterAccessMap{},
+			ra: &skupperv2alpha1.RouterAccess{
+				ObjectMeta: v1.ObjectMeta{Name: "new-ra"},
+				Spec: skupperv2alpha1.RouterAccessSpec{
+					Roles: []skupperv2alpha1.RouterAccessRole{
+						{Name: "inter-router", Port: 55671},
+					},
+				},
+			},
+			wantConflict: false,
+		},
+		{
+			name: "new ra, distinct port from existing — no conflict",
+			m: RouterAccessMap{
+				"existing": &skupperv2alpha1.RouterAccess{
+					ObjectMeta: v1.ObjectMeta{Name: "existing-ra"},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{Name: "inter-router", Port: 55671},
+						},
+					},
+				},
+			},
+			ra: &skupperv2alpha1.RouterAccess{
+				ObjectMeta: v1.ObjectMeta{Name: "new-ra"},
+				Spec: skupperv2alpha1.RouterAccessSpec{
+					Roles: []skupperv2alpha1.RouterAccessRole{
+						{Name: "edge", Port: 45671},
+					},
+				},
+			},
+			wantConflict: false,
+		},
+		{
+			name: "new ra, same port as existing — conflict",
+			m: RouterAccessMap{
+				"existing": &skupperv2alpha1.RouterAccess{
+					ObjectMeta: v1.ObjectMeta{Name: "existing-ra"},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{Name: "inter-router", Port: 55671},
+						},
+					},
+				},
+			},
+			ra: &skupperv2alpha1.RouterAccess{
+				ObjectMeta: v1.ObjectMeta{Name: "new-ra"},
+				Spec: skupperv2alpha1.RouterAccessSpec{
+					Roles: []skupperv2alpha1.RouterAccessRole{
+						{Name: "inter-router", Port: 55671},
+					},
+				},
+			},
+			wantConflict:     true,
+			wantConflictName: "existing-ra",
+			wantConflictPort: 55671,
+		},
+		{
+			name: "ra already in map updating its own port — self, no conflict",
+			m: RouterAccessMap{
+				"my-ra": &skupperv2alpha1.RouterAccess{
+					ObjectMeta: v1.ObjectMeta{Name: "my-ra"},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{Name: "inter-router", Port: 55671},
+						},
+					},
+				},
+			},
+			ra: &skupperv2alpha1.RouterAccess{
+				ObjectMeta: v1.ObjectMeta{Name: "my-ra"},
+				Spec: skupperv2alpha1.RouterAccessSpec{
+					Roles: []skupperv2alpha1.RouterAccessRole{
+						{Name: "inter-router", Port: 55671},
+					},
+				},
+			},
+			wantConflict: false,
+		},
+		{
+			name: "candidate role port 0 is skipped — no conflict",
+			m: RouterAccessMap{
+				"existing": &skupperv2alpha1.RouterAccess{
+					ObjectMeta: v1.ObjectMeta{Name: "existing-ra"},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{Name: "inter-router", Port: 55671},
+						},
+					},
+				},
+			},
+			ra: &skupperv2alpha1.RouterAccess{
+				ObjectMeta: v1.ObjectMeta{Name: "new-ra"},
+				Spec: skupperv2alpha1.RouterAccessSpec{
+					Roles: []skupperv2alpha1.RouterAccessRole{
+						{Name: "inter-router", Port: 0},
+					},
+				},
+			},
+			wantConflict: false,
+		},
+		{
+			name: "two existing ras both with unresolved ports — port-0 key bug, no spurious conflict",
+			m: RouterAccessMap{
+				"first": &skupperv2alpha1.RouterAccess{
+					ObjectMeta: v1.ObjectMeta{Name: "first-ra"},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{Name: "inter-router", Port: 0},
+						},
+					},
+				},
+				"second": &skupperv2alpha1.RouterAccess{
+					ObjectMeta: v1.ObjectMeta{Name: "second-ra"},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{Name: "edge", Port: 0},
+						},
+					},
+				},
+			},
+			ra: &skupperv2alpha1.RouterAccess{
+				ObjectMeta: v1.ObjectMeta{Name: "new-ra"},
+				Spec: skupperv2alpha1.RouterAccessSpec{
+					Roles: []skupperv2alpha1.RouterAccessRole{
+						{Name: "inter-router", Port: 55671},
+					},
+				},
+			},
+			wantConflict: false,
+		},
+		{
+			name: "existing ra has allocated port in Status — candidate wants same port — conflict",
+			m: RouterAccessMap{
+				"existing": &skupperv2alpha1.RouterAccess{
+					ObjectMeta: v1.ObjectMeta{Name: "existing-ra"},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{Name: "inter-router", Port: 0},
+						},
+					},
+					Status: skupperv2alpha1.RouterAccessStatus{
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{Name: "inter-router", Port: 55671},
+						},
+					},
+				},
+			},
+			ra: &skupperv2alpha1.RouterAccess{
+				ObjectMeta: v1.ObjectMeta{Name: "new-ra"},
+				Spec: skupperv2alpha1.RouterAccessSpec{
+					Roles: []skupperv2alpha1.RouterAccessRole{
+						{Name: "inter-router", Port: 55671},
+					},
+				},
+			},
+			wantConflict:     true,
+			wantConflictName: "existing-ra",
+			wantConflictPort: 55671,
+		},
+		{
+			name: "multiple existing ras — conflict with second one",
+			m: RouterAccessMap{
+				"first": &skupperv2alpha1.RouterAccess{
+					ObjectMeta: v1.ObjectMeta{Name: "first-ra"},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{Name: "inter-router", Port: 55671},
+						},
+					},
+				},
+				"second": &skupperv2alpha1.RouterAccess{
+					ObjectMeta: v1.ObjectMeta{Name: "second-ra"},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{Name: "edge", Port: 45671},
+						},
+					},
+				},
+			},
+			ra: &skupperv2alpha1.RouterAccess{
+				ObjectMeta: v1.ObjectMeta{Name: "new-ra"},
+				Spec: skupperv2alpha1.RouterAccessSpec{
+					Roles: []skupperv2alpha1.RouterAccessRole{
+						{Name: "edge", Port: 45671},
+					},
+				},
+			},
+			wantConflict:     true,
+			wantConflictName: "second-ra",
+			wantConflictPort: 45671,
+		},
+		{
+			name: "candidate with two roles — only second conflicts",
+			m: RouterAccessMap{
+				"existing": &skupperv2alpha1.RouterAccess{
+					ObjectMeta: v1.ObjectMeta{Name: "existing-ra"},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{Name: "inter-router", Port: 55671},
+						},
+					},
+				},
+			},
+			ra: &skupperv2alpha1.RouterAccess{
+				ObjectMeta: v1.ObjectMeta{Name: "new-ra"},
+				Spec: skupperv2alpha1.RouterAccessSpec{
+					Roles: []skupperv2alpha1.RouterAccessRole{
+						{Name: "edge", Port: 45671},
+						{Name: "inter-router", Port: 55671},
+					},
+				},
+			},
+			wantConflict:     true,
+			wantConflictName: "existing-ra",
+			wantConflictPort: 55671,
+		},
+		{
+			name: "candidate with two roles — neither conflicts",
+			m: RouterAccessMap{
+				"existing": &skupperv2alpha1.RouterAccess{
+					ObjectMeta: v1.ObjectMeta{Name: "existing-ra"},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{Name: "inter-router", Port: 55671},
+						},
+					},
+				},
+			},
+			ra: &skupperv2alpha1.RouterAccess{
+				ObjectMeta: v1.ObjectMeta{Name: "new-ra"},
+				Spec: skupperv2alpha1.RouterAccessSpec{
+					Roles: []skupperv2alpha1.RouterAccessRole{
+						{Name: "edge", Port: 45671},
+						{Name: "inter-network", Port: 35671},
+					},
+				},
+			},
+			wantConflict: false,
+		},
+		{
+			name: "candidate with modified port — no conflicts",
+			m: RouterAccessMap{
+				"my-ra": &skupperv2alpha1.RouterAccess{
+					ObjectMeta: v1.ObjectMeta{Name: "my-ra"},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{Name: "inter-router", Port: 55671},
+						},
+					},
+				},
+			},
+			ra: &skupperv2alpha1.RouterAccess{
+				ObjectMeta: v1.ObjectMeta{Name: "my-ra"},
+				Spec: skupperv2alpha1.RouterAccessSpec{
+					Roles: []skupperv2alpha1.RouterAccessRole{
+						{Name: "inter-network", Port: 55673},
+					},
+				},
+			},
+			wantConflict: false,
+		},
+		{
+			name: "candidate conflicts when modifying port",
+			m: RouterAccessMap{
+				"my-ra": &skupperv2alpha1.RouterAccess{
+					ObjectMeta: v1.ObjectMeta{Name: "my-ra"},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{Name: "inter-router", Port: 55671},
+						},
+					},
+				},
+				"other-ra": &skupperv2alpha1.RouterAccess{
+					ObjectMeta: v1.ObjectMeta{Name: "other-ra"},
+					Spec: skupperv2alpha1.RouterAccessSpec{
+						Roles: []skupperv2alpha1.RouterAccessRole{
+							{Name: "inter-router", Port: 55673},
+						},
+					},
+				},
+			},
+			ra: &skupperv2alpha1.RouterAccess{
+				ObjectMeta: v1.ObjectMeta{Name: "my-ra"},
+				Spec: skupperv2alpha1.RouterAccessSpec{
+					Roles: []skupperv2alpha1.RouterAccessRole{
+						{Name: "inter-network", Port: 55673},
+					},
+				},
+			},
+			wantConflict:     true,
+			wantConflictName: "other-ra",
+			wantConflictPort: 55673,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotConflict, gotName, gotPort := tt.m.HasPortConflict(tt.ra)
+			if gotConflict != tt.wantConflict {
+				t.Errorf("HasPortConflict() conflict = %v, want %v", gotConflict, tt.wantConflict)
+			}
+			if gotName != tt.wantConflictName {
+				t.Errorf("HasPortConflict() conflicting name = %q, want %q", gotName, tt.wantConflictName)
+			}
+			if gotPort != tt.wantConflictPort {
+				t.Errorf("HasPortConflict() conflicting port = %v, want %v", gotPort, tt.wantConflictPort)
+			}
+		})
+	}
+}

@@ -1004,6 +1004,7 @@ func (r *RouterAccess) GetAllocatedPorts() []int32 {
 	var ports []int32
 	for _, role := range r.Spec.Roles {
 		if role.Port != 0 {
+			ports = append(ports, int32(role.Port))
 			continue
 		}
 		if allocatedPort := r.GetAllocatedPortForRole(role.Name); allocatedPort != 0 {
@@ -1011,6 +1012,18 @@ func (r *RouterAccess) GetAllocatedPorts() []int32 {
 		}
 	}
 	return ports
+}
+
+func (r *RouterAccess) MixesDynamicAndStaticPorts() bool {
+	var hasStatic, hasDynamic bool
+	for _, role := range r.Spec.Roles {
+		if role.Port == 0 {
+			hasDynamic = true
+		} else {
+			hasStatic = true
+		}
+	}
+	return hasStatic && hasDynamic
 }
 
 func (r *RouterAccess) GetUnusedPorts() []int32 {

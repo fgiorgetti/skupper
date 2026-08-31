@@ -1773,7 +1773,7 @@ func (s *Site) checkSecuredAccess() error {
 
 func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) error {
 	if !s.initialised {
-		if s.linkAccess != nil && la != nil {
+		if s.linkAccess != nil && la != nil && la.Status.StatusType != skupperv2alpha1.StatusError {
 			s.linkAccess[name] = la
 		}
 		return nil
@@ -1782,11 +1782,32 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 	statusChanged := false
 	specChanged := false
 	if la == nil {
-		if existing, ok := s.linkAccess[name]; ok {
+		if existing, ok := s.linkAccess[name]; ok && existing.Status.StatusType != skupperv2alpha1.StatusError {
 			s.routerAccessPorts.ReleaseAll(existing.GetAllocatedPorts()...)
 		}
 		delete(s.linkAccess, name)
 		specChanged = true
+	} else if conflicts, withName, withPort := s.linkAccess.HasPortConflict(la); conflicts || la.MixesDynamicAndStaticPorts() {
+		if la.Status.StatusType != skupperv2alpha1.StatusError {
+			var err error
+			if la.MixesDynamicAndStaticPorts() {
+				err = fmt.Errorf("RouterAccess %q mixes static and dynamic ports", name)
+				s.logger.Error("RouterAccess mixes static and dynamic ports", slog.String("name", name))
+			} else {
+				err = fmt.Errorf("RouterAccess %q conflicts with %q on port %d", name, withName, withPort)
+				s.logger.Error("RouterAccess port conflicts",
+					slog.String("name", name),
+					slog.String("other", withName),
+					slog.Int("port", withPort),
+				)
+			}
+			la.SetConfigured(err)
+			s.updateRouterAccessStatus(la)
+		}
+		// forces router access removal
+		delete(s.linkAccess, name)
+		specChanged = true
+		la = nil
 	} else {
 		if existing, ok := s.linkAccess[name]; ok {
 			specChanged = !reflect.DeepEqual(existing.Spec, la.Spec)
@@ -1808,6 +1829,8 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 					return err
 				}
 				allocatedPorts = append(allocatedPorts, int32(port))
+			} else {
+				s.routerAccessPorts.InUse(port)
 			}
 			if s.dynamicIngressPorts && la.AllocatePort(role.Name, port) {
 				statusChanged = true

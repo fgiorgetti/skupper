@@ -79,6 +79,26 @@ func (m RouterAccessMap) findInterRouterRole() (*skupperv2alpha1.RouterAccessRol
 	return nil, nil
 }
 
+func (m RouterAccessMap) HasPortConflict(ra *skupperv2alpha1.RouterAccess) (bool, string, int) {
+	var usedPorts = map[int32]string{}
+	for _, cur := range m {
+		for _, curRole := range cur.Spec.Roles {
+			if port := cur.GetPortForRole(curRole.Name); port != 0 {
+				usedPorts[port] = cur.Name
+			}
+		}
+	}
+	for _, role := range ra.Spec.Roles {
+		if role.Port == 0 {
+			continue
+		}
+		if name, ok := usedPorts[int32(role.Port)]; ok && name != ra.Name {
+			return true, name, role.Port
+		}
+	}
+	return false, "", 0
+}
+
 func (m RouterAccessMap) DesiredConfig(targetGroups []string, profilePath string) *RouterAccessConfig {
 	return m.DesiredConfigWithAvailableCredentials(targetGroups, profilePath, nil)
 }

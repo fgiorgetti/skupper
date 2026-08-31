@@ -143,9 +143,9 @@ func (m LinkMap) Apply(current *qdr.RouterConfig) bool {
 				current.RemoveConnector(connector.Name)
 				current.RemoveSslProfile(connector.SslProfile)
 				current.RemoveProxyProfile(connector.ProxyProfile)
-			}
-			for name := range qdr.FilterAutoLinks(current.AutoLinks, connector.FilterAutoLinks) {
-				current.RemoveAutoLink(name)
+				for name := range qdr.FilterAutoLinks(current.AutoLinks, connector.FilterAutoLinks) {
+					current.RemoveAutoLink(name)
+				}
 			}
 		}
 	}
