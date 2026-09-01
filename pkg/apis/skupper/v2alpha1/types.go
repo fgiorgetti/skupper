@@ -1077,7 +1077,10 @@ func (r *RouterAccess) ReleaseUnusedPorts(unusedPorts []int32) {
 }
 
 type RouterAccessSpec struct {
-	AccessType              string             `json:"accessType,omitempty"`
+	AccessType string `json:"accessType,omitempty"`
+	// +kubebuilder:validation:MaxItems=4
+	// +kubebuilder:validation:XValidation:rule="self.all(r, self.filter(x, x.name == r.name).size() == 1)",message="spec.roles must not contain duplicate role names"
+	// +kubebuilder:validation:XValidation:rule="self.filter(x, has(x.port) && x.port > 0).all(r, self.filter(x, has(x.port) && x.port == r.port).size() == 1)",message="spec.roles must not contain duplicate non-zero ports"
 	Roles                   []RouterAccessRole `json:"roles"`
 	TlsCredentials          string             `json:"tlsCredentials"`
 	GenerateTlsCredentials  bool               `json:"generateTlsCredentials,omitempty"`

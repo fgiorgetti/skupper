@@ -26,6 +26,7 @@ spec:
                     "edge" for links from edge routers to interior routers,
                     "inter-network" for multi-van links.
                   type: array
+                  maxItems: 4
                   items:
                     type: object
                     properties:
@@ -37,6 +38,11 @@ spec:
                         type: integer
                     required:
                       - name
+                  x-kubernetes-validations:
+                  - rule: "self.all(r, self.filter(x, x.name == r.name).size() == 1)"
+                    message: "spec.roles must not contain duplicate role names"
+                  - rule: "self.filter(x, has(x.port) && x.port > 0).all(r, self.filter(x, has(x.port) && x.port == r.port).size() == 1)"
+                    message: "spec.roles must not contain duplicate non-zero ports"
                 generateTlsCredentials:
                   description: |-
                     When set, Skupper generates the TLS credentials to be
