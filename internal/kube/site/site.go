@@ -1837,6 +1837,7 @@ func (s *Site) CheckRouterAccess(name string, la *skupperv2alpha1.RouterAccess) 
 				}
 				port, err = s.getPool().NextFreePort()
 				if err != nil {
+					s.getPool().ReleaseAll(allocatedPorts...)
 					return err
 				}
 				allocatedPorts = append(allocatedPorts, int32(port))
