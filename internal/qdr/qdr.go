@@ -750,7 +750,7 @@ type AutoLink struct {
 	Direction       string     `json:"direction,omitempty"`
 	Connection      string     `json:"connection,omitempty"`
 	ContainerId     string     `json:"containerId,omitempty"`
-	operStatus      OperStatus `json:"operStatus,omitempty"`
+	OperStatus      OperStatus `json:"operStatus,omitempty"`
 }
 
 func (a *AutoLink) toRecord() Record {
@@ -773,14 +773,14 @@ func (a *AutoLink) toRecord() Record {
 	if a.ContainerId != "" {
 		result["containerId"] = a.ContainerId
 	}
-	if a.operStatus != "" {
-		result["operStatus"] = a.operStatus
+	if a.OperStatus != "" {
+		result["operStatus"] = a.OperStatus
 	}
 	return result
 }
 
 func (a *AutoLink) GetOperStatus() OperStatus {
-	return a.operStatus
+	return a.OperStatus
 }
 
 func (a *AutoLink) Equivalent(other *AutoLink) bool {

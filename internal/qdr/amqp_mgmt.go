@@ -1223,7 +1223,7 @@ func asAutoLink(record Record) AutoLink {
 		Direction:       record.AsString("direction"),
 		Connection:      record.AsString("connection"),
 		ContainerId:     record.AsString("containerId"),
-		operStatus:      OperStatus(record.AsString("operStatus")),
+		OperStatus:      OperStatus(record.AsString("operStatus")),
 	}
 }
 
