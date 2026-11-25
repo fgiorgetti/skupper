@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"regexp"
+	"sort"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -174,6 +175,25 @@ func NewController(cli internalclient.Clients, config *Config, options ...watche
 
 func (c *Controller) IsControlled(namespace string) bool {
 	return c.namespaces.isControlled(namespace)
+}
+
+func (c *Controller) ControlledSiteNamespaces() []string {
+	if c.siteWatcher == nil {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	for _, s := range c.siteWatcher.List() {
+		if !c.namespaces.isControlled(s.Namespace) {
+			continue
+		}
+		seen[s.Namespace] = struct{}{}
+	}
+	namespaces := make([]string, 0, len(seen))
+	for ns := range seen {
+		namespaces = append(namespaces, ns)
+	}
+	sort.Strings(namespaces)
+	return namespaces
 }
 
 func (c *Controller) SnapshotMetadata(namespace string) *labels.LabelsAndAnnotations {

@@ -1,0 +1,17 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: skupper-runtime-viewer
+  labels:
+    app.kubernetes.io/part-of: skupper
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+rules:
+  - apiGroups:
+      - runtime.skupper.io
+    resources:
+      - endpoints
+    verbs:
+      - get
+      - list

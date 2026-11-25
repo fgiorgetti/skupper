@@ -1,0 +1,4 @@
+resources:
+- service.yaml
+- apiservice.yaml
+- clusterrole_view.yaml

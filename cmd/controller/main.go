@@ -12,6 +12,7 @@ import (
 	internalclient "github.com/skupperproject/skupper/internal/kube/client"
 	"github.com/skupperproject/skupper/internal/kube/controller"
 	"github.com/skupperproject/skupper/internal/kube/metrics"
+	"github.com/skupperproject/skupper/internal/kube/runtimeapi"
 	"github.com/skupperproject/skupper/internal/kube/watchers"
 	"github.com/skupperproject/skupper/internal/version"
 )
@@ -88,6 +89,15 @@ func main() {
 	if err != nil {
 		slog.Error("Error getting new site controller", slog.Any("error", err))
 		os.Exit(1)
+	}
+
+	if config.RuntimeAPIConfig != nil && !config.RuntimeAPIConfig.Disabled {
+		provider := runtimeapi.NewAdaptorProvider(controller.ControlledSiteNamespaces)
+		runtimeSrv := runtimeapi.NewServer(config.RuntimeAPIConfig, config.Namespace, provider)
+		if err := runtimeSrv.Start(stopCh); err != nil {
+			slog.Error("Error starting runtime aggregated API server", slog.Any("error", err))
+			os.Exit(1)
+		}
 	}
 
 	if err = controller.Run(stopCh); err != nil {

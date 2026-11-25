@@ -125,6 +125,8 @@ spec:
           ports:
             - name: metrics
               containerPort: 9000
+            - name: runtime-api
+              containerPort: 8443
           env:
             - name: SKUPPER_KUBE_ADAPTOR_IMAGE
               value: ${SKUPPER_KUBE_ADAPTOR_IMAGE}
@@ -227,6 +229,7 @@ resources:
 - manager.yaml
 - service_account.yaml
 - ../../config/rbac/cluster
+- ../../config/apiservice
 EOF
 }
 
@@ -238,6 +241,7 @@ resources:
 - manager.yaml
 - service_account.yaml
 - ../../config/rbac/cluster
+- ../../config/apiservice
 EOF
 }
 

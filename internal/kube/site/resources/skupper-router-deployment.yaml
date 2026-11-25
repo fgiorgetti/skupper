@@ -167,6 +167,9 @@ spec:
         - containerPort: 9000
           name: metrics
           protocol: TCP
+        - containerPort: 9191
+          name: runtime-state
+          protocol: TCP
         volumeMounts:
         - mountPath: /etc/skupper-router-certs
           name: skupper-router-certs

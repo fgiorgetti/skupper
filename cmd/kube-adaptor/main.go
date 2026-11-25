@@ -16,6 +16,7 @@ import (
 	"github.com/skupperproject/skupper/internal/kube/adaptor"
 	internalclient "github.com/skupperproject/skupper/internal/kube/client"
 	"github.com/skupperproject/skupper/internal/kube/metrics"
+	"github.com/skupperproject/skupper/internal/kube/runtimeapi"
 	"github.com/skupperproject/skupper/internal/kube/watchers"
 	"github.com/skupperproject/skupper/internal/qdr"
 	"github.com/skupperproject/skupper/internal/version"
@@ -109,12 +110,45 @@ func main() {
 	slog.Info("Starting collector...")
 	go adaptor.StartCollector(cli)
 
-	//start health check
-	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-		w.Write([]byte("ok"))
+	runtimeState := adaptor.NewRuntimeStateStore(
+		cli.GetNamespace(),
+		os.Getenv("SKUPPER_SITE_NAME"),
+		os.Getenv("SKUPPER_SITE_ID"),
+	)
+	// TODO: replace placeholder entries with live router runtime state population.
+	runtimeState.SetBridges(qdr.BridgeConfig{
+		TcpListeners: qdr.TcpEndpointMap{
+			"sample-listener": {
+				Name:    "sample-listener",
+				Address: "backend:8080",
+				Host:    "0.0.0.0",
+				Port:    "8080",
+			},
+		},
+		TcpConnectors: qdr.TcpEndpointMap{
+			"sample-connector": {
+				Name:    "sample-connector",
+				Address: "backend:8080",
+				Host:    "127.0.0.1",
+				Port:    "8080",
+			},
+		},
 	})
-	go http.ListenAndServe(":9191", nil)
+
+	// Start health check and runtime state endpoints.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	runtimeHandler := adaptor.RuntimeStateHandler(runtimeState)
+	mux.Handle(runtimeapi.AdaptorEndpointsPath, runtimeHandler)
+	mux.Handle(runtimeapi.AdaptorEndpointsPath+"/", runtimeHandler)
+	go func() {
+		if err := http.ListenAndServe(":9191", mux); err != nil {
+			slog.Error("Error running kube-adaptor HTTP server", slog.Any("error", err))
+		}
+	}()
 
 	configSync := adaptor.NewConfigSync(cli, cli.GetNamespace(), configDir, configMapName, eventProcessorMetrics)
 	slog.Info("Starting controller loop...")
