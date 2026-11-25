@@ -41,23 +41,50 @@ func SyncSslProfilesToRouter(agentPool *AgentPool, desired map[string]SslProfile
 	return nil
 }
 
-func SyncBridgeConfig(agentPool *AgentPool, desired *BridgeConfig) error {
+type bridgeConfigAgent interface {
+	GetLocalBridgeConfig() (*BridgeConfig, error)
+	UpdateLocalBridgeConfig(changes *BridgeConfigDifference) error
+}
+
+func GetLocalBridgeConfig(agentPool *AgentPool) (*BridgeConfig, error) {
 	agent, err := agentPool.Get()
 	if err != nil {
-		return fmt.Errorf("Could not get management agent : %s", err)
+		return nil, fmt.Errorf("Could not get management agent : %s", err)
 	}
-	var synced bool
+	defer agentPool.Put(agent)
 
-	synced, err = syncBridgeConfig(agent, desired)
-
-	agentPool.Put(agent)
+	actual, err := agent.GetLocalBridgeConfig()
 	if err != nil {
-		return fmt.Errorf("Error while syncing bridge config : %s", err)
+		return nil, fmt.Errorf("Error retrieving bridges: %s", err)
+	}
+	return actual, nil
+}
+
+func SyncBridgeConfig(agentPool *AgentPool, desired *BridgeConfig) error {
+	_, err := syncBridgeConfigFromPool(agentPool, desired, false)
+	return err
+}
+
+// SyncAndGetBridgeConfig reconciles bridge config and returns the live router bridge config.
+func SyncAndGetBridgeConfig(agentPool *AgentPool, desired *BridgeConfig) (*BridgeConfig, error) {
+	return syncBridgeConfigFromPool(agentPool, desired, true)
+}
+
+func syncBridgeConfigFromPool(agentPool *AgentPool, desired *BridgeConfig, fetchAfterUpdate bool) (*BridgeConfig, error) {
+	agent, err := agentPool.Get()
+	if err != nil {
+		return nil, fmt.Errorf("Could not get management agent : %s", err)
+	}
+	defer agentPool.Put(agent)
+
+	actual, synced, err := syncBridgeConfig(agent, desired, fetchAfterUpdate)
+	if err != nil {
+		return nil, fmt.Errorf("Error while syncing bridge config : %s", err)
 	}
 	if !synced {
 		log.Default().Println("Bridge config is not synchronised yet")
 	}
-	return nil
+	return actual, nil
 }
 
 func SyncRouterConfig(agentPool *AgentPool, desired *RouterConfig, checkCertFilesExist bool) error {
@@ -111,20 +138,26 @@ func syncListeners(agentPool *AgentPool, desired *RouterConfig) error {
 	return nil
 }
 
-func syncBridgeConfig(agent *Agent, desired *BridgeConfig) (bool, error) {
+func syncBridgeConfig(agent bridgeConfigAgent, desired *BridgeConfig, fetchAfterUpdate bool) (*BridgeConfig, bool, error) {
 	actual, err := agent.GetLocalBridgeConfig()
 	if err != nil {
-		return false, fmt.Errorf("Error retrieving bridges: %s", err)
+		return nil, false, fmt.Errorf("Error retrieving bridges: %s", err)
 	}
 	differences := actual.Difference(desired)
 	if differences.Empty() {
-		return true, nil
-	} else {
-		if err = agent.UpdateLocalBridgeConfig(differences); err != nil {
-			return false, fmt.Errorf("Error syncing bridges: %s", err)
-		}
-		return false, nil
+		return actual, true, nil
 	}
+	if err = agent.UpdateLocalBridgeConfig(differences); err != nil {
+		return nil, false, fmt.Errorf("Error syncing bridges: %s", err)
+	}
+	if !fetchAfterUpdate {
+		return nil, false, nil
+	}
+	updated, err := agent.GetLocalBridgeConfig()
+	if err != nil {
+		return nil, false, fmt.Errorf("Error retrieving updated bridges: %s", err)
+	}
+	return updated, false, nil
 }
 
 func SyncProxyProfilesToRouter(agentPool *AgentPool, desired map[string]ProxyProfile) error {

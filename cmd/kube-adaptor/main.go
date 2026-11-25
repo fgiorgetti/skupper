@@ -115,25 +115,7 @@ func main() {
 		os.Getenv("SKUPPER_SITE_NAME"),
 		os.Getenv("SKUPPER_SITE_ID"),
 	)
-	// TODO: replace placeholder entries with live router runtime state population.
-	runtimeState.SetBridges(qdr.BridgeConfig{
-		TcpListeners: qdr.TcpEndpointMap{
-			"sample-listener": {
-				Name:    "sample-listener",
-				Address: "backend:8080",
-				Host:    "0.0.0.0",
-				Port:    "8080",
-			},
-		},
-		TcpConnectors: qdr.TcpEndpointMap{
-			"sample-connector": {
-				Name:    "sample-connector",
-				Address: "backend:8080",
-				Host:    "127.0.0.1",
-				Port:    "8080",
-			},
-		},
-	})
+	configSync := adaptor.NewConfigSync(cli, cli.GetNamespace(), configDir, configMapName, eventProcessorMetrics, runtimeState)
 
 	// Start health check and runtime state endpoints.
 	mux := http.NewServeMux()
@@ -150,7 +132,6 @@ func main() {
 		}
 	}()
 
-	configSync := adaptor.NewConfigSync(cli, cli.GetNamespace(), configDir, configMapName, eventProcessorMetrics)
 	slog.Info("Starting controller loop...")
 	configSync.Start(stopCh)
 

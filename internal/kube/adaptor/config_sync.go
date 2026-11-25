@@ -25,6 +25,7 @@ type ConfigSync struct {
 	config          *watchers.ConfigMapWatcher
 	path            string
 	routerConfigMap string
+	runtimeState    *RuntimeStateStore
 	logger          *slog.Logger
 }
 
@@ -36,7 +37,7 @@ func sslSecretsWatcher(namespace string, eventProcessor *watchers.EventProcessor
 	}
 }
 
-func NewConfigSync(cli internalclient.Clients, namespace string, path string, routerConfigMap string, metrics watchers.MetricsProvider) *ConfigSync {
+func NewConfigSync(cli internalclient.Clients, namespace string, path string, routerConfigMap string, metrics watchers.MetricsProvider, runtimeState *RuntimeStateStore) *ConfigSync {
 	controller := watchers.NewEventProcessor("config-sync", cli, watchers.WithMetricsProvider(metrics))
 	configSync := &ConfigSync{
 		agentPool:       qdr.NewAgentPool("amqp://localhost:5672", nil),
@@ -44,6 +45,7 @@ func NewConfigSync(cli internalclient.Clients, namespace string, path string, ro
 		namespace:       namespace,
 		path:            path,
 		routerConfigMap: routerConfigMap,
+		runtimeState:    runtimeState,
 		logger:          slog.New(slog.Default().Handler()).With(slog.String("component", "kube.adaptor.configSync")),
 	}
 	configSync.profileSyncer = secrets.NewSync(
@@ -65,9 +67,26 @@ func (c *ConfigSync) recheckProfile(_ string) {
 	}
 }
 
+func (c *ConfigSync) RefreshRuntimeState() error {
+	if c.runtimeState == nil {
+		return nil
+	}
+	bridges, err := qdr.GetLocalBridgeConfig(c.agentPool)
+	if err != nil {
+		return err
+	}
+	if bridges != nil {
+		c.runtimeState.SetBridges(*bridges)
+	}
+	return nil
+}
+
 func (c *ConfigSync) Start(stopCh <-chan struct{}) error {
 	if err := mkdir(c.path); err != nil {
 		return err
+	}
+	if err := c.RefreshRuntimeState(); err != nil {
+		c.logger.Warn("CONFIG_SYNC: Failed initial runtime bridge state refresh", slog.Any("error", err))
 	}
 	c.config = c.controller.WatchConfigMaps(watchers.ByName(c.routerConfigMap), c.namespace, c.configEvent)
 	c.controller.StartWatchers(stopCh)
@@ -110,9 +129,13 @@ func (c *ConfigSync) configEvent(key string, configmap *corev1.ConfigMap) error 
 	if err := qdr.SyncProxyProfilesToRouter(c.agentPool, desired.ProxyProfiles); err != nil {
 		return err
 	}
-	if err := qdr.SyncBridgeConfig(c.agentPool, &desired.Bridges); err != nil {
+	actualBridges, err := qdr.SyncAndGetBridgeConfig(c.agentPool, &desired.Bridges)
+	if err != nil {
 		c.logger.Error("sync failed", slog.Any("error", err))
 		return err
+	}
+	if c.runtimeState != nil && actualBridges != nil {
+		c.runtimeState.SetBridges(*actualBridges)
 	}
 	if err := qdr.SyncRouterConfig(c.agentPool, desired, true); err != nil {
 		c.logger.Error("sync failed", slog.Any("error", err))
