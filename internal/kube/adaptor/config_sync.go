@@ -53,6 +53,11 @@ func NewConfigSync(cli internalclient.Clients, namespace string, path string, ro
 		configSync.recheckProfile,
 		slog.New(slog.Default().Handler()).With(slog.String("component", "kube.secrets")),
 	)
+	if runtimePusher != nil {
+		runtimePusher.SetStateFetcher(func() (*qdr.BridgeRuntimeState, error) {
+			return qdr.GetLocalBridgeRuntimeState(configSync.agentPool)
+		})
+	}
 	return configSync
 }
 
@@ -71,12 +76,12 @@ func (c *ConfigSync) RefreshRuntimeState() error {
 	if c.runtimePusher == nil {
 		return nil
 	}
-	bridges, err := qdr.GetLocalBridgeConfig(c.agentPool)
+	state, err := qdr.GetLocalBridgeRuntimeState(c.agentPool)
 	if err != nil {
 		return err
 	}
-	if bridges != nil {
-		c.runtimePusher.UpdateBridges(*bridges)
+	if state != nil {
+		c.runtimePusher.UpdateState(*state)
 	}
 	return nil
 }
@@ -132,13 +137,16 @@ func (c *ConfigSync) configEvent(key string, configmap *corev1.ConfigMap) error 
 	if err := qdr.SyncProxyProfilesToRouter(c.agentPool, desired.ProxyProfiles); err != nil {
 		return err
 	}
-	actualBridges, err := qdr.SyncAndGetBridgeConfig(c.agentPool, &desired.Bridges)
+	liveState, err := qdr.SyncAndGetBridgeRuntimeState(c.agentPool, &desired.Bridges)
 	if err != nil {
+		if c.runtimePusher != nil {
+			c.runtimePusher.TriggerRefresh()
+		}
 		c.logger.Error("sync failed", slog.Any("error", err))
 		return err
 	}
-	if c.runtimePusher != nil && actualBridges != nil {
-		c.runtimePusher.UpdateBridges(*actualBridges)
+	if c.runtimePusher != nil && liveState != nil {
+		c.runtimePusher.UpdateState(*liveState)
 	}
 	if err := qdr.SyncRouterConfig(c.agentPool, desired, true); err != nil {
 		c.logger.Error("sync failed", slog.Any("error", err))

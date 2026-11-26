@@ -121,3 +121,61 @@ func TestSyncBridgeConfigErrors(t *testing.T) {
 		assert.ErrorContains(t, err, "Error retrieving updated bridges")
 	})
 }
+
+type fakeBridgeRuntimeAgent struct {
+	fakeBridgeConfigAgent
+	runtimeState *BridgeRuntimeState
+	runtimeCalls int
+	runtimeErr   error
+}
+
+func (f *fakeBridgeRuntimeAgent) GetLocalBridgeRuntimeState() (*BridgeRuntimeState, error) {
+	f.runtimeCalls++
+	if f.runtimeErr != nil {
+		return nil, f.runtimeErr
+	}
+	return f.runtimeState, nil
+}
+
+func TestSyncBridgeRuntimeStateAndRecordMapping(t *testing.T) {
+	rec := Record{
+		"name":              "web",
+		"address":           "web:80",
+		"host":              "0.0.0.0",
+		"port":              "80",
+		"operStatus":        "up",
+		"connectionsOpened": uint64(12),
+		"connectionsClosed": uint64(10),
+		"bytesIn":           uint64(4096),
+		"bytesOut":          uint64(8192),
+	}
+	rt := asTcpEndpointRuntime(rec)
+	assert.Equal(t, rt.Name, "web")
+	assert.Equal(t, rt.OperStatus, "up")
+	assert.Equal(t, rt.ConnectionsOpened, uint64(12))
+	assert.Equal(t, rt.ConnectionsClosed, uint64(10))
+	assert.Equal(t, rt.BytesIn, uint64(4096))
+	assert.Equal(t, rt.BytesOut, uint64(8192))
+
+	initial := NewBridgeConfig()
+	desired := NewBridgeConfig()
+	desired.AddTcpListener(TcpEndpoint{Name: "web", Address: "web:80", Host: "0.0.0.0", Port: "80"})
+
+	live := NewBridgeRuntimeState()
+	live.TcpListeners["web"] = rt
+
+	agent := &fakeBridgeRuntimeAgent{
+		fakeBridgeConfigAgent: fakeBridgeConfigAgent{
+			getResponses: []*BridgeConfig{&initial},
+		},
+		runtimeState: &live,
+	}
+
+	got, synced, err := syncBridgeRuntimeState(agent, &desired)
+	assert.NilError(t, err)
+	assert.Assert(t, !synced)
+	assert.Equal(t, agent.updateCalls, 1)
+	assert.Equal(t, agent.runtimeCalls, 1)
+	assert.Equal(t, got.TcpListeners["web"].OperStatus, "up")
+	assert.Equal(t, got.TcpListeners["web"].BytesIn, uint64(4096))
+}

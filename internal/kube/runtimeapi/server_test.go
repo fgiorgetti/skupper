@@ -140,9 +140,16 @@ func TestEndToEndPushIngestAndAggregatedReadWithTLS(t *testing.T) {
 		TokenFile: westTokenFile,
 	}, "west", "skupper-router-west-0", "site-west", "uid-west")
 	assert.NilError(t, err)
-	westPusher.UpdateBridges(qdr.BridgeConfig{
-		TcpListeners: qdr.TcpEndpointMap{
-			"frontend": {Name: "frontend", Address: "frontend:8080", Host: "0.0.0.0", Port: "8080"},
+	westPusher.UpdateState(qdr.BridgeRuntimeState{
+		TcpListeners: map[string]qdr.TcpEndpointRuntime{
+			"frontend": {
+				TcpEndpoint:       qdr.TcpEndpoint{Name: "frontend", Address: "frontend:8080", Host: "0.0.0.0", Port: "8080"},
+				OperStatus:        "up",
+				ConnectionsOpened: 7,
+				ConnectionsClosed: 6,
+				BytesIn:           512,
+				BytesOut:          1024,
+			},
 		},
 	})
 	assert.NilError(t, westPusher.PushOnce(context.Background()))
@@ -152,9 +159,12 @@ func TestEndToEndPushIngestAndAggregatedReadWithTLS(t *testing.T) {
 		TokenFile: eastTokenFile,
 	}, "east", "skupper-router-east-0", "site-east", "uid-east")
 	assert.NilError(t, err)
-	eastPusher.UpdateBridges(qdr.BridgeConfig{
-		TcpConnectors: qdr.TcpEndpointMap{
-			"backend": {Name: "backend", Address: "frontend:8080", Host: "10.1.2.3", Port: "8080"},
+	eastPusher.UpdateState(qdr.BridgeRuntimeState{
+		TcpConnectors: map[string]qdr.TcpEndpointRuntime{
+			"backend": {
+				TcpEndpoint: qdr.TcpEndpoint{Name: "backend", Address: "frontend:8080", Host: "10.1.2.3", Port: "8080"},
+				OperStatus:  "up",
+			},
 		},
 	})
 	assert.NilError(t, eastPusher.PushOnce(context.Background()))
@@ -182,8 +192,12 @@ func TestEndToEndPushIngestAndAggregatedReadWithTLS(t *testing.T) {
 		assert.Equal(t, len(table.Rows), 2)
 		assert.Equal(t, table.Rows[0].Cells[0], "backend")
 		assert.Equal(t, table.Rows[0].Cells[1], string(runtimeapi.AdaptorTypeTCPConnector))
+		assert.Equal(t, table.Rows[0].Cells[2], "up")
 		assert.Equal(t, table.Rows[1].Cells[0], "frontend")
 		assert.Equal(t, table.Rows[1].Cells[1], string(runtimeapi.AdaptorTypeTCPListener))
+		assert.Equal(t, table.Rows[1].Cells[2], "up")
+		assert.Equal(t, table.Rows[1].Cells[7], float64(7))
+		assert.Equal(t, table.Rows[1].Cells[9], float64(512))
 
 		var rowObj runtimeapi.Adaptor
 		assert.NilError(t, json.Unmarshal(table.Rows[0].Object.Raw, &rowObj))

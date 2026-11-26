@@ -46,6 +46,11 @@ type bridgeConfigAgent interface {
 	UpdateLocalBridgeConfig(changes *BridgeConfigDifference) error
 }
 
+type bridgeRuntimeAgent interface {
+	bridgeConfigAgent
+	GetLocalBridgeRuntimeState() (*BridgeRuntimeState, error)
+}
+
 func GetLocalBridgeConfig(agentPool *AgentPool) (*BridgeConfig, error) {
 	agent, err := agentPool.Get()
 	if err != nil {
@@ -60,6 +65,20 @@ func GetLocalBridgeConfig(agentPool *AgentPool) (*BridgeConfig, error) {
 	return actual, nil
 }
 
+func GetLocalBridgeRuntimeState(agentPool *AgentPool) (*BridgeRuntimeState, error) {
+	agent, err := agentPool.Get()
+	if err != nil {
+		return nil, fmt.Errorf("Could not get management agent : %s", err)
+	}
+	defer agentPool.Put(agent)
+
+	state, err := agent.GetLocalBridgeRuntimeState()
+	if err != nil {
+		return nil, fmt.Errorf("Error retrieving live bridge runtime state: %s", err)
+	}
+	return state, nil
+}
+
 func SyncBridgeConfig(agentPool *AgentPool, desired *BridgeConfig) error {
 	_, err := syncBridgeConfigFromPool(agentPool, desired, false)
 	return err
@@ -68,6 +87,25 @@ func SyncBridgeConfig(agentPool *AgentPool, desired *BridgeConfig) error {
 // SyncAndGetBridgeConfig reconciles bridge config and returns the live router bridge config.
 func SyncAndGetBridgeConfig(agentPool *AgentPool, desired *BridgeConfig) (*BridgeConfig, error) {
 	return syncBridgeConfigFromPool(agentPool, desired, true)
+}
+
+// SyncAndGetBridgeRuntimeState reconciles bridge config and returns live router bridge entities
+// including operational status and traffic counters.
+func SyncAndGetBridgeRuntimeState(agentPool *AgentPool, desired *BridgeConfig) (*BridgeRuntimeState, error) {
+	agent, err := agentPool.Get()
+	if err != nil {
+		return nil, fmt.Errorf("Could not get management agent : %s", err)
+	}
+	defer agentPool.Put(agent)
+
+	state, synced, err := syncBridgeRuntimeState(agent, desired)
+	if err != nil {
+		return nil, fmt.Errorf("Error while syncing bridge config : %s", err)
+	}
+	if !synced {
+		log.Default().Println("Bridge config is not synchronised yet")
+	}
+	return state, nil
 }
 
 func syncBridgeConfigFromPool(agentPool *AgentPool, desired *BridgeConfig, fetchAfterUpdate bool) (*BridgeConfig, error) {
@@ -158,6 +196,18 @@ func syncBridgeConfig(agent bridgeConfigAgent, desired *BridgeConfig, fetchAfter
 		return nil, false, fmt.Errorf("Error retrieving updated bridges: %s", err)
 	}
 	return updated, false, nil
+}
+
+func syncBridgeRuntimeState(agent bridgeRuntimeAgent, desired *BridgeConfig) (*BridgeRuntimeState, bool, error) {
+	_, synced, err := syncBridgeConfig(agent, desired, false)
+	if err != nil {
+		return nil, false, err
+	}
+	state, err := agent.GetLocalBridgeRuntimeState()
+	if err != nil {
+		return nil, synced, fmt.Errorf("Error retrieving live bridge runtime state: %s", err)
+	}
+	return state, synced, nil
 }
 
 func SyncProxyProfilesToRouter(agentPool *AgentPool, desired map[string]ProxyProfile) error {

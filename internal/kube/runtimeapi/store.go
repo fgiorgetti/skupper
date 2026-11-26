@@ -251,7 +251,7 @@ func buildAdaptorsFromPush(namespace string, req RuntimeStatePushRequest) []Adap
 	return items
 }
 
-func toAPIAdaptor(namespace, siteName, defaultSiteID string, adpType AdaptorType, key string, ep qdr.TcpEndpoint, usedNames map[string]struct{}) Adaptor {
+func toAPIAdaptor(namespace, siteName, defaultSiteID string, adpType AdaptorType, key string, ep qdr.TcpEndpointRuntime, usedNames map[string]struct{}) Adaptor {
 	rawName := ep.Name
 	if rawName == "" {
 		rawName = key
@@ -290,20 +290,25 @@ func toAPIAdaptor(namespace, siteName, defaultSiteID string, adpType AdaptorType
 			Annotations: annotations,
 		},
 		Status: AdaptorStatus{
-			Type:       adpType,
-			Address:    ep.Address,
-			Host:       ep.Host,
-			Port:       ep.Port,
-			SiteID:     siteID,
-			SiteName:   siteName,
-			SslProfile: ep.SslProfile,
-			Observer:   ep.Observer,
-			ProcessID:  ep.ProcessID,
+			Type:              adpType,
+			OperStatus:        ep.OperStatus,
+			Address:           ep.Address,
+			Host:              ep.Host,
+			Port:              ep.Port,
+			ConnectionsOpened: ep.ConnectionsOpened,
+			ConnectionsClosed: ep.ConnectionsClosed,
+			BytesIn:           ep.BytesIn,
+			BytesOut:          ep.BytesOut,
+			SiteID:            siteID,
+			SiteName:          siteName,
+			SslProfile:        ep.SslProfile,
+			Observer:          ep.Observer,
+			ProcessID:         ep.ProcessID,
 		},
 	}
 }
 
-func sortedEndpointKeys(m map[string]qdr.TcpEndpoint) []string {
+func sortedEndpointKeys(m map[string]qdr.TcpEndpointRuntime) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)

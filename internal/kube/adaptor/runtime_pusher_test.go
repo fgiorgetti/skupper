@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -46,9 +47,14 @@ func TestRuntimeStatePusherTokenRotationAndPayload(t *testing.T) {
 	}, "west", "skupper-router-0", "site-west", "uid-west")
 	assert.NilError(t, err)
 
-	pusher.UpdateBridges(qdr.BridgeConfig{
-		TcpListeners: qdr.TcpEndpointMap{
-			"web": {Name: "web", Address: "web:80", Host: "0.0.0.0", Port: "80"},
+	pusher.UpdateState(qdr.BridgeRuntimeState{
+		TcpListeners: map[string]qdr.TcpEndpointRuntime{
+			"web": {
+				TcpEndpoint:       qdr.TcpEndpoint{Name: "web", Address: "web:80", Host: "0.0.0.0", Port: "80"},
+				OperStatus:        "up",
+				ConnectionsOpened: 3,
+				BytesIn:           256,
+			},
 		},
 	})
 	assert.NilError(t, pusher.PushOnce(context.Background()))
@@ -66,12 +72,17 @@ func TestRuntimeStatePusherTokenRotationAndPayload(t *testing.T) {
 	assert.Equal(t, payloads[0].SiteName, "site-west")
 	assert.Equal(t, payloads[0].SiteID, "uid-west")
 	assert.Equal(t, payloads[0].TCPListeners["web"].Port, "80")
+	assert.Equal(t, payloads[0].TCPListeners["web"].OperStatus, "up")
+	assert.Equal(t, payloads[0].TCPListeners["web"].ConnectionsOpened, uint64(3))
 }
 
-func TestRuntimeStatePusherHeartbeatLoop(t *testing.T) {
-	received := make(chan struct{}, 10)
+func TestRuntimeStatePusherHeartbeatRefreshesLiveRouterState(t *testing.T) {
+	received := make(chan runtimeapi.RuntimeStatePushRequest, 10)
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		received <- struct{}{}
+		var req runtimeapi.RuntimeStatePushRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+			received <- req
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer srv.Close()
@@ -86,22 +97,34 @@ func TestRuntimeStatePusherHeartbeatLoop(t *testing.T) {
 	}, "west", "pod-1", "site-west", "uid-1")
 	assert.NilError(t, err)
 
+	var connCount atomic.Uint64
+	pusher.SetStateFetcher(func() (*qdr.BridgeRuntimeState, error) {
+		n := connCount.Add(1)
+		state := qdr.NewBridgeRuntimeState()
+		state.TcpConnectors["db"] = qdr.TcpEndpointRuntime{
+			TcpEndpoint:       qdr.TcpEndpoint{Name: "db", Address: "db:5432", Host: "10.0.0.2", Port: "5432"},
+			OperStatus:        "up",
+			ConnectionsOpened: n,
+		}
+		return &state, nil
+	})
+
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	pusher.Start(stopCh)
 
-	pusher.UpdateBridges(qdr.BridgeConfig{
-		TcpConnectors: qdr.TcpEndpointMap{
-			"db": {Name: "db", Address: "db:5432", Host: "10.0.0.2", Port: "5432"},
-		},
-	})
-
-	// Expect immediate push + at least one periodic heartbeat push.
-	for i := 0; i < 2; i++ {
-		select {
-		case <-received:
-		case <-time.After(time.Second):
-			t.Fatalf("timed out waiting for push %d", i+1)
-		}
+	// Wait for two heartbeat ticks and verify live counters advanced without any UpdateState call.
+	var first, second runtimeapi.RuntimeStatePushRequest
+	select {
+	case first = <-received:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for first heartbeat push")
 	}
+	select {
+	case second = <-received:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for second heartbeat push")
+	}
+	assert.Assert(t, second.TCPConnectors["db"].ConnectionsOpened > first.TCPConnectors["db"].ConnectionsOpened)
+	assert.Equal(t, second.TCPConnectors["db"].OperStatus, "up")
 }

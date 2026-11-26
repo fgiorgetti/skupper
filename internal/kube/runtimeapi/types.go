@@ -48,15 +48,20 @@ type Adaptor struct {
 }
 
 type AdaptorStatus struct {
-	Type       AdaptorType `json:"type"`
-	Address    string      `json:"address,omitempty"`
-	Host       string      `json:"host,omitempty"`
-	Port       string      `json:"port,omitempty"`
-	SiteID     string      `json:"siteId,omitempty"`
-	SiteName   string      `json:"siteName,omitempty"`
-	SslProfile string      `json:"sslProfile,omitempty"`
-	Observer   string      `json:"observer,omitempty"`
-	ProcessID  string      `json:"processId,omitempty"`
+	Type              AdaptorType `json:"type"`
+	OperStatus        string      `json:"operStatus,omitempty"`
+	Address           string      `json:"address,omitempty"`
+	Host              string      `json:"host,omitempty"`
+	Port              string      `json:"port,omitempty"`
+	ConnectionsOpened uint64      `json:"connectionsOpened,omitempty"`
+	ConnectionsClosed uint64      `json:"connectionsClosed,omitempty"`
+	BytesIn           uint64      `json:"bytesIn,omitempty"`
+	BytesOut          uint64      `json:"bytesOut,omitempty"`
+	SiteID            string      `json:"siteId,omitempty"`
+	SiteName          string      `json:"siteName,omitempty"`
+	SslProfile        string      `json:"sslProfile,omitempty"`
+	Observer          string      `json:"observer,omitempty"`
+	ProcessID         string      `json:"processId,omitempty"`
 }
 
 type AdaptorList struct {
@@ -67,12 +72,12 @@ type AdaptorList struct {
 
 // RuntimeStatePushRequest is pushed by kube-adaptor pods to the controller ingest endpoint.
 type RuntimeStatePushRequest struct {
-	PodName       string                     `json:"podName,omitempty"`
-	SiteName      string                     `json:"siteName,omitempty"`
-	SiteID        string                     `json:"siteId,omitempty"`
-	TCPListeners  map[string]qdr.TcpEndpoint `json:"tcpListeners,omitempty"`
-	TCPConnectors map[string]qdr.TcpEndpoint `json:"tcpConnectors,omitempty"`
-	Adaptors      []Adaptor                  `json:"adaptors,omitempty"`
+	PodName       string                            `json:"podName,omitempty"`
+	SiteName      string                            `json:"siteName,omitempty"`
+	SiteID        string                            `json:"siteId,omitempty"`
+	TCPListeners  map[string]qdr.TcpEndpointRuntime `json:"tcpListeners,omitempty"`
+	TCPConnectors map[string]qdr.TcpEndpointRuntime `json:"tcpConnectors,omitempty"`
+	Adaptors      []Adaptor                         `json:"adaptors,omitempty"`
 }
 
 func NewAdaptorList(items []Adaptor) *AdaptorList {

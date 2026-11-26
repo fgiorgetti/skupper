@@ -29,6 +29,8 @@ const (
 	defaultPushTimeout         = 5 * time.Second
 )
 
+type RuntimeStateFetcher func() (*qdr.BridgeRuntimeState, error)
+
 type RuntimePusherConfig struct {
 	Disabled            bool
 	TargetURL           string
@@ -62,7 +64,7 @@ func BoundRuntimePusherConfig(flags *flag.FlagSet) (*RuntimePusherConfig, error)
 	return cfg, err
 }
 
-// RuntimeStatePusher asynchronously pushes the local router's live bridge state to skupper-controller.
+// RuntimeStatePusher asynchronously pushes live router bridge state to skupper-controller.
 type RuntimeStatePusher struct {
 	targetURL    string
 	tokenFile    string
@@ -75,11 +77,13 @@ type RuntimeStatePusher struct {
 	siteID   string
 
 	mu            sync.RWMutex
-	tcpListeners  map[string]qdr.TcpEndpoint
-	tcpConnectors map[string]qdr.TcpEndpoint
+	fetchState    RuntimeStateFetcher
+	tcpListeners  map[string]qdr.TcpEndpointRuntime
+	tcpConnectors map[string]qdr.TcpEndpointRuntime
 	hasSnapshot   bool
 
-	notifyCh chan struct{}
+	notifyCh  chan struct{}
+	refreshCh chan struct{}
 }
 
 func NewRuntimeStatePusher(cfg RuntimePusherConfig, namespace, podName, siteName, siteID string) (*RuntimeStatePusher, error) {
@@ -119,11 +123,12 @@ func NewRuntimeStatePusher(cfg RuntimePusherConfig, namespace, podName, siteName
 				TLSClientConfig: tlsCfg,
 			},
 		},
-		logger:   slog.New(slog.Default().Handler()).With(slog.String("component", "kube.adaptor.runtimePusher")),
-		podName:  podName,
-		siteName: siteName,
-		siteID:   siteID,
-		notifyCh: make(chan struct{}, 1),
+		logger:    slog.New(slog.Default().Handler()).With(slog.String("component", "kube.adaptor.runtimePusher")),
+		podName:   podName,
+		siteName:  siteName,
+		siteID:    siteID,
+		notifyCh:  make(chan struct{}, 1),
+		refreshCh: make(chan struct{}, 1),
 	}, nil
 }
 
@@ -148,13 +153,36 @@ func buildPusherTLSConfig(caFile string) (*tls.Config, error) {
 	}, nil
 }
 
-func (p *RuntimeStatePusher) UpdateBridges(bridges qdr.BridgeConfig) {
-	listeners := make(map[string]qdr.TcpEndpoint, len(bridges.TcpListeners))
-	for k, v := range bridges.TcpListeners {
+// SetStateFetcher configures the live router query function invoked on each heartbeat and refresh.
+func (p *RuntimeStatePusher) SetStateFetcher(fetcher RuntimeStateFetcher) {
+	p.mu.Lock()
+	p.fetchState = fetcher
+	p.mu.Unlock()
+}
+
+func (p *RuntimeStatePusher) UpdateState(state qdr.BridgeRuntimeState) {
+	p.setSnapshot(state)
+	// Coalesce rapid updates without blocking ConfigSync reconciliation.
+	select {
+	case p.notifyCh <- struct{}{}:
+	default:
+	}
+}
+
+func (p *RuntimeStatePusher) TriggerRefresh() {
+	select {
+	case p.refreshCh <- struct{}{}:
+	default:
+	}
+}
+
+func (p *RuntimeStatePusher) setSnapshot(state qdr.BridgeRuntimeState) {
+	listeners := make(map[string]qdr.TcpEndpointRuntime, len(state.TcpListeners))
+	for k, v := range state.TcpListeners {
 		listeners[k] = v
 	}
-	connectors := make(map[string]qdr.TcpEndpoint, len(bridges.TcpConnectors))
-	for k, v := range bridges.TcpConnectors {
+	connectors := make(map[string]qdr.TcpEndpointRuntime, len(state.TcpConnectors))
+	for k, v := range state.TcpConnectors {
 		connectors[k] = v
 	}
 
@@ -163,12 +191,6 @@ func (p *RuntimeStatePusher) UpdateBridges(bridges qdr.BridgeConfig) {
 	p.tcpConnectors = connectors
 	p.hasSnapshot = true
 	p.mu.Unlock()
-
-	// Coalesce rapid updates without blocking ConfigSync reconciliation.
-	select {
-	case p.notifyCh <- struct{}{}:
-	default:
-	}
 }
 
 func (p *RuntimeStatePusher) Start(stopCh <-chan struct{}) {
@@ -188,11 +210,32 @@ func (p *RuntimeStatePusher) Start(stopCh <-chan struct{}) {
 				return
 			case <-p.notifyCh:
 				p.pushWithBackoff(ctx)
+			case <-p.refreshCh:
+				p.refreshFromRouter()
+				p.pushWithBackoff(ctx)
 			case <-ticker.C:
+				p.refreshFromRouter()
 				p.pushWithBackoff(ctx)
 			}
 		}
 	}()
+}
+
+func (p *RuntimeStatePusher) refreshFromRouter() {
+	p.mu.RLock()
+	fetcher := p.fetchState
+	p.mu.RUnlock()
+	if fetcher == nil {
+		return
+	}
+	state, err := fetcher()
+	if err != nil {
+		p.logger.Warn("Failed to refresh live bridge runtime state from router", slog.Any("error", err))
+		return
+	}
+	if state != nil {
+		p.setSnapshot(*state)
+	}
 }
 
 func (p *RuntimeStatePusher) pushWithBackoff(ctx context.Context) {
@@ -226,11 +269,11 @@ func (p *RuntimeStatePusher) snapshotPayload() runtimeapi.RuntimeStatePushReques
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	listeners := make(map[string]qdr.TcpEndpoint, len(p.tcpListeners))
+	listeners := make(map[string]qdr.TcpEndpointRuntime, len(p.tcpListeners))
 	for k, v := range p.tcpListeners {
 		listeners[k] = v
 	}
-	connectors := make(map[string]qdr.TcpEndpoint, len(p.tcpConnectors))
+	connectors := make(map[string]qdr.TcpEndpointRuntime, len(p.tcpConnectors))
 	for k, v := range p.tcpConnectors {
 		connectors[k] = v
 	}

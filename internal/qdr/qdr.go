@@ -683,6 +683,28 @@ type TcpEndpoint struct {
 	AuthenticatePeer     bool   `json:"authenticatePeer,omitempty"`
 }
 
+// TcpEndpointRuntime extends TcpEndpoint with read-only operational attributes from the live router.
+type TcpEndpointRuntime struct {
+	TcpEndpoint
+	OperStatus        string `json:"operStatus,omitempty"`
+	ConnectionsOpened uint64 `json:"connectionsOpened,omitempty"`
+	ConnectionsClosed uint64 `json:"connectionsClosed,omitempty"`
+	BytesIn           uint64 `json:"bytesIn,omitempty"`
+	BytesOut          uint64 `json:"bytesOut,omitempty"`
+}
+
+type BridgeRuntimeState struct {
+	TcpListeners  map[string]TcpEndpointRuntime `json:"tcpListeners,omitempty"`
+	TcpConnectors map[string]TcpEndpointRuntime `json:"tcpConnectors,omitempty"`
+}
+
+func NewBridgeRuntimeState() BridgeRuntimeState {
+	return BridgeRuntimeState{
+		TcpListeners:  map[string]TcpEndpointRuntime{},
+		TcpConnectors: map[string]TcpEndpointRuntime{},
+	}
+}
+
 type ListenerAddress struct {
 	Name     string `json:"name,omitempty"`
 	Address  string `json:"address,omitempty"`

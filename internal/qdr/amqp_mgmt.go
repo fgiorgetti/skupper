@@ -142,6 +142,17 @@ func asTcpEndpoint(record Record) TcpEndpoint {
 	return endpoint
 }
 
+func asTcpEndpointRuntime(record Record) TcpEndpointRuntime {
+	return TcpEndpointRuntime{
+		TcpEndpoint:       asTcpEndpoint(record),
+		OperStatus:        record.AsString("operStatus"),
+		ConnectionsOpened: record.AsUint64("connectionsOpened"),
+		ConnectionsClosed: record.AsUint64("connectionsClosed"),
+		BytesIn:           record.AsUint64("bytesIn"),
+		BytesOut:          record.AsUint64("bytesOut"),
+	}
+}
+
 func asListenerAddress(record Record) ListenerAddress {
 	return ListenerAddress{
 		Name:     record.AsString("name"),
@@ -899,6 +910,30 @@ func (a *Agent) GetLocalBridgeConfig() (*BridgeConfig, error) {
 	}
 
 	return &config, nil
+}
+
+func (a *Agent) GetLocalBridgeRuntimeState() (*BridgeRuntimeState, error) {
+	state := NewBridgeRuntimeState()
+
+	results, err := a.Query("io.skupper.router.tcpConnector", []string{})
+	if err != nil {
+		return nil, err
+	}
+	for _, record := range results {
+		ep := asTcpEndpointRuntime(record)
+		state.TcpConnectors[ep.Name] = ep
+	}
+
+	results, err = a.Query("io.skupper.router.tcpListener", []string{})
+	if err != nil {
+		return nil, err
+	}
+	for _, record := range results {
+		ep := asTcpEndpointRuntime(record)
+		state.TcpListeners[ep.Name] = ep
+	}
+
+	return &state, nil
 }
 
 func (a *Agent) GetLocalListenerAddresses() (map[string]ListenerAddress, error) {
