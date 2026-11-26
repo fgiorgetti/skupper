@@ -92,8 +92,9 @@ func main() {
 	}
 
 	if config.RuntimeAPIConfig != nil && !config.RuntimeAPIConfig.Disabled {
-		provider := runtimeapi.NewAdaptorProvider(controller.ControlledSiteNamespaces)
-		runtimeSrv := runtimeapi.NewServer(config.RuntimeAPIConfig, config.Namespace, provider)
+		store := runtimeapi.NewRuntimeStateStore(config.RuntimeAPIConfig.StateTTL, controller.ControlledSiteNamespaces)
+		authenticator := runtimeapi.NewTokenReviewAuthenticator(cli.GetKubeClient(), runtimeapi.RuntimeTokenAudience, controller.ControlledSiteNamespaces)
+		runtimeSrv := runtimeapi.NewServer(config.RuntimeAPIConfig, config.Namespace, store, authenticator)
 		if err := runtimeSrv.Start(stopCh); err != nil {
 			slog.Error("Error starting runtime aggregated API server", slog.Any("error", err))
 			os.Exit(1)

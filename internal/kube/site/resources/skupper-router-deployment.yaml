@@ -134,6 +134,18 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: metadata.namespace
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: SKUPPER_CONTROLLER_NAMESPACE
+          value: {{ .ControllerNamespace }}
         - name: SKUPPER_SITE_ID
           value: {{ .SiteId }}
         - name: SKUPPER_SITE_NAME
@@ -167,14 +179,14 @@ spec:
         - containerPort: 9000
           name: metrics
           protocol: TCP
-        - containerPort: 9191
-          name: runtime-state
-          protocol: TCP
         volumeMounts:
         - mountPath: /etc/skupper-router-certs
           name: skupper-router-certs
         - mountPath: /etc/skupper-router-proxies
           name: skupper-router-proxies
+        - mountPath: /var/run/secrets/skupper/runtime-token
+          name: runtime-token
+          readOnly: true
 {{- if .Sizing.Adaptor.NotEmpty -}}
         {{- template "resources" .Sizing.Adaptor -}}
 {{- end }}
@@ -208,6 +220,13 @@ spec:
         name: skupper-router-certs
       - emptyDir: {}
         name: skupper-router-proxies
+      - name: runtime-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              audience: skupper-runtime-ingest
+              expirationSeconds: 3600
+              path: token
 {{- if not .DisableSecCtx }}
       securityContext:
         runAsNonRoot: true

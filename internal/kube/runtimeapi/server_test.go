@@ -1,16 +1,24 @@
 package runtimeapi_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"gotest.tools/v3/assert"
+	authenticationv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 
 	"github.com/skupperproject/skupper/internal/kube/adaptor"
 	"github.com/skupperproject/skupper/internal/kube/runtimeapi"
@@ -18,7 +26,7 @@ import (
 )
 
 func TestDiscoveryAndHealth(t *testing.T) {
-	srv := runtimeapi.NewServer(nil, "skupper", nil)
+	srv := runtimeapi.NewServer(nil, "skupper", nil, nil)
 	handler := srv.Handler()
 
 	for _, path := range []string{"/healthz", "/livez", "/readyz"} {
@@ -58,8 +66,8 @@ func TestDiscoveryAndHealth(t *testing.T) {
 		assert.NilError(t, json.Unmarshal(rec.Body.Bytes(), &resList))
 		assert.Equal(t, resList.GroupVersion, runtimeapi.APIVersion)
 		assert.Equal(t, len(resList.APIResources), 1)
-		assert.Equal(t, resList.APIResources[0].Name, runtimeapi.EndpointResource)
-		assert.Equal(t, resList.APIResources[0].Kind, runtimeapi.EndpointKind)
+		assert.Equal(t, resList.APIResources[0].Name, runtimeapi.AdaptorResource)
+		assert.Equal(t, resList.APIResources[0].Kind, runtimeapi.AdaptorKind)
 		assert.Assert(t, resList.APIResources[0].Namespaced)
 	})
 
@@ -73,66 +81,92 @@ func TestDiscoveryAndHealth(t *testing.T) {
 	})
 }
 
-func TestEndToEndWithAdaptorProviderAndTLS(t *testing.T) {
-	westStore := adaptor.NewRuntimeStateStore("west", "site-west", "uid-west")
-	westStore.SetBridges(qdr.BridgeConfig{
-		TcpListeners: qdr.TcpEndpointMap{
-			"frontend": {
-				Name:    "frontend",
-				Address: "frontend:8080",
-				Host:    "0.0.0.0",
-				Port:    "8080",
-			},
-		},
-	})
-	eastStore := adaptor.NewRuntimeStateStore("east", "site-east", "uid-east")
-	eastStore.SetBridges(qdr.BridgeConfig{
-		TcpConnectors: qdr.TcpEndpointMap{
-			"backend": {
-				Name:    "backend",
-				Address: "frontend:8080",
-				Host:    "10.1.2.3",
-				Port:    "8080",
-			},
-		},
-	})
+func TestEndToEndPushIngestAndAggregatedReadWithTLS(t *testing.T) {
+	controlledNamespaces := func() []string { return []string{"west", "east"} }
 
-	westAdaptor := httptest.NewServer(adaptor.RuntimeStateHandler(westStore))
-	defer westAdaptor.Close()
-	eastAdaptor := httptest.NewServer(adaptor.RuntimeStateHandler(eastStore))
-	defer eastAdaptor.Close()
-
-	provider := runtimeapi.NewAdaptorProvider(func() []string {
-		return []string{"west", "east", "unreachable"}
-	})
-	provider.BaseURL = func(ns string) string {
-		switch ns {
-		case "west":
-			return westAdaptor.URL
-		case "east":
-			return eastAdaptor.URL
+	fakeKube := fake.NewSimpleClientset()
+	fakeKube.PrependReactor("create", "tokenreviews", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		tr := action.(k8stesting.CreateAction).GetObject().(*authenticationv1.TokenReview)
+		switch tr.Spec.Token {
+		case "west-token":
+			tr.Status = authenticationv1.TokenReviewStatus{
+				Authenticated: true,
+				User: authenticationv1.UserInfo{
+					Username: "system:serviceaccount:west:skupper-router",
+					Extra: map[string]authenticationv1.ExtraValue{
+						"authentication.kubernetes.io/pod-name": {"skupper-router-west-0"},
+					},
+				},
+			}
+		case "east-token":
+			tr.Status = authenticationv1.TokenReviewStatus{
+				Authenticated: true,
+				User: authenticationv1.UserInfo{
+					Username: "system:serviceaccount:east:skupper-router",
+					Extra: map[string]authenticationv1.ExtraValue{
+						"authentication.kubernetes.io/pod-name": {"skupper-router-east-0"},
+					},
+				},
+			}
 		default:
-			return "http://127.0.0.1:1"
+			tr.Status = authenticationv1.TokenReviewStatus{
+				Authenticated: false,
+				Error:         "invalid token",
+			}
 		}
-	}
+		return true, tr, nil
+	})
 
+	store := runtimeapi.NewRuntimeStateStore(time.Minute, controlledNamespaces)
+	auth := runtimeapi.NewTokenReviewAuthenticator(fakeKube, runtimeapi.RuntimeTokenAudience, controlledNamespaces)
 	srv := runtimeapi.NewServer(&runtimeapi.Config{
-		Address: "127.0.0.1:0",
-	}, "skupper", provider)
+		Address:  "127.0.0.1:0",
+		StateTTL: time.Minute,
+	}, "skupper", store, auth)
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	assert.NilError(t, srv.Start(stopCh))
+
+	baseURL := "https://" + srv.Addr()
+	tmpDir := t.TempDir()
+	westTokenFile := filepath.Join(tmpDir, "west-token")
+	eastTokenFile := filepath.Join(tmpDir, "east-token")
+	assert.NilError(t, os.WriteFile(westTokenFile, []byte("west-token\n"), 0600))
+	assert.NilError(t, os.WriteFile(eastTokenFile, []byte("east-token\n"), 0600))
+
+	westPusher, err := adaptor.NewRuntimeStatePusher(adaptor.RuntimePusherConfig{
+		TargetURL: baseURL + runtimeapi.IngestPathForNamespace("west"),
+		TokenFile: westTokenFile,
+	}, "west", "skupper-router-west-0", "site-west", "uid-west")
+	assert.NilError(t, err)
+	westPusher.UpdateBridges(qdr.BridgeConfig{
+		TcpListeners: qdr.TcpEndpointMap{
+			"frontend": {Name: "frontend", Address: "frontend:8080", Host: "0.0.0.0", Port: "8080"},
+		},
+	})
+	assert.NilError(t, westPusher.PushOnce(context.Background()))
+
+	eastPusher, err := adaptor.NewRuntimeStatePusher(adaptor.RuntimePusherConfig{
+		TargetURL: baseURL + runtimeapi.IngestPathForNamespace("east"),
+		TokenFile: eastTokenFile,
+	}, "east", "skupper-router-east-0", "site-east", "uid-east")
+	assert.NilError(t, err)
+	eastPusher.UpdateBridges(qdr.BridgeConfig{
+		TcpConnectors: qdr.TcpEndpointMap{
+			"backend": {Name: "backend", Address: "frontend:8080", Host: "10.1.2.3", Port: "8080"},
+		},
+	})
+	assert.NilError(t, eastPusher.PushOnce(context.Background()))
 
 	httpsClient := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 	}
-	baseURL := "https://" + srv.Addr()
 
-	t.Run("cluster-wide table list aggregates healthy sites", func(t *testing.T) {
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/apis/"+runtimeapi.APIVersion+"/endpoints", nil)
+	t.Run("cluster-wide table list served strictly from controller memory", func(t *testing.T) {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/apis/"+runtimeapi.APIVersion+"/adaptors", nil)
 		assert.NilError(t, err)
 		req.Header.Set("Accept", "application/json;as=Table;v=v1;g=meta.k8s.io,application/json")
 
@@ -147,42 +181,51 @@ func TestEndToEndWithAdaptorProviderAndTLS(t *testing.T) {
 		assert.Equal(t, table.Kind, "Table")
 		assert.Equal(t, len(table.Rows), 2)
 		assert.Equal(t, table.Rows[0].Cells[0], "backend")
-		assert.Equal(t, table.Rows[0].Cells[1], string(runtimeapi.EndpointTypeTCPConnector))
+		assert.Equal(t, table.Rows[0].Cells[1], string(runtimeapi.AdaptorTypeTCPConnector))
 		assert.Equal(t, table.Rows[1].Cells[0], "frontend")
-		assert.Equal(t, table.Rows[1].Cells[1], string(runtimeapi.EndpointTypeTCPListener))
+		assert.Equal(t, table.Rows[1].Cells[1], string(runtimeapi.AdaptorTypeTCPListener))
 
-		var rowObj runtimeapi.Endpoint
+		var rowObj runtimeapi.Adaptor
 		assert.NilError(t, json.Unmarshal(table.Rows[0].Object.Raw, &rowObj))
 		assert.Equal(t, rowObj.Namespace, "east")
 		assert.Equal(t, rowObj.Name, "backend")
 	})
 
 	t.Run("namespaced JSON list and selectors", func(t *testing.T) {
-		resp, err := httpsClient.Get(baseURL + "/apis/" + runtimeapi.APIVersion + "/namespaces/west/endpoints?labelSelector=runtime.skupper.io/type=tcpListener&fieldSelector=metadata.name=frontend")
+		resp, err := httpsClient.Get(baseURL + "/apis/" + runtimeapi.APIVersion + "/namespaces/west/adaptors?labelSelector=runtime.skupper.io/type=tcpListener&fieldSelector=metadata.name=frontend")
 		assert.NilError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, resp.StatusCode, http.StatusOK)
 
-		var list runtimeapi.EndpointList
+		var list runtimeapi.AdaptorList
 		assert.NilError(t, json.NewDecoder(resp.Body).Decode(&list))
 		assert.Equal(t, len(list.Items), 1)
 		assert.Equal(t, list.Items[0].Name, "frontend")
 		assert.Equal(t, list.Items[0].Namespace, "west")
 	})
 
-	t.Run("namespace without site returns empty list", func(t *testing.T) {
-		resp, err := httpsClient.Get(baseURL + "/apis/" + runtimeapi.APIVersion + "/namespaces/kube-system/endpoints")
+	t.Run("cross-namespace push rejected with 403", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodPost, baseURL+runtimeapi.IngestPathForNamespace("west"), bytes.NewBufferString(`{}`))
+		assert.NilError(t, err)
+		req.Header.Set("Authorization", "Bearer east-token")
+		resp, err := httpsClient.Do(req)
 		assert.NilError(t, err)
 		defer resp.Body.Close()
-		assert.Equal(t, resp.StatusCode, http.StatusOK)
+		assert.Equal(t, resp.StatusCode, http.StatusForbidden)
+	})
 
-		var list runtimeapi.EndpointList
-		assert.NilError(t, json.NewDecoder(resp.Body).Decode(&list))
-		assert.Equal(t, len(list.Items), 0)
+	t.Run("unauthenticated push rejected with 401", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodPost, baseURL+runtimeapi.IngestPathForNamespace("west"), bytes.NewBufferString(`{}`))
+		assert.NilError(t, err)
+		req.Header.Set("Authorization", "Bearer bad-token")
+		resp, err := httpsClient.Do(req)
+		assert.NilError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, resp.StatusCode, http.StatusUnauthorized)
 	})
 
 	t.Run("namespaced get as table and includeObject=None", func(t *testing.T) {
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/apis/"+runtimeapi.APIVersion+"/namespaces/west/endpoints/frontend?includeObject=None", nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/apis/"+runtimeapi.APIVersion+"/namespaces/west/adaptors/frontend?includeObject=None", nil)
 		assert.NilError(t, err)
 		req.Header.Set("Accept", "application/json;as=Table;v=v1;g=meta.k8s.io")
 
@@ -197,8 +240,8 @@ func TestEndToEndWithAdaptorProviderAndTLS(t *testing.T) {
 		assert.Equal(t, len(table.Rows[0].Object.Raw), 0)
 	})
 
-	t.Run("get missing endpoint returns 404 Status", func(t *testing.T) {
-		resp, err := httpsClient.Get(baseURL + "/apis/" + runtimeapi.APIVersion + "/namespaces/west/endpoints/does-not-exist")
+	t.Run("get missing adaptor returns 404 Status", func(t *testing.T) {
+		resp, err := httpsClient.Get(baseURL + "/apis/" + runtimeapi.APIVersion + "/namespaces/west/adaptors/does-not-exist")
 		assert.NilError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, resp.StatusCode, http.StatusNotFound)
@@ -209,12 +252,12 @@ func TestEndToEndWithAdaptorProviderAndTLS(t *testing.T) {
 	})
 
 	t.Run("watch and non-GET return 405 Status", func(t *testing.T) {
-		resp, err := httpsClient.Get(baseURL + "/apis/" + runtimeapi.APIVersion + "/namespaces/west/endpoints?watch=true")
+		resp, err := httpsClient.Get(baseURL + "/apis/" + runtimeapi.APIVersion + "/namespaces/west/adaptors?watch=true")
 		assert.NilError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, resp.StatusCode, http.StatusMethodNotAllowed)
 
-		postResp, err := httpsClient.Post(fmt.Sprintf("%s/apis/%s/namespaces/west/endpoints", baseURL, runtimeapi.APIVersion), "application/json", nil)
+		postResp, err := httpsClient.Post(fmt.Sprintf("%s/apis/%s/namespaces/west/adaptors", baseURL, runtimeapi.APIVersion), "application/json", nil)
 		assert.NilError(t, err)
 		defer postResp.Body.Close()
 		assert.Equal(t, postResp.StatusCode, http.StatusMethodNotAllowed)

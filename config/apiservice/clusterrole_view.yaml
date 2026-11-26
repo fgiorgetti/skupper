@@ -11,7 +11,7 @@ rules:
   - apiGroups:
       - runtime.skupper.io
     resources:
-      - endpoints
+      - adaptors
     verbs:
       - get
       - list

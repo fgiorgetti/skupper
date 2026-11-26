@@ -130,6 +130,12 @@ rules:
       - delete
       - update
   - apiGroups:
+      - authentication.k8s.io
+    resources:
+      - tokenreviews
+    verbs:
+      - create
+  - apiGroups:
       - skupper.io
     resources:
       - sites

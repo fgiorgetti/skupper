@@ -7,9 +7,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -24,6 +26,7 @@ import (
 const (
 	defaultListenAddress = ":8443"
 	defaultServiceName   = "skupper-runtime-api"
+	maxIngestBodyBytes   = 4 << 20
 )
 
 type Config struct {
@@ -32,6 +35,7 @@ type Config struct {
 	TLSCertFile string
 	TLSKeyFile  string
 	ServiceName string
+	StateTTL    time.Duration
 }
 
 func BoundConfig(flags *flag.FlagSet) (*Config, error) {
@@ -41,21 +45,38 @@ func BoundConfig(flags *flag.FlagSet) (*Config, error) {
 	iflag.StringVar(flags, &cfg.TLSCertFile, "runtime-api-tls-cert", "SKUPPER_RUNTIME_API_TLS_CERT", "", "Optional path to TLS certificate for the aggregated runtime API server (self-signed generated if empty).")
 	iflag.StringVar(flags, &cfg.TLSKeyFile, "runtime-api-tls-key", "SKUPPER_RUNTIME_API_TLS_KEY", "", "Optional path to TLS private key for the aggregated runtime API server (self-signed generated if empty).")
 	iflag.StringVar(flags, &cfg.ServiceName, "runtime-api-service-name", "SKUPPER_RUNTIME_API_SERVICE_NAME", defaultServiceName, "Service name used as SAN when generating a self-signed certificate.")
+	ttlDefault, ttlErr := durationEnvVar("SKUPPER_RUNTIME_API_STATE_TTL", DefaultRuntimeStateTTL)
+	flags.DurationVar(&cfg.StateTTL, "runtime-api-state-ttl", ttlDefault, "Expiration TTL for pushed kube-adaptor runtime state reports.")
+	if err == nil {
+		err = ttlErr
+	}
 	return cfg, err
 }
 
-// Server implements a lightweight Kubernetes Aggregated API server for runtime.skupper.io/v1alpha1.
-// For local evaluation, TLS uses an in-memory self-signed certificate and relies on kube-apiserver front-end authn/authz.
+func durationEnvVar(name string, defaultValue time.Duration) (time.Duration, error) {
+	if raw, ok := os.LookupEnv(name); ok {
+		d, err := time.ParseDuration(raw)
+		if err != nil {
+			return defaultValue, fmt.Errorf("bad value for %q: %w", name, err)
+		}
+		return d, nil
+	}
+	return defaultValue, nil
+}
+
+// Server implements the runtime.skupper.io/v1alpha1 Kubernetes Aggregated API and
+// the TokenReview-authenticated runtime-state push ingest endpoint.
 type Server struct {
 	config              Config
 	controllerNamespace string
-	provider            EndpointProvider
+	store               *RuntimeStateStore
+	authenticator       IngestAuthenticator
 	server              *http.Server
 	logger              *slog.Logger
 	listenerAddr        string
 }
 
-func NewServer(cfg *Config, controllerNamespace string, provider EndpointProvider) *Server {
+func NewServer(cfg *Config, controllerNamespace string, store *RuntimeStateStore, authenticator IngestAuthenticator) *Server {
 	var c Config
 	if cfg != nil {
 		c = *cfg
@@ -66,10 +87,14 @@ func NewServer(cfg *Config, controllerNamespace string, provider EndpointProvide
 	if c.ServiceName == "" {
 		c.ServiceName = defaultServiceName
 	}
+	if c.StateTTL <= 0 {
+		c.StateTTL = DefaultRuntimeStateTTL
+	}
 	s := &Server{
 		config:              c,
 		controllerNamespace: controllerNamespace,
-		provider:            provider,
+		store:               store,
+		authenticator:       authenticator,
 		logger:              slog.New(slog.Default().Handler()).With(slog.String("component", "kube.runtimeapi.server")),
 	}
 	s.server = &http.Server{
@@ -105,6 +130,10 @@ func (s *Server) Start(stopCh <-chan struct{}) error {
 	}
 	s.listenerAddr = ln.Addr().String()
 	tlsListener := tls.NewListener(ln, s.server.TLSConfig)
+
+	if s.store != nil {
+		s.store.StartPruner(stopCh, 0)
+	}
 
 	go func() {
 		<-stopCh
@@ -169,6 +198,11 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if ns, ok := parseIngestNamespace(path); ok {
+		s.handleIngest(w, r, ns)
+		return
+	}
+
 	prefix := "/apis/" + APIVersion + "/"
 	if !strings.HasPrefix(path, prefix) {
 		writeStatusError(w, http.StatusNotFound, metav1.StatusReasonNotFound, fmt.Sprintf("the server could not find the requested resource (%s)", r.URL.Path))
@@ -177,24 +211,75 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	segments := strings.Split(strings.TrimPrefix(path, prefix), "/")
 	switch {
-	case len(segments) == 1 && segments[0] == EndpointResource:
+	case len(segments) == 1 && segments[0] == AdaptorResource:
 		s.handleList(w, r, "")
-	case len(segments) == 3 && segments[0] == "namespaces" && segments[2] == EndpointResource:
+	case len(segments) == 3 && segments[0] == "namespaces" && segments[2] == AdaptorResource:
 		s.handleList(w, r, segments[1])
-	case len(segments) == 4 && segments[0] == "namespaces" && segments[2] == EndpointResource:
+	case len(segments) == 4 && segments[0] == "namespaces" && segments[2] == AdaptorResource:
 		s.handleGet(w, r, segments[1], segments[3])
 	default:
 		writeStatusError(w, http.StatusNotFound, metav1.StatusReasonNotFound, fmt.Sprintf("the server could not find the requested resource (%s)", r.URL.Path))
 	}
 }
 
+func parseIngestNamespace(path string) (string, bool) {
+	if !strings.HasPrefix(path, IngestPathPrefix) || !strings.HasSuffix(path, IngestPathSuffix) {
+		return "", false
+	}
+	ns := strings.TrimSuffix(strings.TrimPrefix(path, IngestPathPrefix), IngestPathSuffix)
+	if ns == "" || strings.Contains(ns, "/") {
+		return "", false
+	}
+	return ns, true
+}
+
+func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request, namespace string) {
+	if r.Method != http.MethodPost {
+		writeStatusError(w, http.StatusMethodNotAllowed, metav1.StatusReasonMethodNotAllowed, "only POST is supported for runtime state ingest")
+		return
+	}
+	if s.authenticator == nil || s.store == nil {
+		writeStatusError(w, http.StatusServiceUnavailable, metav1.StatusReasonServiceUnavailable, "runtime state ingest is not configured")
+		return
+	}
+
+	authRes, err := s.authenticator.AuthenticateAndAuthorize(r.Context(), r.Header.Get("Authorization"), namespace)
+	if err != nil {
+		var authErr *AuthError
+		if errors.As(err, &authErr) {
+			writeStatusError(w, authErr.StatusCode, authErr.Reason, authErr.Message)
+			return
+		}
+		writeStatusError(w, http.StatusInternalServerError, metav1.StatusReasonInternalError, err.Error())
+		return
+	}
+
+	var payload RuntimeStatePushRequest
+	dec := json.NewDecoder(io.LimitReader(r.Body, maxIngestBodyBytes))
+	if err := dec.Decode(&payload); err != nil {
+		writeStatusError(w, http.StatusBadRequest, metav1.StatusReasonBadRequest, fmt.Sprintf("invalid runtime state payload: %v", err))
+		return
+	}
+
+	podName := authRes.PodName
+	if podName == "" {
+		podName = strings.TrimSpace(payload.PodName)
+	}
+	if podName == "" {
+		podName = authRes.Username
+	}
+
+	s.store.Upsert(namespace, podName, payload)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) handleList(w http.ResponseWriter, r *http.Request, namespace string) {
 	if r.Method != http.MethodGet {
-		writeStatusError(w, http.StatusMethodNotAllowed, metav1.StatusReasonMethodNotAllowed, "only GET is supported for runtime endpoints")
+		writeStatusError(w, http.StatusMethodNotAllowed, metav1.StatusReasonMethodNotAllowed, "only GET is supported for runtime adaptors")
 		return
 	}
 	if r.URL.Query().Get("watch") == "true" || r.URL.Query().Get("watch") == "1" {
-		writeStatusError(w, http.StatusMethodNotAllowed, metav1.StatusReasonMethodNotAllowed, "watch is not supported for runtime endpoints")
+		writeStatusError(w, http.StatusMethodNotAllowed, metav1.StatusReasonMethodNotAllowed, "watch is not supported for runtime adaptors")
 		return
 	}
 
@@ -209,53 +294,53 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request, namespace st
 		return
 	}
 
-	if s.provider == nil {
-		s.writeListResponse(w, r, []Endpoint{})
+	if s.store == nil {
+		s.writeListResponse(w, r, []Adaptor{})
 		return
 	}
-	items, err := s.provider.List(r.Context(), namespace)
+	items, err := s.store.List(r.Context(), namespace)
 	if err != nil {
-		s.logger.Error("Failed to list runtime endpoints", slog.String("namespace", namespace), slog.Any("error", err))
-		writeStatusError(w, http.StatusServiceUnavailable, metav1.StatusReasonServiceUnavailable, err.Error())
+		s.logger.Error("Failed to list runtime adaptors", slog.String("namespace", namespace), slog.Any("error", err))
+		writeStatusError(w, http.StatusInternalServerError, metav1.StatusReasonInternalError, err.Error())
 		return
 	}
 
-	filtered := filterEndpoints(items, labelSel, fieldSel)
+	filtered := filterAdaptors(items, labelSel, fieldSel)
 	s.writeListResponse(w, r, filtered)
 }
 
 func (s *Server) handleGet(w http.ResponseWriter, r *http.Request, namespace, name string) {
 	if r.Method != http.MethodGet {
-		writeStatusError(w, http.StatusMethodNotAllowed, metav1.StatusReasonMethodNotAllowed, "only GET is supported for runtime endpoints")
+		writeStatusError(w, http.StatusMethodNotAllowed, metav1.StatusReasonMethodNotAllowed, "only GET is supported for runtime adaptors")
 		return
 	}
-	if s.provider == nil {
-		writeNotFoundEndpoint(w, name)
+	if s.store == nil {
+		writeNotFoundAdaptor(w, name)
 		return
 	}
-	ep, err := s.provider.Get(r.Context(), namespace, name)
+	adp, err := s.store.Get(r.Context(), namespace, name)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			writeNotFoundEndpoint(w, name)
+			writeNotFoundAdaptor(w, name)
 			return
 		}
-		s.logger.Error("Failed to get runtime endpoint",
+		s.logger.Error("Failed to get runtime adaptor",
 			slog.String("namespace", namespace),
 			slog.String("name", name),
 			slog.Any("error", err),
 		)
-		writeStatusError(w, http.StatusServiceUnavailable, metav1.StatusReasonServiceUnavailable, err.Error())
+		writeStatusError(w, http.StatusInternalServerError, metav1.StatusReasonInternalError, err.Error())
 		return
 	}
-	if ep.APIVersion == "" {
-		ep.APIVersion = APIVersion
+	if adp.APIVersion == "" {
+		adp.APIVersion = APIVersion
 	}
-	if ep.Kind == "" {
-		ep.Kind = EndpointKind
+	if adp.Kind == "" {
+		adp.Kind = AdaptorKind
 	}
 
 	if ok, tableVersion := wantsTable(r.Header.Get("Accept")); ok {
-		table, err := endpointsToTable([]Endpoint{*ep}, tableVersion, r.URL.Query().Get("includeObject"), time.Now())
+		table, err := adaptorsToTable([]Adaptor{*adp}, tableVersion, r.URL.Query().Get("includeObject"), time.Now())
 		if err != nil {
 			writeStatusError(w, http.StatusInternalServerError, metav1.StatusReasonInternalError, err.Error())
 			return
@@ -263,12 +348,12 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request, namespace, na
 		writeJSON(w, http.StatusOK, table)
 		return
 	}
-	writeJSON(w, http.StatusOK, ep)
+	writeJSON(w, http.StatusOK, adp)
 }
 
-func (s *Server) writeListResponse(w http.ResponseWriter, r *http.Request, items []Endpoint) {
+func (s *Server) writeListResponse(w http.ResponseWriter, r *http.Request, items []Adaptor) {
 	if ok, tableVersion := wantsTable(r.Header.Get("Accept")); ok {
-		table, err := endpointsToTable(items, tableVersion, r.URL.Query().Get("includeObject"), time.Now())
+		table, err := adaptorsToTable(items, tableVersion, r.URL.Query().Get("includeObject"), time.Now())
 		if err != nil {
 			writeStatusError(w, http.StatusInternalServerError, metav1.StatusReasonInternalError, err.Error())
 			return
@@ -276,7 +361,7 @@ func (s *Server) writeListResponse(w http.ResponseWriter, r *http.Request, items
 		writeJSON(w, http.StatusOK, table)
 		return
 	}
-	writeJSON(w, http.StatusOK, NewEndpointList(items))
+	writeJSON(w, http.StatusOK, NewAdaptorList(items))
 }
 
 func parseLabelSelector(raw string) (labels.Selector, error) {
@@ -293,19 +378,19 @@ func parseFieldSelector(raw string) (fields.Selector, error) {
 	return fields.ParseSelector(raw)
 }
 
-func filterEndpoints(items []Endpoint, labelSel labels.Selector, fieldSel fields.Selector) []Endpoint {
-	filtered := make([]Endpoint, 0, len(items))
-	for _, ep := range items {
-		if !labelSel.Matches(labels.Set(ep.Labels)) {
+func filterAdaptors(items []Adaptor, labelSel labels.Selector, fieldSel fields.Selector) []Adaptor {
+	filtered := make([]Adaptor, 0, len(items))
+	for _, adp := range items {
+		if !labelSel.Matches(labels.Set(adp.Labels)) {
 			continue
 		}
 		if !fieldSel.Matches(fields.Set{
-			"metadata.name":      ep.Name,
-			"metadata.namespace": ep.Namespace,
+			"metadata.name":      adp.Name,
+			"metadata.namespace": adp.Namespace,
 		}) {
 			continue
 		}
-		filtered = append(filtered, ep)
+		filtered = append(filtered, adp)
 	}
 	return filtered
 }
@@ -321,8 +406,8 @@ func writeJSON(w http.ResponseWriter, statusCode int, obj interface{}) {
 	_, _ = w.Write(data)
 }
 
-func writeNotFoundEndpoint(w http.ResponseWriter, name string) {
-	writeStatusError(w, http.StatusNotFound, metav1.StatusReasonNotFound, fmt.Sprintf("%s.%s %q not found", EndpointResource, GroupName, name))
+func writeNotFoundAdaptor(w http.ResponseWriter, name string) {
+	writeStatusError(w, http.StatusNotFound, metav1.StatusReasonNotFound, fmt.Sprintf("%s.%s %q not found", AdaptorResource, GroupName, name))
 }
 
 func writeStatusError(w http.ResponseWriter, statusCode int, reason metav1.StatusReason, message string) {

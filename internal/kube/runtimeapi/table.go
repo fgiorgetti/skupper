@@ -41,14 +41,14 @@ func wantsTable(acceptHeader string) (bool, string) {
 	return false, ""
 }
 
-func endpointTableColumns() []metav1.TableColumnDefinition {
+func adaptorTableColumns() []metav1.TableColumnDefinition {
 	return []metav1.TableColumnDefinition{
-		{Name: "Name", Type: "string", Format: "name", Description: "Name of the runtime endpoint"},
-		{Name: "Type", Type: "string", Description: "Endpoint type (tcpListener or tcpConnector)"},
+		{Name: "Name", Type: "string", Format: "name", Description: "Name of the runtime adaptor"},
+		{Name: "Type", Type: "string", Description: "Adaptor type (tcpListener or tcpConnector)"},
 		{Name: "Address", Type: "string", Description: "Skupper routing address"},
-		{Name: "Host", Type: "string", Description: "Endpoint host"},
-		{Name: "Port", Type: "string", Description: "Endpoint port"},
-		{Name: "Age", Type: "string", Description: "Time since endpoint was recorded"},
+		{Name: "Host", Type: "string", Description: "Adaptor host"},
+		{Name: "Port", Type: "string", Description: "Adaptor port"},
+		{Name: "Age", Type: "string", Description: "Time since adaptor was recorded"},
 		{Name: "Site", Type: "string", Priority: 1, Description: "Skupper site name"},
 		{Name: "Site-ID", Type: "string", Priority: 1, Description: "Skupper site ID"},
 		{Name: "SSL-Profile", Type: "string", Priority: 1, Description: "Router SSL profile name"},
@@ -56,7 +56,7 @@ func endpointTableColumns() []metav1.TableColumnDefinition {
 	}
 }
 
-func endpointsToTable(endpoints []Endpoint, tableVersion string, includeObject string, now time.Time) (*metav1.Table, error) {
+func adaptorsToTable(adaptors []Adaptor, tableVersion string, includeObject string, now time.Time) (*metav1.Table, error) {
 	if tableVersion == "" {
 		tableVersion = "v1"
 	}
@@ -65,31 +65,31 @@ func endpointsToTable(endpoints []Endpoint, tableVersion string, includeObject s
 			APIVersion: metav1.GroupName + "/" + tableVersion,
 			Kind:       "Table",
 		},
-		ColumnDefinitions: endpointTableColumns(),
-		Rows:              make([]metav1.TableRow, 0, len(endpoints)),
+		ColumnDefinitions: adaptorTableColumns(),
+		Rows:              make([]metav1.TableRow, 0, len(adaptors)),
 	}
-	for _, ep := range endpoints {
-		if ep.APIVersion == "" {
-			ep.APIVersion = APIVersion
+	for _, adp := range adaptors {
+		if adp.APIVersion == "" {
+			adp.APIVersion = APIVersion
 		}
-		if ep.Kind == "" {
-			ep.Kind = EndpointKind
+		if adp.Kind == "" {
+			adp.Kind = AdaptorKind
 		}
 		row := metav1.TableRow{
 			Cells: []interface{}{
-				ep.Name,
-				string(ep.Status.Type),
-				ep.Status.Address,
-				ep.Status.Host,
-				ep.Status.Port,
-				formatAge(ep.CreationTimestamp, now),
-				ep.Status.SiteName,
-				ep.Status.SiteID,
-				ep.Status.SslProfile,
-				ep.Status.Observer,
+				adp.Name,
+				string(adp.Status.Type),
+				adp.Status.Address,
+				adp.Status.Host,
+				adp.Status.Port,
+				formatAge(adp.CreationTimestamp, now),
+				adp.Status.SiteName,
+				adp.Status.SiteID,
+				adp.Status.SslProfile,
+				adp.Status.Observer,
 			},
 		}
-		raw, err := marshalRowObject(ep, includeObject)
+		raw, err := marshalRowObject(adp, includeObject)
 		if err != nil {
 			return nil, err
 		}
@@ -101,7 +101,7 @@ func endpointsToTable(endpoints []Endpoint, tableVersion string, includeObject s
 	return table, nil
 }
 
-func marshalRowObject(ep Endpoint, includeObject string) ([]byte, error) {
+func marshalRowObject(adp Adaptor, includeObject string) ([]byte, error) {
 	switch includeObject {
 	case string(metav1.IncludeNone):
 		return nil, nil
@@ -111,11 +111,11 @@ func marshalRowObject(ep Endpoint, includeObject string) ([]byte, error) {
 				APIVersion: metav1.SchemeGroupVersion.String(),
 				Kind:       "PartialObjectMetadata",
 			},
-			ObjectMeta: ep.ObjectMeta,
+			ObjectMeta: adp.ObjectMeta,
 		}
 		return json.Marshal(metaObj)
 	default:
-		return json.Marshal(ep)
+		return json.Marshal(adp)
 	}
 }
 

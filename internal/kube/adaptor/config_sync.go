@@ -25,7 +25,7 @@ type ConfigSync struct {
 	config          *watchers.ConfigMapWatcher
 	path            string
 	routerConfigMap string
-	runtimeState    *RuntimeStateStore
+	runtimePusher   *RuntimeStatePusher
 	logger          *slog.Logger
 }
 
@@ -37,7 +37,7 @@ func sslSecretsWatcher(namespace string, eventProcessor *watchers.EventProcessor
 	}
 }
 
-func NewConfigSync(cli internalclient.Clients, namespace string, path string, routerConfigMap string, metrics watchers.MetricsProvider, runtimeState *RuntimeStateStore) *ConfigSync {
+func NewConfigSync(cli internalclient.Clients, namespace string, path string, routerConfigMap string, metrics watchers.MetricsProvider, runtimePusher *RuntimeStatePusher) *ConfigSync {
 	controller := watchers.NewEventProcessor("config-sync", cli, watchers.WithMetricsProvider(metrics))
 	configSync := &ConfigSync{
 		agentPool:       qdr.NewAgentPool("amqp://localhost:5672", nil),
@@ -45,7 +45,7 @@ func NewConfigSync(cli internalclient.Clients, namespace string, path string, ro
 		namespace:       namespace,
 		path:            path,
 		routerConfigMap: routerConfigMap,
-		runtimeState:    runtimeState,
+		runtimePusher:   runtimePusher,
 		logger:          slog.New(slog.Default().Handler()).With(slog.String("component", "kube.adaptor.configSync")),
 	}
 	configSync.profileSyncer = secrets.NewSync(
@@ -68,7 +68,7 @@ func (c *ConfigSync) recheckProfile(_ string) {
 }
 
 func (c *ConfigSync) RefreshRuntimeState() error {
-	if c.runtimeState == nil {
+	if c.runtimePusher == nil {
 		return nil
 	}
 	bridges, err := qdr.GetLocalBridgeConfig(c.agentPool)
@@ -76,7 +76,7 @@ func (c *ConfigSync) RefreshRuntimeState() error {
 		return err
 	}
 	if bridges != nil {
-		c.runtimeState.SetBridges(*bridges)
+		c.runtimePusher.UpdateBridges(*bridges)
 	}
 	return nil
 }
@@ -84,6 +84,9 @@ func (c *ConfigSync) RefreshRuntimeState() error {
 func (c *ConfigSync) Start(stopCh <-chan struct{}) error {
 	if err := mkdir(c.path); err != nil {
 		return err
+	}
+	if c.runtimePusher != nil {
+		c.runtimePusher.Start(stopCh)
 	}
 	if err := c.RefreshRuntimeState(); err != nil {
 		c.logger.Warn("CONFIG_SYNC: Failed initial runtime bridge state refresh", slog.Any("error", err))
@@ -134,8 +137,8 @@ func (c *ConfigSync) configEvent(key string, configmap *corev1.ConfigMap) error 
 		c.logger.Error("sync failed", slog.Any("error", err))
 		return err
 	}
-	if c.runtimeState != nil && actualBridges != nil {
-		c.runtimeState.SetBridges(*actualBridges)
+	if c.runtimePusher != nil && actualBridges != nil {
+		c.runtimePusher.UpdateBridges(*actualBridges)
 	}
 	if err := qdr.SyncRouterConfig(c.agentPool, desired, true); err != nil {
 		c.logger.Error("sync failed", slog.Any("error", err))

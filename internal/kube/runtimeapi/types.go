@@ -1,62 +1,88 @@
 package runtimeapi
 
 import (
+	"fmt"
+	"time"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/skupperproject/skupper/internal/qdr"
 )
 
 const (
-	GroupName        = "runtime.skupper.io"
-	GroupVersion     = "v1alpha1"
-	APIVersion       = GroupName + "/" + GroupVersion
-	EndpointKind     = "Endpoint"
-	EndpointListKind = "EndpointList"
-	EndpointResource = "endpoints"
-	EndpointSingular = "endpoint"
+	GroupName       = "runtime.skupper.io"
+	GroupVersion    = "v1alpha1"
+	APIVersion      = GroupName + "/" + GroupVersion
+	AdaptorKind     = "Adaptor"
+	AdaptorListKind = "AdaptorList"
+	AdaptorResource = "adaptors"
+	AdaptorSingular = "adaptor"
 
 	RouterNameAnnotation = "runtime.skupper.io/router-name"
-	AdaptorEndpointsPath = "/runtime/v1alpha1/endpoints"
-	DefaultAdaptorPort   = 9191
+	AdaptorTypeLabel     = "runtime.skupper.io/type"
+
+	RuntimeTokenAudience    = "skupper-runtime-ingest"
+	DefaultRuntimeTokenPath = "/var/run/secrets/skupper/runtime-token/token"
+	DefaultRuntimeStateTTL  = 90 * time.Second
+	DefaultPushInterval     = 30 * time.Second
+
+	IngestPathPrefix = "/internal/v1alpha1/namespaces/"
+	IngestPathSuffix = "/runtime-state"
 )
 
-type EndpointType string
+func IngestPathForNamespace(namespace string) string {
+	return fmt.Sprintf("%s%s%s", IngestPathPrefix, namespace, IngestPathSuffix)
+}
+
+type AdaptorType string
 
 const (
-	EndpointTypeTCPListener  EndpointType = "tcpListener"
-	EndpointTypeTCPConnector EndpointType = "tcpConnector"
+	AdaptorTypeTCPListener  AdaptorType = "tcpListener"
+	AdaptorTypeTCPConnector AdaptorType = "tcpConnector"
 )
 
-type Endpoint struct {
+type Adaptor struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Status            EndpointStatus `json:"status,omitempty"`
+	Status            AdaptorStatus `json:"status,omitempty"`
 }
 
-type EndpointStatus struct {
-	Type       EndpointType `json:"type"`
-	Address    string       `json:"address,omitempty"`
-	Host       string       `json:"host,omitempty"`
-	Port       string       `json:"port,omitempty"`
-	SiteID     string       `json:"siteId,omitempty"`
-	SiteName   string       `json:"siteName,omitempty"`
-	SslProfile string       `json:"sslProfile,omitempty"`
-	Observer   string       `json:"observer,omitempty"`
-	ProcessID  string       `json:"processId,omitempty"`
+type AdaptorStatus struct {
+	Type       AdaptorType `json:"type"`
+	Address    string      `json:"address,omitempty"`
+	Host       string      `json:"host,omitempty"`
+	Port       string      `json:"port,omitempty"`
+	SiteID     string      `json:"siteId,omitempty"`
+	SiteName   string      `json:"siteName,omitempty"`
+	SslProfile string      `json:"sslProfile,omitempty"`
+	Observer   string      `json:"observer,omitempty"`
+	ProcessID  string      `json:"processId,omitempty"`
 }
 
-type EndpointList struct {
+type AdaptorList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Endpoint `json:"items"`
+	Items           []Adaptor `json:"items"`
 }
 
-func NewEndpointList(items []Endpoint) *EndpointList {
+// RuntimeStatePushRequest is pushed by kube-adaptor pods to the controller ingest endpoint.
+type RuntimeStatePushRequest struct {
+	PodName       string                     `json:"podName,omitempty"`
+	SiteName      string                     `json:"siteName,omitempty"`
+	SiteID        string                     `json:"siteId,omitempty"`
+	TCPListeners  map[string]qdr.TcpEndpoint `json:"tcpListeners,omitempty"`
+	TCPConnectors map[string]qdr.TcpEndpoint `json:"tcpConnectors,omitempty"`
+	Adaptors      []Adaptor                  `json:"adaptors,omitempty"`
+}
+
+func NewAdaptorList(items []Adaptor) *AdaptorList {
 	if items == nil {
-		items = []Endpoint{}
+		items = []Adaptor{}
 	}
-	return &EndpointList{
+	return &AdaptorList{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: APIVersion,
-			Kind:       EndpointListKind,
+			Kind:       AdaptorListKind,
 		},
 		Items: items,
 	}
@@ -97,14 +123,14 @@ func apiResourceList() metav1.APIResourceList {
 		GroupVersion: APIVersion,
 		APIResources: []metav1.APIResource{
 			{
-				Name:         EndpointResource,
-				SingularName: EndpointSingular,
+				Name:         AdaptorResource,
+				SingularName: AdaptorSingular,
 				Namespaced:   true,
 				Group:        GroupName,
 				Version:      GroupVersion,
-				Kind:         EndpointKind,
+				Kind:         AdaptorKind,
 				Verbs:        metav1.Verbs{"get", "list"},
-				ShortNames:   []string{"rtep"},
+				ShortNames:   []string{"adp"},
 			},
 		},
 	}

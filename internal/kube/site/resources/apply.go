@@ -59,21 +59,22 @@ func resourceTemplates(site *skupperv2alpha1.Site, group string, size sizing.Siz
 }
 
 type CoreParams struct {
-	SiteId             string
-	SiteName           string
-	Group              string
-	Replicas           int
-	ServiceAccount     string
-	ConfigDigest       string
-	RouterImage        skuppertypes.ImageDetails
-	AdaptorImage       skuppertypes.ImageDetails
-	Sizing             sizing.Sizing
-	Labels             map[string]string
-	Annotations        map[string]string
-	PodLabels          map[string]string
-	PodAnnotations     map[string]string
-	EnableAntiAffinity bool
-	DisableSecCtx      bool
+	SiteId              string
+	SiteName            string
+	ControllerNamespace string
+	Group               string
+	Replicas            int
+	ServiceAccount      string
+	ConfigDigest        string
+	RouterImage         skuppertypes.ImageDetails
+	AdaptorImage        skuppertypes.ImageDetails
+	Sizing              sizing.Sizing
+	Labels              map[string]string
+	Annotations         map[string]string
+	PodLabels           map[string]string
+	PodAnnotations      map[string]string
+	EnableAntiAffinity  bool
+	DisableSecCtx       bool
 }
 
 func (p *CoreParams) setLabelsAndAnnotations(labelling Labelling, namespace string, name string, kind string) *CoreParams {
@@ -170,19 +171,24 @@ func configDigest(config *skupperv2alpha1.SiteSpec) string {
 }
 
 func getCoreParams(site *skupperv2alpha1.Site, group string, size sizing.Sizing, disableSecCtx bool) *CoreParams {
+	controllerNamespace := "skupper"
+	if site.Status.Controller != nil && site.Status.Controller.Namespace != "" {
+		controllerNamespace = site.Status.Controller.Namespace
+	}
 	return &CoreParams{
-		SiteId:             site.GetSiteId(),
-		SiteName:           site.Name,
-		Group:              group,
-		Replicas:           1,
-		ServiceAccount:     site.Spec.GetServiceAccount(),
-		ConfigDigest:       configDigest(&site.Spec),
-		RouterImage:        images.GetRouterImageDetails(),
-		AdaptorImage:       images.GetKubeAdaptorImageDetails(),
-		Sizing:             size,
-		Labels:             map[string]string{},
-		EnableAntiAffinity: enableAntiAffinity(site),
-		DisableSecCtx:      disableSecCtx,
+		SiteId:              site.GetSiteId(),
+		SiteName:            site.Name,
+		ControllerNamespace: controllerNamespace,
+		Group:               group,
+		Replicas:            1,
+		ServiceAccount:      site.Spec.GetServiceAccount(),
+		ConfigDigest:        configDigest(&site.Spec),
+		RouterImage:         images.GetRouterImageDetails(),
+		AdaptorImage:        images.GetKubeAdaptorImageDetails(),
+		Sizing:              size,
+		Labels:              map[string]string{},
+		EnableAntiAffinity:  enableAntiAffinity(site),
+		DisableSecCtx:       disableSecCtx,
 	}
 }
 

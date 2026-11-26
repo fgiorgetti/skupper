@@ -16,7 +16,6 @@ import (
 	"github.com/skupperproject/skupper/internal/kube/adaptor"
 	internalclient "github.com/skupperproject/skupper/internal/kube/client"
 	"github.com/skupperproject/skupper/internal/kube/metrics"
-	"github.com/skupperproject/skupper/internal/kube/runtimeapi"
 	"github.com/skupperproject/skupper/internal/kube/watchers"
 	"github.com/skupperproject/skupper/internal/qdr"
 	"github.com/skupperproject/skupper/internal/version"
@@ -61,6 +60,11 @@ func main() {
 	metricsConfig, err := metrics.BoundConfig(flags)
 	if err != nil {
 		slog.Error("Error reading metrics configuration", slog.Any("error", err))
+		os.Exit(1)
+	}
+	pusherConfig, err := adaptor.BoundRuntimePusherConfig(flags)
+	if err != nil {
+		slog.Error("Error reading runtime pusher configuration", slog.Any("error", err))
 		os.Exit(1)
 	}
 	flags.Parse(os.Args[1:])
@@ -110,28 +114,42 @@ func main() {
 	slog.Info("Starting collector...")
 	go adaptor.StartCollector(cli)
 
-	runtimeState := adaptor.NewRuntimeStateStore(
-		cli.GetNamespace(),
-		os.Getenv("SKUPPER_SITE_NAME"),
-		os.Getenv("SKUPPER_SITE_ID"),
-	)
-	configSync := adaptor.NewConfigSync(cli, cli.GetNamespace(), configDir, configMapName, eventProcessorMetrics, runtimeState)
+	var runtimePusher *adaptor.RuntimeStatePusher
+	if !pusherConfig.Disabled {
+		podNamespace := os.Getenv("POD_NAMESPACE")
+		if podNamespace == "" {
+			podNamespace = cli.GetNamespace()
+		}
+		podName := os.Getenv("POD_NAME")
+		if podName == "" {
+			podName, _ = os.Hostname()
+		}
+		runtimePusher, err = adaptor.NewRuntimeStatePusher(
+			*pusherConfig,
+			podNamespace,
+			podName,
+			os.Getenv("SKUPPER_SITE_NAME"),
+			os.Getenv("SKUPPER_SITE_ID"),
+		)
+		if err != nil {
+			slog.Error("Error creating runtime state pusher", slog.Any("error", err))
+			os.Exit(1)
+		}
+	}
 
-	// Start health check and runtime state endpoints.
+	// Start health check endpoint.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-	runtimeHandler := adaptor.RuntimeStateHandler(runtimeState)
-	mux.Handle(runtimeapi.AdaptorEndpointsPath, runtimeHandler)
-	mux.Handle(runtimeapi.AdaptorEndpointsPath+"/", runtimeHandler)
 	go func() {
 		if err := http.ListenAndServe(":9191", mux); err != nil {
 			slog.Error("Error running kube-adaptor HTTP server", slog.Any("error", err))
 		}
 	}()
 
+	configSync := adaptor.NewConfigSync(cli, cli.GetNamespace(), configDir, configMapName, eventProcessorMetrics, runtimePusher)
 	slog.Info("Starting controller loop...")
 	configSync.Start(stopCh)
 

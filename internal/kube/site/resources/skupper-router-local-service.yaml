@@ -25,10 +25,6 @@ spec:
     port: 5671
     protocol: TCP
     targetPort: 5671
-  - name: runtime-state
-    port: 9191
-    protocol: TCP
-    targetPort: 9191
   selector:
     app.kubernetes.io/name: skupper-router
     app.kubernetes.io/part-of: skupper
