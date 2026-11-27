@@ -38,6 +38,7 @@ func TestRuntimeStateStoreMultiPodAggregationAndFirstSeen(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Equal(t, len(initialItems), 2)
 	assert.Equal(t, initialItems[0].Name, "backend-8080")
+	assert.Equal(t, initialItems[0].Status.PodName, "skupper-router-pod-1")
 	assert.Equal(t, initialItems[0].Status.OperStatus, "up")
 	assert.Equal(t, initialItems[0].Status.ConnectionsOpened, uint64(5))
 	assert.Equal(t, initialItems[0].Status.BytesOut, uint64(2048))
@@ -69,11 +70,14 @@ func TestRuntimeStateStoreMultiPodAggregationAndFirstSeen(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Equal(t, len(items), 3)
 	assert.Equal(t, items[0].Name, "backend-8080")
+	assert.Equal(t, items[0].Status.PodName, "skupper-router-pod-2")
 	assert.Equal(t, items[0].Status.Port, "9090")
 	assert.Equal(t, items[0].Status.ConnectionsOpened, uint64(9))
 	assert.Equal(t, items[0].CreationTimestamp, firstSeenListener)
 	assert.Equal(t, items[1].Name, "pod1-10.0.0.1")
+	assert.Equal(t, items[1].Status.PodName, "skupper-router-pod-1")
 	assert.Equal(t, items[2].Name, "pod2-10.0.0.2")
+	assert.Equal(t, items[2].Status.PodName, "skupper-router-pod-2")
 }
 
 func TestRuntimeStateStoreTTLExpirationAndNamespaceCleanup(t *testing.T) {

@@ -64,7 +64,7 @@ func (s *RuntimeStateStore) TTL() time.Duration {
 
 func (s *RuntimeStateStore) Upsert(namespace, podName string, req RuntimeStatePushRequest) {
 	now := time.Now().UTC()
-	adaptors := buildAdaptorsFromPush(namespace, req)
+	adaptors := buildAdaptorsFromPush(namespace, podName, req)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -212,7 +212,7 @@ func (s *RuntimeStateStore) gcFirstSeenLocked() {
 	}
 }
 
-func buildAdaptorsFromPush(namespace string, req RuntimeStatePushRequest) []Adaptor {
+func buildAdaptorsFromPush(namespace, podName string, req RuntimeStatePushRequest) []Adaptor {
 	if len(req.TCPListeners) == 0 && len(req.TCPConnectors) == 0 && len(req.Adaptors) > 0 {
 		out := make([]Adaptor, 0, len(req.Adaptors))
 		for _, adp := range req.Adaptors {
@@ -220,6 +220,9 @@ func buildAdaptorsFromPush(namespace string, req RuntimeStatePushRequest) []Adap
 			adpCopy.APIVersion = APIVersion
 			adpCopy.Kind = AdaptorKind
 			adpCopy.Namespace = namespace
+			if adpCopy.Status.PodName == "" {
+				adpCopy.Status.PodName = podName
+			}
 			if adpCopy.Status.SiteName == "" {
 				adpCopy.Status.SiteName = req.SiteName
 			}
@@ -242,16 +245,16 @@ func buildAdaptorsFromPush(namespace string, req RuntimeStatePushRequest) []Adap
 	items := make([]Adaptor, 0, len(req.TCPListeners)+len(req.TCPConnectors))
 
 	for _, key := range sortedEndpointKeys(req.TCPListeners) {
-		items = append(items, toAPIAdaptor(namespace, req.SiteName, req.SiteID, AdaptorTypeTCPListener, key, req.TCPListeners[key], usedNames))
+		items = append(items, toAPIAdaptor(namespace, podName, req.SiteName, req.SiteID, AdaptorTypeTCPListener, key, req.TCPListeners[key], usedNames))
 	}
 	for _, key := range sortedEndpointKeys(req.TCPConnectors) {
-		items = append(items, toAPIAdaptor(namespace, req.SiteName, req.SiteID, AdaptorTypeTCPConnector, key, req.TCPConnectors[key], usedNames))
+		items = append(items, toAPIAdaptor(namespace, podName, req.SiteName, req.SiteID, AdaptorTypeTCPConnector, key, req.TCPConnectors[key], usedNames))
 	}
 	sortAdaptors(items)
 	return items
 }
 
-func toAPIAdaptor(namespace, siteName, defaultSiteID string, adpType AdaptorType, key string, ep qdr.TcpEndpointRuntime, usedNames map[string]struct{}) Adaptor {
+func toAPIAdaptor(namespace, podName, siteName, defaultSiteID string, adpType AdaptorType, key string, ep qdr.TcpEndpointRuntime, usedNames map[string]struct{}) Adaptor {
 	rawName := ep.Name
 	if rawName == "" {
 		rawName = key
@@ -295,6 +298,7 @@ func toAPIAdaptor(namespace, siteName, defaultSiteID string, adpType AdaptorType
 			Address:           ep.Address,
 			Host:              ep.Host,
 			Port:              ep.Port,
+			PodName:           podName,
 			ConnectionsOpened: ep.ConnectionsOpened,
 			ConnectionsClosed: ep.ConnectionsClosed,
 			BytesIn:           ep.BytesIn,

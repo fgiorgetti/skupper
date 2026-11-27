@@ -193,16 +193,19 @@ func TestEndToEndPushIngestAndAggregatedReadWithTLS(t *testing.T) {
 		assert.Equal(t, table.Rows[0].Cells[0], "backend")
 		assert.Equal(t, table.Rows[0].Cells[1], string(runtimeapi.AdaptorTypeTCPConnector))
 		assert.Equal(t, table.Rows[0].Cells[2], "up")
+		assert.Equal(t, table.Rows[0].Cells[6], "skupper-router-east-0")
 		assert.Equal(t, table.Rows[1].Cells[0], "frontend")
 		assert.Equal(t, table.Rows[1].Cells[1], string(runtimeapi.AdaptorTypeTCPListener))
 		assert.Equal(t, table.Rows[1].Cells[2], "up")
-		assert.Equal(t, table.Rows[1].Cells[7], float64(7))
-		assert.Equal(t, table.Rows[1].Cells[9], float64(512))
+		assert.Equal(t, table.Rows[1].Cells[6], "skupper-router-west-0")
+		assert.Equal(t, table.Rows[1].Cells[8], float64(7))
+		assert.Equal(t, table.Rows[1].Cells[10], float64(512))
 
 		var rowObj runtimeapi.Adaptor
 		assert.NilError(t, json.Unmarshal(table.Rows[0].Object.Raw, &rowObj))
 		assert.Equal(t, rowObj.Namespace, "east")
 		assert.Equal(t, rowObj.Name, "backend")
+		assert.Equal(t, rowObj.Status.PodName, "skupper-router-east-0")
 	})
 
 	t.Run("namespaced JSON list and selectors", func(t *testing.T) {

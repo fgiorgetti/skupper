@@ -53,6 +53,7 @@ type AdaptorStatus struct {
 	Address           string      `json:"address,omitempty"`
 	Host              string      `json:"host,omitempty"`
 	Port              string      `json:"port,omitempty"`
+	PodName           string      `json:"podName,omitempty"`
 	ConnectionsOpened uint64      `json:"connectionsOpened,omitempty"`
 	ConnectionsClosed uint64      `json:"connectionsClosed,omitempty"`
 	BytesIn           uint64      `json:"bytesIn,omitempty"`
